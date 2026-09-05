@@ -269,6 +269,17 @@ node rehearsal.mjs            # recordings/ 에 webm 으로 저장된다
 node screenshots.mjs          # README 용 스크린샷을 다시 뽑는다
 ```
 
+시연용 데이터는 아래 한 줄로 다시 심는다. 데이터를 비우고 Flyway 시드를 재적재한 뒤
+요청 11건을 **실제 API 로** 만든다. SQL 로 직접 꽂으면 이력과 감사 로그가 비어
+통계·이력 화면이 텅 빈 채로 나오기 때문이다.
+
+```bash
+PG_VIA_DOCKER=nurse-collab-postgres MIGRATION_DIR=src/main/resources/db/migration node ops/demo-reset/reset.mjs
+```
+
+공개 배포에서는 같은 스크립트가 컨테이너로 돌면서 **매일 새벽 데이터를 되돌린다.**
+데모 계정 비밀번호를 공개해 두었으므로 누구나 로그인해 데이터를 바꿀 수 있기 때문이다.
+
 ---
 
 ## 프로젝트 구조

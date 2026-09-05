@@ -80,6 +80,26 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # 공개 데모용. 데모 계정 비밀번호가 공개돼 있어 누구나 데이터를 바꾼다.
+  # 매일 새벽에 처음 상태로 되돌린다. 비공개로 쓸 거면 이 서비스를 지우면 된다.
+  demo-reset:
+    build:
+      # 시드 SQL 을 이미지에 넣어야 해서 컨텍스트가 저장소 루트다
+      context: .
+      dockerfile: ops/demo-reset/Dockerfile
+    environment:
+      API_BASE: http://backend:8080
+      PGHOST: postgres
+      PGUSER: nursecollab
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: nursecollab
+      RESET_AT: ${DEMO_RESET_AT:-04:00}
+      TZ: Asia/Seoul
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   postgres-data:
   redis-data:
