@@ -23,8 +23,10 @@ public enum ErrorCode {
     NOT_ALLOWED_ACTOR("PERM-002", HttpStatus.FORBIDDEN, "이 작업은 상대 파트에서 처리해야 합니다."),
     INSUFFICIENT_ROLE("PERM-003", HttpStatus.FORBIDDEN, "이 작업을 수행할 권한이 없습니다."),
 
-    // 재원
+    // 재원 / 검사
+    ENCOUNTER_NOT_FOUND("ENC-000", HttpStatus.NOT_FOUND, "재원 정보를 찾을 수 없습니다."),
     DISCHARGED_ENCOUNTER("ENC-001", HttpStatus.UNPROCESSABLE_ENTITY, "퇴원한 환자에 대해서는 요청할 수 없습니다."),
+    EXAM_TYPE_NOT_FOUND("EXM-001", HttpStatus.NOT_FOUND, "검사 종류를 찾을 수 없습니다."),
 
     // 이송 요청
     REQUEST_NOT_FOUND("TR-000", HttpStatus.NOT_FOUND, "요청을 찾을 수 없습니다."),
