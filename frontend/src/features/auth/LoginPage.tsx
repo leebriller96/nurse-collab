@@ -9,6 +9,8 @@ const DEMO_ACCOUNTS = [
   { loginId: 'mri01', label: 'MRI실 박간호' },
   { loginId: 'ward02', label: '5병동 이간호' },
   { loginId: 'ct01', label: 'CT실 최간호' },
+  { loginId: 'head01', label: '3병동 정수간호' },
+  { loginId: 'admin01', label: '관리자' },
 ];
 
 export default function LoginPage() {
@@ -26,7 +28,13 @@ export default function LoginPage() {
     try {
       const staff = await login(id, pw);
       // 소속 파트 유형으로 홈 화면이 갈린다
-      navigate(staff.department.deptType === 'EXAM' ? '/exam/queue' : '/ward/board', { replace: true });
+      const home =
+        staff.department.deptType === 'ADMIN'
+          ? '/admin/stats'
+          : staff.department.deptType === 'EXAM'
+            ? '/exam/queue'
+            : '/ward/board';
+      navigate(home, { replace: true });
     } catch (e) {
       setError(messageOf(e, '로그인에 실패했습니다.'));
     } finally {
