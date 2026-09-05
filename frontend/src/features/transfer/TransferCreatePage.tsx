@@ -185,7 +185,7 @@ export default function TransferCreatePage() {
         </p>
       )}
 
-      <div className="fixed inset-x-0 bottom-0 mx-auto max-w-md border-t border-slate-200 bg-white p-3">
+      <div className="fixed inset-x-0 bottom-[var(--app-bottom-bar,0px)] z-10 mx-auto max-w-md border-t border-slate-200 bg-white p-3">
         <button
           type="button"
           disabled={!examTypeId || create.isPending}

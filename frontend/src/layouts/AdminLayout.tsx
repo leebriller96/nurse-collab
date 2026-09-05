@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '@/shared/hooks/useAuth';
 
@@ -6,7 +7,7 @@ export default function AdminLayout() {
   const { staff, logout } = useAuth();
 
   return (
-    <div className="flex min-h-full flex-col">
+    <div className="flex min-h-full flex-col" style={{ '--app-bottom-bar': '0px' } as CSSProperties}>
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
         <span className="font-semibold text-slate-900">간호 협업 시스템 · 관리</span>
         <div className="flex items-center gap-3">

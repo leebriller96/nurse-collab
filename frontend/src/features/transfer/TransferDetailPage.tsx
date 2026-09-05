@@ -217,7 +217,7 @@ export default function TransferDetailPage() {
       )}
 
       {d.availableTransitions.length > 0 && (
-        <div className="fixed inset-x-0 bottom-0 mx-auto max-w-3xl border-t border-slate-200 bg-white p-3">
+        <div className="fixed inset-x-0 bottom-[var(--app-bottom-bar,0px)] z-10 mx-auto max-w-3xl border-t border-slate-200 bg-white p-3">
           {needsInput && (
             <div className="mb-2 space-y-2">
               {NEEDS_SCHEDULE.includes(pending) && (

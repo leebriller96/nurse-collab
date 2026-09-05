@@ -1,3 +1,4 @@
+import type { CSSProperties } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/shared/hooks/useAuth';
 import RealtimeToasts from '@/shared/ui/RealtimeToasts';
@@ -16,14 +17,19 @@ export default function WardLayout() {
     : [...TABS, { to: '/admin/stats', label: '통계' }];
 
   return (
-    <div className="mx-auto flex min-h-full max-w-md flex-col">
+    // 화면마다 하단 고정 버튼이 있는데 탭바와 겹친다.
+    // 탭바 높이를 변수로 내려보내 버튼이 그 위에 앉게 한다.
+    <div
+      className="mx-auto flex min-h-full max-w-md flex-col"
+      style={{ '--app-bottom-bar': '76px' } as CSSProperties}
+    >
       <RealtimeToasts />
 
       <main className="flex-1">
         <Outlet />
       </main>
 
-      <nav className="sticky bottom-0 border-t border-slate-200 bg-white">
+      <nav className="sticky bottom-0 z-20 h-[76px] border-t border-slate-200 bg-white">
         <div className="flex">
           {tabs.map((tab) => (
             <NavLink
