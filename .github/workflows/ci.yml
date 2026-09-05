@@ -74,3 +74,7 @@ jobs:
 
       - name: 웹 이미지
         run: docker build -t nurse-collab-web:ci ./frontend
+
+      # 배포 스택에 같이 올라가는 이미지다. 여기서 안 보면 서버에서 처음 실패한다.
+      - name: 데모 초기화 이미지
+        run: docker build -f ops/demo-reset/Dockerfile -t nurse-collab-demo-reset:ci .
