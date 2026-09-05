@@ -76,7 +76,8 @@ com.nursecollab
 │   │   ├── dto/
 │   │   └── event/                       # 도메인 이벤트 (알림 발송 트리거)
 │   ├── nursing/                     # 활력징후, 간호기록
-│   └── notification/                # 알림함
+│   ├── notification/                # 알림함
+│   └── stats/                       # 대기시간 통계 (집계는 SQL 로)
 │
 └── infra/
     ├── realtime/

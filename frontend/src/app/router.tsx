@@ -8,6 +8,8 @@ import TransferCreatePage from '@/features/transfer/TransferCreatePage';
 import TransferDetailPage from '@/features/transfer/TransferDetailPage';
 import WardLayout from '@/layouts/WardLayout';
 import ExamLayout from '@/layouts/ExamLayout';
+import AdminLayout from '@/layouts/AdminLayout';
+import StatsPage from '@/features/stats/StatsPage';
 import { useAuth } from '@/shared/hooks/useAuth';
 
 function RequireAuth() {
@@ -23,6 +25,7 @@ function Home() {
   const { staff, loading } = useAuth();
   if (loading) return null;
   if (!staff) return <Navigate to="/login" replace />;
+  if (staff.department.deptType === 'ADMIN') return <Navigate to="/admin/stats" replace />;
   return <Navigate to={staff.department.deptType === 'EXAM' ? '/exam/queue' : '/ward/board'} replace />;
 }
 
@@ -41,9 +44,16 @@ export default function Router() {
           <Route path="requests/:id" element={<TransferDetailPage />} />
         </Route>
 
+        {/* 통계는 수간호사 이상만 볼 수 있다. 서버가 403 으로 막지만
+            병동 레이아웃에서도 역할에 따라 탭 자체를 숨긴다. */}
+        <Route path="/admin" element={<AdminLayout />}>
+          <Route path="stats" element={<StatsPage />} />
+        </Route>
+
         <Route path="/exam" element={<ExamLayout />}>
           <Route path="queue" element={<ExamQueuePage />} />
           <Route path="requests/:id" element={<TransferDetailPage />} />
+          <Route path="stats" element={<StatsPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

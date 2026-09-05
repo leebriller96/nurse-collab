@@ -10,6 +10,10 @@ const TABS = [
 /** 병동은 모바일 우선. 한 손으로, 이동 중에, 짧게 쓴다. */
 export default function WardLayout() {
   const { staff, logout } = useAuth();
+  // 일반 간호사에게는 통계 탭 자체를 보여주지 않는다
+  const tabs = staff?.role === 'NURSE'
+    ? TABS
+    : [...TABS, { to: '/admin/stats', label: '통계' }];
 
   return (
     <div className="mx-auto flex min-h-full max-w-md flex-col">
@@ -21,7 +25,7 @@ export default function WardLayout() {
 
       <nav className="sticky bottom-0 border-t border-slate-200 bg-white">
         <div className="flex">
-          {TABS.map((tab) => (
+          {tabs.map((tab) => (
             <NavLink
               key={tab.to}
               to={tab.to}
