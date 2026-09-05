@@ -19,16 +19,11 @@ import com.nursecollab.domain.transfer.repository.ExamTypeRepository;
 import com.nursecollab.domain.transfer.repository.TransferEventRepository;
 import com.nursecollab.global.error.BusinessException;
 import com.nursecollab.global.error.ErrorCode;
+import com.nursecollab.support.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.dao.OptimisticLockingFailureException;
-import org.testcontainers.containers.GenericContainer;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -42,21 +37,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-/**
- * 진짜 PostgreSQL 을 띄우고 검증한다.
- * H2 로는 JSONB·파티셔닝 문법이 깨져서 V1 마이그레이션 자체가 돌지 않는다.
- */
-@SpringBootTest
-@Testcontainers
-class TransferRequestServiceTest {
-
-    @Container
-    @ServiceConnection
-    static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
-
-    @Container
-    @ServiceConnection(name = "redis")
-    static GenericContainer<?> redis = new GenericContainer<>("redis:7-alpine").withExposedPorts(6379);
+class TransferRequestServiceTest extends IntegrationTest {
 
     /** 환자 등록번호가 겹치지 않게 테스트마다 새로 딴다 */
     private static final AtomicInteger PATIENT_SEQ = new AtomicInteger(1);
