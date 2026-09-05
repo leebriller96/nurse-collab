@@ -5,6 +5,7 @@ import com.nursecollab.domain.encounter.dto.EncounterView;
 import com.nursecollab.domain.encounter.entity.EncounterStatus;
 import com.nursecollab.domain.encounter.service.EncounterQueryService;
 import com.nursecollab.domain.patient.dto.AlertResponse;
+import com.nursecollab.global.audit.Audited;
 import com.nursecollab.global.common.PageResponse;
 import com.nursecollab.global.security.LoginStaff;
 import lombok.RequiredArgsConstructor;
@@ -41,6 +42,7 @@ public class EncounterController {
 
     /** 호출자의 파트에 따라 응답 모양이 달라진다. 검사실에는 진단명이 아예 실리지 않는다. */
     @GetMapping("/{encounterId}")
+    @Audited(action = "VIEW", targetType = "ENCOUNTER", targetIdParam = "encounterId")
     public ResponseEntity<EncounterView> detail(
             @PathVariable Long encounterId,
             @AuthenticationPrincipal LoginStaff loginStaff) {
@@ -48,6 +50,7 @@ public class EncounterController {
     }
 
     @GetMapping("/{encounterId}/alerts")
+    @Audited(action = "VIEW", targetType = "ENCOUNTER", targetIdParam = "encounterId")
     public ResponseEntity<List<AlertResponse>> alerts(
             @PathVariable Long encounterId,
             @AuthenticationPrincipal LoginStaff loginStaff) {
