@@ -6,11 +6,13 @@ import com.nursecollab.domain.transfer.dto.MessageCreateRequest;
 import com.nursecollab.domain.transfer.dto.MessageResponse;
 import com.nursecollab.domain.transfer.entity.RequestMessage;
 import com.nursecollab.domain.transfer.entity.TransferRequest;
+import com.nursecollab.domain.transfer.event.RequestMessageCreatedEvent;
 import com.nursecollab.domain.transfer.repository.RequestMessageRepository;
 import com.nursecollab.domain.transfer.repository.TransferRequestRepository;
 import com.nursecollab.global.error.BusinessException;
 import com.nursecollab.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,7 @@ public class RequestMessageService {
     private final RequestMessageRepository messageRepository;
     private final TransferRequestRepository requestRepository;
     private final StaffRepository staffRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public List<MessageResponse> findAll(Long requestId, Long staffId) {
@@ -39,6 +42,10 @@ public class RequestMessageService {
 
         RequestMessage saved = messageRepository.save(
                 RequestMessage.of(request, sender, req.content()));
+
+        eventPublisher.publishEvent(
+                new RequestMessageCreatedEvent(requestId, saved.getId(), staffId));
+
         return MessageResponse.from(saved);
     }
 

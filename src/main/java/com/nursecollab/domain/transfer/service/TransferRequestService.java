@@ -13,6 +13,7 @@ import com.nursecollab.domain.transfer.entity.ExamType;
 import com.nursecollab.domain.transfer.entity.TransferEvent;
 import com.nursecollab.domain.transfer.entity.TransferRequest;
 import com.nursecollab.domain.transfer.entity.TransferStatus;
+import com.nursecollab.domain.transfer.event.TransferCreatedEvent;
 import com.nursecollab.domain.transfer.event.TransferStatusChangedEvent;
 import com.nursecollab.domain.transfer.repository.ExamTypeRepository;
 import com.nursecollab.domain.transfer.repository.TransferEventRepository;
@@ -64,6 +65,8 @@ public class TransferRequestService {
         requestRepository.save(request);
         eventRepository.save(TransferEvent.of(
                 request, null, TransferStatus.REQUESTED, requester, null));
+
+        eventPublisher.publishEvent(new TransferCreatedEvent(request.getId(), requester.getId()));
 
         return TransferCreateResponse.from(request);
     }
