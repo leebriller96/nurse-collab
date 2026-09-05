@@ -183,7 +183,7 @@ public enum TransferStatus {
     /**
      * 전체 전이 규칙표.
      * ON_HOLD 에서 원래 상태로 복귀하는 것은 상태값이 동적이라 여기 넣지 않고
-     * TransferRequest.releaseHold() 에서 별도로 처리한다.
+     * TransferRequest.transitionTo() 가 저장된 직전 상태를 보고 따로 처리한다.
      */
     private static final List<Rule> RULES = List.of(
             // 요청됨 → 접수 / 보류 / 취소
@@ -211,7 +211,7 @@ public enum TransferStatus {
             // 복귀중 → 완료
             new Rule(RETURNED,    COMPLETED,   ActorSide.REQUESTER, false, false),
 
-            // 보류 → 취소 (복귀는 releaseHold 로 처리)
+            // 보류 → 취소 (복귀는 직전 상태로 돌아가므로 규칙표에 없다)
             new Rule(ON_HOLD,     CANCELLED,   ActorSide.BOTH,      true,  false)
     );
 
@@ -364,12 +364,15 @@ public class TransferRequest extends BaseTimeEntity {
 
     /** 현재 상태에서 이 직원이 누를 수 있는 버튼 목록 */
     public Set<TransferStatus> availableTransitions(Staff staff) {
+        // 관계없는 파트면 목록 자체를 볼 수 없다. 상태와 무관하게 먼저 막는다.
+        ActorSide side = resolveActorSide(staff);
+
         if (status.isTerminal()) return Set.of();
         if (status == TransferStatus.ON_HOLD) {
             // 보류 상태에서는 "복귀" 와 "취소" 만 가능
             return Set.of(holdFromStatus, TransferStatus.CANCELLED);
         }
-        return TransferStatus.availableFor(status, resolveActorSide(staff));
+        return TransferStatus.availableFor(status, side);
     }
 
     // ------------------------------------------------------------------
@@ -544,7 +547,7 @@ public class TransferRequestService {
      * 트랜잭션이 롤백됐는데 알림만 나가는 사고를 막기 위해서다.
      */
     @Transactional
-    public TransferDetailResponse transition(Long requestId,
+    public TransitionResponse transition(Long requestId,
                                              TransitionRequest req,
                                              Long staffId) {
 
@@ -575,7 +578,11 @@ public class TransferRequestService {
         eventPublisher.publishEvent(
                 new TransferStatusChangedEvent(request.getId(), fromStatus, toStatus, actor.getId()));
 
-        return TransferDetailResponse.of(request, actor);
+        // @Version 은 flush 시점에 올라간다. 밀어내지 않으면 증가 전 버전이 응답에 실려
+        // 클라이언트가 다음 요청에서 매번 409 를 맞는다.
+        requestRepository.flush();
+
+        return TransitionResponse.of(request, actor);
     }
 
     /** 이송 요청 생성 */
@@ -679,7 +686,7 @@ public class TransferRequestController {
 
     /** 상태 전이 (접수/준비완료/이송중/보류/취소 전부 이 하나로 처리) */
     @PostMapping("/{id}/transitions")
-    public ResponseEntity<TransferDetailResponse> transition(
+    public ResponseEntity<TransitionResponse> transition(
             @PathVariable Long id,
             @Valid @RequestBody TransitionRequest request,
             @AuthenticationPrincipal LoginStaff loginStaff) {
@@ -742,8 +749,10 @@ public enum ErrorCode {
     NOT_ALLOWED_ACTOR     ("PERM-002", HttpStatus.FORBIDDEN, "이 작업은 상대 파트에서 처리해야 합니다."),
     INSUFFICIENT_ROLE     ("PERM-003", HttpStatus.FORBIDDEN, "이 작업을 수행할 권한이 없습니다."),
 
-    // 재원
+    // 재원 / 검사
+    ENCOUNTER_NOT_FOUND("ENC-000", HttpStatus.NOT_FOUND, "재원 정보를 찾을 수 없습니다."),
     DISCHARGED_ENCOUNTER("ENC-001", HttpStatus.UNPROCESSABLE_ENTITY, "퇴원한 환자에 대해서는 요청할 수 없습니다."),
+    EXAM_TYPE_NOT_FOUND("EXM-001", HttpStatus.NOT_FOUND, "검사 종류를 찾을 수 없습니다."),
 
     // 이송 요청
     REQUEST_NOT_FOUND ("TR-000", HttpStatus.NOT_FOUND,  "요청을 찾을 수 없습니다."),

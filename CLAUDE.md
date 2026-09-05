@@ -119,14 +119,16 @@ chore: Testcontainers 의존성 추가
 6. 동시성 처리 + 통계 화면
 7. 간호기록 + 감사 로그
 
-현재 위치: **2단계 진행 중**
+현재 위치: **3단계 완료 → 4단계 시작 전**
 
-- 1단계 완료: Gradle 프로젝트, Flyway V1/V2, docker-compose(postgres 16 + redis),
-  `global` 공통 기반(에러 처리 / BaseTimeEntity / PageResponse), 도메인 패키지 뼈대.
-- 2단계 완료분: JWT 인증(로그인 / 갱신 / 로그아웃 / 내 정보), 파트·직원·검사종류 엔티티,
-  마스터 조회 API(`GET /departments`, `GET /exam-types`), 시연용 시드 데이터(V3).
-- 2단계 남은 것: 관리자 마스터 CRUD(A-02~A-04). `02-api-spec.md` 에 엔드포인트가
-  정의돼 있지 않으므로 **문서를 먼저 추가한 뒤** 구현한다.
+- 1단계 완료: Gradle 프로젝트, Flyway V1~V4, docker-compose(postgres 16 + redis),
+  `global` 공통 기반(에러 처리 / BaseTimeEntity / PageResponse).
+- 2단계 완료: JWT 인증(로그인 / 갱신 / 로그아웃 / 내 정보), 파트·직원·검사종류 엔티티,
+  마스터 조회 API, 시연용 시드 데이터(V3).
+- 3단계 완료: 환자·재원 엔티티, 상태 전이 규칙(`TransferStatus`), `TransferRequest`/`TransferEvent`,
+  요청 생성·전이 서비스, 요청번호 발번(V4), 단위 테스트 43건 + Testcontainers 통합 테스트 4건.
+- 남은 것: 관리자 마스터 CRUD(A-02~A-04)는 `02-api-spec.md` 에 엔드포인트가 없어 보류 중이다.
+  **문서를 먼저 추가한 뒤** 구현한다.
 
 ### 데모 계정
 
