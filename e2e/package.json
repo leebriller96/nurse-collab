@@ -1,0 +1,9 @@
+{
+  "name": "nurse-collab-e2e",
+  "private": true,
+  "type": "module",
+  "description": "시연 리허설 녹화 스크립트",
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}
