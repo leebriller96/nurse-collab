@@ -40,6 +40,11 @@ public enum TransferStatus {
         return this == COMPLETED || this == CANCELLED;
     }
 
+    /** 진행중 여부를 쿼리로 거를 때 쓴다 */
+    public static Set<TransferStatus> terminals() {
+        return Set.of(COMPLETED, CANCELLED);
+    }
+
     /**
      * 하나의 전이 규칙.
      *
