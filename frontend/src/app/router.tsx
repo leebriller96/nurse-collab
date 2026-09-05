@@ -10,6 +10,9 @@ import WardLayout from '@/layouts/WardLayout';
 import ExamLayout from '@/layouts/ExamLayout';
 import AdminLayout from '@/layouts/AdminLayout';
 import StatsPage from '@/features/stats/StatsPage';
+import VitalSignPage from '@/features/nursing/VitalSignPage';
+import NursingNotePage from '@/features/nursing/NursingNotePage';
+import AuditLogPage from '@/features/audit/AuditLogPage';
 import { useAuth } from '@/shared/hooks/useAuth';
 
 function RequireAuth() {
@@ -39,6 +42,8 @@ export default function Router() {
         <Route path="/ward" element={<WardLayout />}>
           <Route path="board" element={<WardBoardPage />} />
           <Route path="encounters/:id" element={<EncounterDetailPage />} />
+          <Route path="encounters/:id/vitals" element={<VitalSignPage />} />
+          <Route path="encounters/:id/notes" element={<NursingNotePage />} />
           <Route path="requests" element={<WardRequestsPage />} />
           <Route path="requests/new" element={<TransferCreatePage />} />
           <Route path="requests/:id" element={<TransferDetailPage />} />
@@ -48,6 +53,7 @@ export default function Router() {
             병동 레이아웃에서도 역할에 따라 탭 자체를 숨긴다. */}
         <Route path="/admin" element={<AdminLayout />}>
           <Route path="stats" element={<StatsPage />} />
+          <Route path="audit-logs" element={<AuditLogPage />} />
         </Route>
 
         <Route path="/exam" element={<ExamLayout />}>

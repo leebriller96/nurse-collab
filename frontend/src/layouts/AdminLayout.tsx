@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { Outlet } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/shared/hooks/useAuth';
 
 /** 관리자 화면. 데스크톱에서 본다. */
@@ -9,7 +9,22 @@ export default function AdminLayout() {
   return (
     <div className="flex min-h-full flex-col" style={{ '--app-bottom-bar': '0px' } as CSSProperties}>
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
-        <span className="font-semibold text-slate-900">간호 협업 시스템 · 관리</span>
+        <div className="flex items-center gap-5">
+          <span className="font-semibold text-slate-900">간호 협업 시스템 · 관리</span>
+          <nav className="flex gap-4 text-sm">
+            {[{ to: '/admin/stats', label: '통계' }, { to: '/admin/audit-logs', label: '접근 기록' }].map((t) => (
+              <NavLink
+                key={t.to}
+                to={t.to}
+                className={({ isActive }) =>
+                  isActive ? 'font-semibold text-sky-600' : 'text-slate-500 hover:text-slate-700'
+                }
+              >
+                {t.label}
+              </NavLink>
+            ))}
+          </nav>
+        </div>
         <div className="flex items-center gap-3">
           <span className="text-sm text-slate-600">
             {staff?.name} <span className="text-slate-400">· {staff?.department.name}</span>

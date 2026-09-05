@@ -180,3 +180,44 @@ export interface TransitionResponse {
   availableTransitions: TransferStatus[];
   version: number;
 }
+
+export type NoteType = 'GENERAL' | 'SBAR' | 'HANDOVER';
+
+export interface VitalSign {
+  id: number;
+  measuredAt: string;
+  temperature: number | null;
+  pulse: number | null;
+  respiration: number | null;
+  sbp: number | null;
+  dbp: number | null;
+  spo2: number | null;
+  painScore: number | null;
+  recordedBy: { id: number; name: string };
+}
+
+export interface NursingNote {
+  id: number;
+  noteType: NoteType;
+  situation: string | null;
+  background: string | null;
+  assessment: string | null;
+  recommendation: string | null;
+  content: string | null;
+  recordedAt: string;
+  recordedBy: { id: number; name: string; departmentName: string };
+  createdAt: string;
+  /** 서버가 계산해 내려준다. 24시간 규칙을 화면에서 다시 구현하지 않는다. */
+  editable: boolean;
+}
+
+export interface AuditLogEntry {
+  id: number;
+  actor: { id: number; name: string; departmentName: string } | null;
+  action: string;
+  targetType: string;
+  targetId: number | null;
+  patient: { id: number; patientNo: string; name: string } | null;
+  ipAddress: string | null;
+  occurredAt: string;
+}

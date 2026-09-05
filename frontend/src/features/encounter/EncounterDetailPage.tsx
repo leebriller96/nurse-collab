@@ -58,6 +58,11 @@ export default function EncounterDetailPage() {
         </section>
       )}
 
+      <section className="mx-3 mt-3 grid grid-cols-2 gap-2">
+        <Link to={`/ward/encounters/${data.encounterId}/vitals`} className="rounded-xl bg-white py-3 text-center text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200">활력징후</Link>
+        <Link to={`/ward/encounters/${data.encounterId}/notes`} className="rounded-xl bg-white py-3 text-center text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200">간호기록</Link>
+      </section>
+
       <section className="mx-3 mt-3 rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200">
         <h2 className="mb-2 text-sm font-medium text-slate-600">진행중 요청</h2>
         {data.activeRequests.length === 0 ? (
