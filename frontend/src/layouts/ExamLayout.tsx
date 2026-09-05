@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '@/shared/hooks/useAuth';
+import RealtimeToasts from '@/shared/ui/RealtimeToasts';
 
 /** 검사실은 PC 우선. 앉아서 여러 건을 동시에 본다. */
 export default function ExamLayout() {
@@ -22,6 +23,8 @@ export default function ExamLayout() {
           </button>
         </div>
       </header>
+
+      <RealtimeToasts />
 
       <main className="flex-1">
         <Outlet />

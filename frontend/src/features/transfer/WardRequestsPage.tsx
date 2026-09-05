@@ -14,7 +14,8 @@ export default function WardRequestsPage() {
       });
       return res.data;
     },
-    refetchInterval: 10_000,
+    // 실시간 알림이 주 경로다. 폴링은 알림을 놓쳤을 때를 위한 보조 장치로만 남긴다.
+    refetchInterval: 60_000,
   });
 
   if (isPending) return <p className="p-4 text-sm text-slate-500">불러오는 중…</p>;

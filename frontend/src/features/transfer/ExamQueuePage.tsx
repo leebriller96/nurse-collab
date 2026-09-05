@@ -28,8 +28,8 @@ export default function ExamQueuePage() {
       });
       return res.data;
     },
-    // 실시간 연동(5단계) 전까지는 주기적으로 다시 받아온다
-    refetchInterval: 10_000,
+    // 실시간 알림이 주 경로다. 폴링은 알림을 놓쳤을 때를 위한 보조 장치로만 남긴다.
+    refetchInterval: 60_000,
   });
 
   if (isPending) {

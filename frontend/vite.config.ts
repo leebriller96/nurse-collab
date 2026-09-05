@@ -14,6 +14,8 @@ export default defineConfig({
     // 배포 때 같은 오리진에서 서비스하는 구성과도 모양이 같아진다.
     proxy: {
       '/api': { target: 'http://localhost:8080', changeOrigin: true },
+      // STOMP 는 WebSocket 이라 ws: true 가 없으면 프록시가 중계하지 않는다
+      '/ws': { target: 'ws://localhost:8080', ws: true, changeOrigin: true },
     },
   },
 });

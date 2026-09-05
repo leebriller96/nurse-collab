@@ -28,7 +28,8 @@ export default function TransferDetailPage() {
   const detail = useQuery({
     queryKey: ['transfer-request', requestId],
     queryFn: async () => (await api.get<TransferDetail>(`/transfer-requests/${requestId}`)).data,
-    refetchInterval: 10_000,
+    // 실시간 알림이 주 경로다. 폴링은 알림을 놓쳤을 때를 위한 보조 장치로만 남긴다.
+    refetchInterval: 60_000,
   });
 
   const events = useQuery({
@@ -39,7 +40,8 @@ export default function TransferDetailPage() {
   const messages = useQuery({
     queryKey: ['transfer-request', requestId, 'messages'],
     queryFn: async () => (await api.get<Message[]>(`/transfer-requests/${requestId}/messages`)).data,
-    refetchInterval: 10_000,
+    // 실시간 알림이 주 경로다. 폴링은 알림을 놓쳤을 때를 위한 보조 장치로만 남긴다.
+    refetchInterval: 60_000,
   });
 
   const refreshAll = () => {

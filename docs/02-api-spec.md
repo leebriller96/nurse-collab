@@ -540,9 +540,13 @@ PERM-003 은 역할 자체가 모자란 경우다. 일반 간호사가 통계를
 ### 연결
 
 ```
-엔드포인트 : /ws
-핸드셰이크 : Authorization: Bearer {accessToken}
+엔드포인트   : /ws  (STOMP over WebSocket)
+CONNECT 헤더 : Authorization: Bearer {accessToken}
 ```
+
+브라우저의 WebSocket 은 **핸드셰이크에 임의 헤더를 넣을 수 없다.**
+그래서 토큰은 STOMP CONNECT 프레임의 네이티브 헤더로 보낸다.
+쿼리스트링에 실으면 접속 로그와 프록시 로그에 토큰이 그대로 남는다.
 
 ### 구독 채널
 
@@ -570,6 +574,9 @@ PERM-003 은 역할 자체가 모자란 경우다. 일반 간호사가 통계를
 ```
 
 `eventType` 종류: `TRANSFER_CREATED`, `TRANSFER_STATUS_CHANGED`, `MESSAGE_CREATED`
+
+페이로드에 사람이 읽을 수 있는 필드를 함께 싣는 것은 **토스트 문구를 만들기 위해서**다.
+화면을 이 내용으로 그리라는 뜻이 아니다. 목록과 상세는 반드시 REST 로 다시 받아온다.
 
 **중요: 재접속 시 유실 보정**
 

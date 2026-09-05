@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/shared/hooks/useAuth';
+import RealtimeToasts from '@/shared/ui/RealtimeToasts';
 
 const TABS = [
   { to: '/ward/board', label: '환자' },
@@ -12,6 +13,8 @@ export default function WardLayout() {
 
   return (
     <div className="mx-auto flex min-h-full max-w-md flex-col">
+      <RealtimeToasts />
+
       <main className="flex-1">
         <Outlet />
       </main>
