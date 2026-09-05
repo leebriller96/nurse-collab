@@ -62,14 +62,17 @@ public class TransferRequestController {
     public ResponseEntity<PageResponse<TransferSummary>> search(
             @RequestParam TransferDirection direction,
             @RequestParam(required = false) List<TransferStatus> status,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) String keyword,
             @RequestParam(required = false) TransferPriority priority,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal LoginStaff loginStaff) {
 
         return ResponseEntity.ok(transferQueryService.search(
-                direction, status, date, priority, PageRequest.of(page, size), loginStaff));
+                direction, status, from, to, priority, keyword,
+                PageRequest.of(page, size), loginStaff));
     }
 
     @GetMapping("/{id}")

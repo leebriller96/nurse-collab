@@ -12,7 +12,22 @@ export default function ExamLayout() {
   return (
     <div className="flex min-h-full flex-col" style={{ '--app-bottom-bar': '0px' } as CSSProperties}>
       <header className="flex items-center justify-between border-b border-slate-200 bg-white px-6 py-3">
-        <span className="font-semibold text-slate-900">간호 협업 시스템</span>
+        <div className="flex items-center gap-5">
+          <span className="font-semibold text-slate-900">간호 협업 시스템</span>
+          <nav className="flex gap-4 text-sm">
+            {[{ to: '/exam/queue', label: '들어온 요청' }, { to: '/exam/history', label: '지난 요청' }].map((t) => (
+              <NavLink
+                key={t.to}
+                to={t.to}
+                className={({ isActive }) =>
+                  isActive ? 'font-semibold text-sky-600' : 'text-slate-500 hover:text-slate-700'
+                }
+              >
+                {t.label}
+              </NavLink>
+            ))}
+          </nav>
+        </div>
         <div className="flex items-center gap-3">
           <NavLink
             to="/exam/notifications"

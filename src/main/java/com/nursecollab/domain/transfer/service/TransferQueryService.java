@@ -48,21 +48,36 @@ public class TransferQueryService {
      * direction 하나로 병동 화면과 검사실 화면을 같은 엔드포인트에서 처리한다.
      * 어느 컬럼으로 거를지는 클라이언트가 아니라 서버가 정한다.
      */
+    /**
+     * 요청 목록.
+     * direction 하나로 병동 화면과 검사실 화면을 같은 엔드포인트에서 처리한다.
+     * 어느 컬럼으로 거를지는 클라이언트가 아니라 서버가 정한다.
+     *
+     * 기간을 열어 두면 같은 엔드포인트가 지난 요청 검색(E-04)도 처리한다.
+     * 화면마다 엔드포인트를 나누면 권한 검증과 조립 코드가 그만큼 흩어진다.
+     */
     public PageResponse<TransferSummary> search(TransferDirection direction,
                                                 List<TransferStatus> statuses,
-                                                LocalDate date,
+                                                LocalDate from, LocalDate to,
                                                 TransferPriority priority,
+                                                String keyword,
                                                 Pageable pageable,
                                                 LoginStaff loginStaff) {
 
-        LocalDate targetDate = (date == null) ? LocalDate.now() : date;
+        LocalDate fromDate = (from == null) ? LocalDate.now() : from;
+        LocalDate toDate = (to == null) ? fromDate : to;
+        if (toDate.isBefore(fromDate)) {
+            throw new BusinessException(ErrorCode.INVALID_INPUT);
+        }
+
         ZoneId zone = ZoneId.systemDefault();
-        OffsetDateTime from = targetDate.atStartOfDay(zone).toOffsetDateTime();
-        OffsetDateTime to = targetDate.plusDays(1).atStartOfDay(zone).toOffsetDateTime();
+        OffsetDateTime start = fromDate.atStartOfDay(zone).toOffsetDateTime();
+        OffsetDateTime end = toDate.plusDays(1).atStartOfDay(zone).toOffsetDateTime();
 
         var page = requestRepository.search(
                 direction.isInbound(), loginStaff.departmentId(),
-                statusFilter(statuses), priority, from, to, pageable);
+                statusFilter(statuses), priority, start, end,
+                (keyword == null || keyword.isBlank()) ? null : keyword.trim(), pageable);
 
         List<TransferRequest> requests = page.getContent();
         if (requests.isEmpty()) {

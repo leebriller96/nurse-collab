@@ -71,7 +71,7 @@ public interface TransferRequestRepository extends JpaRepository<TransferRequest
                                                    Collection<TransferStatus> terminalStatuses);
 
     /**
-     * 목록 조회. 병동 화면과 검사실 화면이 같은 쿼리를 쓴다.
+     * 목록 조회. 병동 화면과 검사실 화면, 그리고 지난 요청 검색이 같은 쿼리를 쓴다.
      * 어느 컬럼으로 거를지는 inbound 가 정한다.
      *
      * 상태 집합은 서비스가 항상 채워서 넘긴다. 널 컬렉션을 in 절에 바인딩하면
@@ -83,23 +83,28 @@ public interface TransferRequestRepository extends JpaRepository<TransferRequest
             join fetch r.fromDepartment
             join fetch r.toDepartment
             join fetch r.encounter e
-            join fetch e.patient
+            join fetch e.patient p
             where ((:inbound = true and r.toDepartment.id = :departmentId)
                 or (:inbound = false and r.fromDepartment.id = :departmentId))
               and r.status in :statuses
               and (:priority is null or r.priority = :priority)
               and r.requestedAt >= :from and r.requestedAt < :to
+              and (:keyword is null or p.name like %:keyword% or r.requestNo like %:keyword%)
             order by r.priority desc, r.requestedAt asc
             """,
             countQuery = """
             select count(r) from TransferRequest r
+            join r.encounter e
+            join e.patient p
             where ((:inbound = true and r.toDepartment.id = :departmentId)
                 or (:inbound = false and r.fromDepartment.id = :departmentId))
               and r.status in :statuses
               and (:priority is null or r.priority = :priority)
               and r.requestedAt >= :from and r.requestedAt < :to
+              and (:keyword is null or p.name like %:keyword% or r.requestNo like %:keyword%)
             """)
     Page<TransferRequest> search(boolean inbound, Long departmentId,
                                  Collection<TransferStatus> statuses, TransferPriority priority,
-                                 OffsetDateTime from, OffsetDateTime to, Pageable pageable);
+                                 OffsetDateTime from, OffsetDateTime to, String keyword,
+                                 Pageable pageable);
 }

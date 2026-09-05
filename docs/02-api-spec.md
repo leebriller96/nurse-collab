@@ -322,11 +322,14 @@ PERM-003 은 역할 자체가 모자란 경우다. 일반 간호사가 통계를
 |---|---|---|
 | direction | String | **INBOUND**(우리 파트로 온 요청) / **OUTBOUND**(우리가 보낸 요청) |
 | status | String[] | 다중 지정 가능. 미지정 시 진행중 전체 |
-| date | Date | 기본 오늘 |
+| from, to | Date | 요청 시각 기준 기간. 미지정 시 둘 다 오늘 |
+| keyword | String | 환자명 또는 요청번호 |
 | priority | String | ROUTINE/URGENT/EMERGENCY |
 | page, size | Int | |
 
 `direction` 하나로 병동 화면과 검사실 화면을 동일 API로 처리한다.
+기간을 열어 두면 같은 API 가 지난 요청 조회(E-04)도 처리한다.
+화면마다 엔드포인트를 나누면 권한 검증과 응답 조립 코드가 그만큼 흩어진다.
 `from_department_id` / `to_department_id` 중 무엇으로 필터링할지를 서버가 판단한다.
 
 ```json
