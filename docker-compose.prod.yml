@@ -37,6 +37,9 @@ services:
   backend:
     build: .
     environment:
+      # 한 대에 DB·Redis·웹이 같이 돈다. JVM 이 램을 많이 쥐면 서버가 통째로 죽는다.
+      # 2GB 서버면 40, 4GB 면 50~60 이 무난하다.
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=${JVM_HEAP_PERCENT:-50}
       SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/nursecollab
       SPRING_DATASOURCE_USERNAME: nursecollab

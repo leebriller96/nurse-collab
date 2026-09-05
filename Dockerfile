@@ -30,4 +30,9 @@ USER app
 COPY --from=build /build/build/libs/*.jar app.jar
 
 EXPOSE 8080
-ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75", "-jar", "app.jar"]
+
+# 힙 상한은 compose 의 JAVA_TOOL_OPTIONS 로 정한다.
+# 여기에 박아 두면 ENTRYPOINT 인자가 뒤에 와서 환경변수를 덮어쓰기 때문에
+# 작은 서버에 맞춰 줄일 수가 없다. 한 대에 DB·Redis 가 같이 도는 구성이라
+# JVM 이 램의 75% 를 쥐면 서버가 통째로 OOM 으로 죽는다.
+ENTRYPOINT ["java", "-jar", "app.jar"]

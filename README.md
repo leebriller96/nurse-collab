@@ -215,6 +215,9 @@ cp .env.example .env          # POSTGRES_PASSWORD, JWT_SECRET, SITE_ADDRESS 를 
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
+서버와 도메인을 고르는 것부터 폰에서 열어 보는 것까지는
+[docs/05-deployment.md](docs/05-deployment.md) 에 단계별로 적어 두었다.
+
 `SITE_ADDRESS` 에 도메인을 넣으면 **Caddy 가 인증서를 받아 HTTPS 로 뜬다.**
 발급과 갱신이 자동이다. 비워 두면 `:80` 평문으로 떠서 로컬 확인용이 된다.
 
@@ -319,6 +322,7 @@ frontend/src/
 | [docs/02-api-spec.md](docs/02-api-spec.md) | REST API 명세, 에러 코드 체계, WebSocket 규격 |
 | [docs/03-backend-structure.md](docs/03-backend-structure.md) | 패키지 구조, 상태 전이 코드 |
 | [docs/04-screens-permissions.md](docs/04-screens-permissions.md) | 화면 17개 정의, 권한 매트릭스 |
+| [docs/05-deployment.md](docs/05-deployment.md) | 배포 가이드 — 서버·도메인 선택부터 폰에서 열기까지 |
 
 API 를 직접 눌러 보려면 Postman 컬렉션이 있다 —
 [docs/nurse-collab.postman_collection.json](docs/nurse-collab.postman_collection.json).
