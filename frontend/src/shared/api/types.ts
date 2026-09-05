@@ -221,3 +221,22 @@ export interface AuditLogEntry {
   ipAddress: string | null;
   occurredAt: string;
 }
+
+export type NotiType = 'TRANSFER_REQUESTED' | 'STATUS_CHANGED' | 'MESSAGE';
+
+export interface NotificationItem {
+  id: number;
+  notiType: NotiType;
+  refType: string;
+  refId: number;
+  title: string;
+  body: string | null;
+  readAt: string | null;
+  createdAt: string;
+}
+
+/** 목록과 미읽음 수를 함께 받는다. 뱃지 때문에 두 번 부르지 않으려는 것이다. */
+export interface NotificationsResponse {
+  page: PageResponse<NotificationItem>;
+  unreadCount: number;
+}

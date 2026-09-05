@@ -59,6 +59,8 @@ export function useRealtime(departmentId: number | undefined, onEvent?: (e: Real
           void queryClient.invalidateQueries({ queryKey: ['transfer-requests'] });
           void queryClient.invalidateQueries({ queryKey: ['transfer-request', event.requestId] });
           void queryClient.invalidateQueries({ queryKey: ['encounters'] });
+          void queryClient.invalidateQueries({ queryKey: ['notifications'] });
+          void queryClient.invalidateQueries({ queryKey: ['notification-count'] });
 
           handlerRef.current?.(event);
         });

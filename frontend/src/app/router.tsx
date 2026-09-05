@@ -13,6 +13,7 @@ import StatsPage from '@/features/stats/StatsPage';
 import VitalSignPage from '@/features/nursing/VitalSignPage';
 import NursingNotePage from '@/features/nursing/NursingNotePage';
 import AuditLogPage from '@/features/audit/AuditLogPage';
+import NotificationPage from '@/features/notification/NotificationPage';
 import { useAuth } from '@/shared/hooks/useAuth';
 
 function RequireAuth() {
@@ -47,6 +48,7 @@ export default function Router() {
           <Route path="requests" element={<WardRequestsPage />} />
           <Route path="requests/new" element={<TransferCreatePage />} />
           <Route path="requests/:id" element={<TransferDetailPage />} />
+          <Route path="notifications" element={<NotificationPage />} />
         </Route>
 
         {/* 통계는 수간호사 이상만 볼 수 있다. 서버가 403 으로 막지만
@@ -59,6 +61,7 @@ export default function Router() {
         <Route path="/exam" element={<ExamLayout />}>
           <Route path="queue" element={<ExamQueuePage />} />
           <Route path="requests/:id" element={<TransferDetailPage />} />
+          <Route path="notifications" element={<NotificationPage />} />
           <Route path="stats" element={<StatsPage />} />
         </Route>
       </Route>
