@@ -1,0 +1,17 @@
+package com.nursecollab.domain.staff.repository;
+
+import com.nursecollab.domain.staff.entity.Staff;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+
+import java.util.Optional;
+
+public interface StaffRepository extends JpaRepository<Staff, Long> {
+
+    /** 로그인 직후 소속 파트 정보까지 응답에 담아야 하므로 함께 가져온다. */
+    @Query("select s from Staff s join fetch s.department where s.loginId = :loginId")
+    Optional<Staff> findByLoginIdWithDepartment(String loginId);
+
+    @Query("select s from Staff s join fetch s.department where s.id = :id")
+    Optional<Staff> findByIdWithDepartment(Long id);
+}

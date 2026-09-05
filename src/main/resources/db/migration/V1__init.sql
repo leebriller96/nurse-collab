@@ -10,7 +10,7 @@ CREATE TABLE department (
     id              BIGSERIAL    PRIMARY KEY,
     code            VARCHAR(20)  NOT NULL UNIQUE,   -- 부서 코드 (예: W03, MRI)
     name            VARCHAR(100) NOT NULL,          -- 부서명 (예: 3병동, MRI실)
-    dept_type       VARCHAR(20)  NOT NULL,          -- WARD/EXAM/OR/ICU/ER
+    dept_type       VARCHAR(20)  NOT NULL,          -- WARD/EXAM/OR/ICU/ER/ADMIN
     location        VARCHAR(100),                   -- 물리 위치 (예: 본관 3층)
     phone           VARCHAR(30),                    -- 부서 대표 내선
     is_active       BOOLEAN      NOT NULL DEFAULT TRUE,

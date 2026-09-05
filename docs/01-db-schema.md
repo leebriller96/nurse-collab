@@ -108,7 +108,7 @@ CREATE TABLE department (
     id              BIGSERIAL    PRIMARY KEY,
     code            VARCHAR(20)  NOT NULL UNIQUE,   -- 부서 코드 (예: W03, MRI)
     name            VARCHAR(100) NOT NULL,          -- 부서명 (예: 3병동, MRI실)
-    dept_type       VARCHAR(20)  NOT NULL,          -- WARD/EXAM/OR/ICU/ER
+    dept_type       VARCHAR(20)  NOT NULL,          -- WARD/EXAM/OR/ICU/ER/ADMIN
     location        VARCHAR(100),                   -- 물리 위치 (예: 본관 3층)
     phone           VARCHAR(30),                    -- 부서 대표 내선
     is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
@@ -117,6 +117,11 @@ CREATE TABLE department (
 );
 
 COMMENT ON TABLE department IS '파트(부서) 마스터';
+
+-- ADMIN 유형이 필요한 이유:
+-- staff.department_id 가 NOT NULL 이라 시스템 관리자도 소속 파트가 있어야 한다.
+-- 관리자를 임의의 병동에 넣으면 그 병동의 이송 요청에 요청 파트로 엮여버린다.
+-- 진료 파트가 아닌 관리 부서를 따로 둔다.
 
 -- ---------------------------------------------------------
 -- 2. 조직 : 직원(간호사) 계정

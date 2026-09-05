@@ -160,7 +160,7 @@ PERM-003 은 역할 자체가 모자란 경우다. 일반 간호사가 통계를
 
 | 파라미터 | 타입 | 설명 |
 |---|---|---|
-| deptType | String | WARD/EXAM/OR/ICU/ER (선택) |
+| deptType | String | WARD/EXAM/OR/ICU/ER/ADMIN (선택) |
 
 ```json
 [

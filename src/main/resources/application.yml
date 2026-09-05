@@ -25,6 +25,12 @@ spring:
       host: localhost
       port: 6379
 
+jwt:
+  # 로컬 개발용 기본값이다. 운영에서는 반드시 JWT_SECRET 환경변수로 덮어쓴다.
+  secret: ${JWT_SECRET:local-dev-only-secret-please-override-in-production-0123456789}
+  access-token-validity: 30m
+  refresh-token-validity: 14d
+
 server:
   port: 8080
 

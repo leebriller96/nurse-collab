@@ -39,8 +39,10 @@ com.nursecollab
 │   ├── security/
 │   │   ├── JwtTokenProvider.java
 │   │   ├── JwtAuthenticationFilter.java
-│   │   ├── LoginStaff.java          # @AuthenticationPrincipal 로 받는 인증 주체
-│   │   └── LoginStaffArgumentResolver.java
+│   │   ├── JwtProperties.java           # 시크릿 / 만료시간 설정
+│   │   ├── LoginStaff.java              # @AuthenticationPrincipal 로 받는 인증 주체
+│   │   ├── RefreshTokenStore.java       # 갱신 토큰 Redis 보관 (로그아웃 / 회전)
+│   │   └── SecurityErrorResponder.java  # 필터 단계 401 / 403 응답
 │   ├── error/
 │   │   ├── ErrorCode.java           # 에러코드 + 메시지 + HTTP 상태 일괄 관리
 │   │   ├── BusinessException.java
@@ -85,6 +87,17 @@ com.nursecollab
 **핵심 원칙**
 - `domain` 은 `global` 을 참조해도 되지만, `global` 이 `domain` 을 참조하면 안 된다
 - 도메인 간 참조는 서비스 레이어를 통해서만 한다 (엔티티 직접 참조는 최소화)
+
+**인증 주체를 컨트롤러로 넘기는 방법**
+
+`LoginStaff` 를 Authentication 의 principal 로 넣기 때문에
+`@AuthenticationPrincipal` 이 그대로 동작한다. 별도의 ArgumentResolver 는 두지 않는다.
+
+**토큰에 담는 것과 담지 않는 것**
+
+접근 토큰에는 소속 파트와 역할을 실어서 요청마다 `staff` 를 다시 조회하지 않게 한다.
+갱신 토큰에는 식별자만 담는다. 탈취되더라도 그 자체로는 아무 정보가 되지 않게 하기 위해서다.
+소속이 바뀌면 접근 토큰이 만료될 때까지 옛 소속이 남는다는 점은 감수한다.
 
 ---
 
