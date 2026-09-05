@@ -40,6 +40,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/login", "/api/v1/auth/refresh").permitAll()
                         // STOMP 핸드셰이크는 별도로 인증한다 (5단계)
                         .requestMatchers("/ws/**").permitAll()
+                        // 컨테이너 헬스체크가 토큰 없이 부른다. 상태값만 나가고 상세는 막아 둔다.
+                        .requestMatchers("/actuator/health").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

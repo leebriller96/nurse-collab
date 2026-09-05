@@ -34,6 +34,16 @@ jwt:
 server:
   port: 8080
 
+management:
+  endpoints:
+    web:
+      exposure:
+        # 헬스체크만 연다. 인증 없이 열리는 경로라 다른 것은 내보내지 않는다.
+        include: health
+  endpoint:
+    health:
+      show-details: never
+
 logging:
   level:
     com.nursecollab: DEBUG
