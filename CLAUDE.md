@@ -20,13 +20,20 @@ EMR 대체가 아니라 **EMR 옆에 붙는 협업 레이어**로 포지셔닝�
 |---|---|
 | 언어/프레임워크 | Java 21, Spring Boot 3.3 |
 | 데이터 | PostgreSQL 16, Flyway, Spring Data JPA |
-| 캐시/메시징 | Redis (Pub/Sub) |
-| 실시간 | Spring WebSocket + STOMP |
+| 캐시 | Redis — 지금은 갱신 토큰 저장에만 쓴다 |
+| 실시간 | Spring WebSocket + STOMP (내장 SimpleBroker) |
 | 인증 | Spring Security + JWT |
-| 프론트 | React 19, TypeScript, Vite, TanStack Query, Tailwind, shadcn/ui |
-| PWA | vite-plugin-pwa |
+| 프론트 | React 19, TypeScript, Vite, TanStack Query, Tailwind CSS 4 |
 | 테스트 | JUnit 5, AssertJ, Testcontainers |
-| 빌드/배포 | Gradle, Docker Compose, GitHub Actions |
+| 빌드/배포 | Gradle, Docker, Docker Compose, nginx, GitHub Actions |
+
+아직 하지 않은 것. 스택표에 미리 적어 두면 있는 줄 알게 된다.
+
+| 항목 | 상태 |
+|---|---|
+| PWA (`vite-plugin-pwa`) | 미설치. 폰에서 홈 화면에 추가하려면 필요하고, HTTPS 가 전제다 |
+| shadcn/ui | 미사용. Tailwind 로 직접 만들었다 |
+| Redis Pub/Sub | 미사용. 인스턴스를 여러 대로 늘릴 때 SimpleBroker 를 릴레이로 바꾼다 |
 
 ## 설계 문서
 
