@@ -488,6 +488,47 @@ PERM-003 은 역할 자체가 모자란 경우다. 일반 간호사가 통계를
 
 ### GET /encounters/{encounterId}/nursing-notes?noteType=&page=&size=
 
+### PUT /nursing-notes/{noteId}
+
+작성자 본인이 24시간 안에만 고칠 수 있다. 삭제는 없다.
+시간이 지난 기록은 고치는 대신 정정 기록을 새로 남긴다.
+고치기 전 내용은 별도 이력 테이블 없이 `audit_log.detail` 에 before/after 로 남는다.
+
+| 코드 | HTTP | 상황 |
+|---|---|---|
+| NN-001 | 403 | 본인이 쓴 기록이 아님 |
+| NN-002 | 422 | 작성 후 24시간 경과 |
+| NN-003 | 400 | 내용이 비어 있음 |
+
+`editable` 은 서버가 계산해 내려준다. 24시간 규칙을 화면에서 다시 구현하면 서버와 어긋난다.
+
+---
+
+## 8-2. 감사 로그 (관리자)
+
+### GET /audit-logs?from=&to=&patientId=&actorId=&page=&size=
+
+```json
+{
+  "content": [
+    {
+      "id": 9001,
+      "actor": { "id": 21, "name": "박간호", "departmentName": "MRI실" },
+      "action": "VIEW",
+      "targetType": "ENCOUNTER",
+      "targetId": 1,
+      "patient": { "id": 1, "patientNo": "P0001234", "name": "김OO" },
+      "ipAddress": "10.0.0.12",
+      "occurredAt": "2026-09-06T02:47:18+09:00"
+    }
+  ]
+}
+```
+
+수정만 남기는 것이 아니다. **환자 정보를 열어본 것 자체가 기록 대상**이다.
+컨트롤러에 `@Audited` 를 붙이면 AOP 가 자동으로 적재한다.
+
+
 ---
 
 ## 7. 알림
