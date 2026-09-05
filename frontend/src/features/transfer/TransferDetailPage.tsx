@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, messageOf } from '@/shared/api/client';
 import type { Message, TransferDetail, TransferEvent, TransferStatus } from '@/shared/api/types';
-import { AlertBadge, PriorityBadge, StatusBadge, statusLabel } from '@/shared/ui/badges';
+import { AlertBadge, PriorityBadge, StatusBadge, actionLabel, statusLabel } from '@/shared/ui/badges';
 
 /** 전이마다 무엇을 더 받아야 하는지. 서버 규칙과 짝을 이룬다. */
 const NEEDS_REASON: TransferStatus[] = ['ON_HOLD', 'CANCELLED'];
@@ -135,15 +135,15 @@ export default function TransferDetailPage() {
         <dl className="mt-3 grid grid-cols-2 gap-y-2 text-sm">
           <dt className="text-slate-500">검사</dt>
           <dd className="text-slate-800">{d.examType.name}</dd>
-          <dt className="text-slate-500">요청</dt>
+          <dt className="text-slate-500">요청한 곳</dt>
           <dd className="text-slate-800">
             {d.fromDepartment.name} · {d.requestedBy.name}
           </dd>
-          <dt className="text-slate-500">수행</dt>
+          <dt className="text-slate-500">검사하는 곳</dt>
           <dd className="text-slate-800">{d.toDepartment.name}</dd>
           {d.scheduledAt && (
             <>
-              <dt className="text-slate-500">예정</dt>
+              <dt className="text-slate-500">검사 예정</dt>
               <dd className="font-semibold text-slate-900">{time(d.scheduledAt)}</dd>
             </>
           )}
@@ -160,7 +160,7 @@ export default function TransferDetailPage() {
       </section>
 
       <section className="mx-3 mt-3 rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200">
-        <h2 className="mb-2 text-sm font-medium text-slate-600">타임라인</h2>
+        <h2 className="mb-2 text-sm font-medium text-slate-600">진행 기록</h2>
         <ol className="space-y-2.5">
           {events.data?.map((e) => (
             <li key={e.id} className="flex gap-2.5 text-sm">
@@ -250,7 +250,7 @@ export default function TransferDetailPage() {
                   onClick={() => transition.mutate(pending)}
                   className="flex-1 rounded-lg bg-sky-600 py-2.5 text-sm font-bold text-white disabled:bg-slate-300"
                 >
-                  {statusLabel(pending)} 확정
+                  {actionLabel(pending, d.status)} 확정
                 </button>
               </div>
             </div>
@@ -281,7 +281,7 @@ export default function TransferDetailPage() {
                         : 'bg-sky-600 text-white'
                   }`}
                 >
-                  {statusLabel(status)}
+                  {actionLabel(status, d.status)}
                 </button>
               ))}
             </div>

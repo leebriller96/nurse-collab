@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useRealtime } from '@/shared/hooks/useRealtime';
 import type { RealtimeEvent } from '@/shared/hooks/useRealtime';
-import { statusLabel } from '@/shared/ui/badges';
+import { priorityLabel, statusLabel } from '@/shared/ui/badges';
 
 interface Toast {
   key: number;
@@ -18,7 +18,7 @@ function describe(event: RealtimeEvent): Toast {
   if (event.eventType === 'TRANSFER_CREATED') {
     return {
       key: Date.now() + Math.random(),
-      title: `새 요청 (${event.priority === 'EMERGENCY' ? '응급' : event.priority === 'URGENT' ? '긴급' : '일반'})`,
+      title: `새 요청 (${priorityLabel(event.priority)})`,
       body: `${patient} — ${who}`,
       emphasis: event.priority === 'EMERGENCY',
     };
@@ -72,7 +72,7 @@ export default function RealtimeToasts() {
       </div>
 
       <span
-        title={connected ? '실시간 연결됨' : '연결 끊김 — 재연결 중'}
+        title={connected ? '실시간으로 받는 중' : '연결을 다시 맺는 중'}
         className={`fixed bottom-1 right-1 z-50 h-2 w-2 rounded-full ${
           connected ? 'bg-emerald-500' : 'bg-slate-300'
         }`}

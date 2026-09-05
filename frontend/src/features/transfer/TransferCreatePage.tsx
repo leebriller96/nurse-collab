@@ -125,7 +125,7 @@ export default function TransferCreatePage() {
 
       {warnings.length > 0 && (
         <section className="mx-3 mt-4 rounded-xl bg-red-50 p-3.5 ring-1 ring-red-200">
-          <p className="text-sm font-semibold text-red-800">이 검사의 확인 항목에 걸립니다</p>
+          <p className="text-sm font-semibold text-red-800">이 검사 전에 확인이 필요합니다</p>
           <ul className="mt-1.5 space-y-1">
             {warnings.map((w) => (
               <li key={w.id} className="text-sm text-red-700">
@@ -134,7 +134,7 @@ export default function TransferCreatePage() {
             ))}
           </ul>
           <p className="mt-2 text-xs text-red-600">
-            등록은 가능합니다. 검사실에서도 같은 경고를 보게 됩니다.
+            요청은 그대로 보낼 수 있습니다. 검사실에서도 같은 안내를 봅니다.
           </p>
         </section>
       )}

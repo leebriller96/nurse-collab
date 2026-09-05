@@ -89,23 +89,23 @@ async function main() {
     await caption(page, '1', '병동 간호사가 로그인한다. 소속 파트에 따라 홈 화면이 갈린다.');
     await beat(page);
     await login(page, 'ward01', '병동');
-    await caption(page, '2', 'W-01 환자 보드 — 병실 순 카드. 주의사항이 뱃지로 보인다.');
+    await caption(page, '2', '담당 환자가 병실 순서대로 보인다. 주의사항은 카드에서 바로 확인한다.');
     await beat(page, 2400);
 
     // ── 2. 환자 상세
     await page.getByRole('link', { name: /김OO/ }).first().click();
     await page.waitForURL(/\/ward\/encounters\//);
-    await caption(page, '3', 'W-02 환자 상세 — 좌측 고관절 인공관절이 중대 주의사항으로 기록돼 있다.');
+    await caption(page, '3', '이 환자는 좌측 고관절에 인공관절이 있다.');
     await beat(page, 2600);
 
     // ── 3. 이송 요청 등록
     await page.getByRole('link', { name: /이송 요청/ }).click();
     await page.waitForURL(/\/ward\/requests\/new/);
-    await caption(page, '4', 'W-03 이송 요청 등록 — 검사를 고른다.');
+    await caption(page, '4', '검사실로 보낼 검사를 고른다.');
     await beat(page);
 
     await page.getByRole('button', { name: /뇌 MRI/ }).click();
-    await caption(page, '5', '검사를 고르자마자 경고가 뜬다. 이 검사의 필수 확인 항목에 환자 주의사항이 걸렸다.');
+    await caption(page, '5', '검사를 고르자마자 안내가 뜬다. 이 환자에게 확인이 필요한 항목이다.');
     await beat(page, 3000);
 
     await page.getByRole('button', { name: '응급', exact: true }).click();
@@ -114,22 +114,22 @@ async function main() {
     await page.getByRole('button', { name: '요청 등록' }).click();
     await page.waitForURL(/\/ward\/requests\/\d+/, { timeout: 15000 });
     const requestNo = await page.locator('header span.font-mono').first().innerText();
-    await caption(page, '7', `${requestNo} 생성. 병동에서는 "취소" 만 누를 수 있다 — 접수는 검사실이 한다.`);
+    await caption(page, '7', `${requestNo} 로 접수됐다. 병동에서는 "취소" 만 가능하다. 접수는 검사실이 한다.`);
     await beat(page, 3000);
 
     // ── 4. 검사실 전환
     await login(page, 'mri01', '검사실');
-    await caption(page, '8', `E-01 검사실 큐 — 방금 등록한 ${requestNo} 가 응급으로 올라와 있다.`);
+    await caption(page, '8', `검사실 화면에 방금 보낸 ${requestNo} 가 응급으로 올라와 있다.`);
     await beat(page, 3000);
 
     // 큐는 우선순위·오래된 순이라 첫 행이 방금 만든 요청이 아니다. 번호로 집는다.
     await page.locator(`tbody tr:has-text("${requestNo}")`).click();
     await page.waitForURL(/\/exam\/requests\/\d+/);
-    await caption(page, '9', 'E-02 요청 상세 — "MRI 금기 가능성" 경고가 자동으로 떠 있다.');
+    await caption(page, '9', '열어보면 "MRI 금기 가능성" 안내가 이미 떠 있다. 따로 확인하러 갈 필요가 없다.');
     await beat(page, 3200);
 
     // ── 5. 접수
-    await page.getByRole('button', { name: '접수됨', exact: true }).click();
+    await page.getByRole('button', { name: '접수', exact: true }).click();
     await caption(page, '10', '접수하려면 예정 시각이 반드시 있어야 한다. 없으면 확정 버튼이 눌리지 않는다.');
     await beat(page, 2400);
 
@@ -140,9 +140,9 @@ async function main() {
       .slice(0, 16);
     await page.locator('input[type="datetime-local"]').fill(local);
     await beat(page, 1000);
-    await page.getByRole('button', { name: /접수됨 확정/ }).click();
+    await page.getByRole('button', { name: /접수 확정/ }).click();
     await page.waitForTimeout(2000);
-    await caption(page, '11', '접수 완료. 타임라인에 한 줄이 쌓이고, 다음에 누를 수 있는 버튼이 바뀐다.');
+    await caption(page, '11', '접수하면 진행 기록에 한 줄이 남고, 다음에 할 일로 버튼이 바뀐다.');
     await beat(page, 3200);
 
     // ── 6. 동시 처리 충돌
@@ -160,19 +160,19 @@ async function main() {
       await route.continue();
     });
 
-    const clicked = page.getByRole('button', { name: '준비완료', exact: true }).click();
+    const clicked = page.getByRole('button', { name: '준비 완료', exact: true }).click();
     await new Promise((r) => setTimeout(r, 400));
     await otherNurseCompletesFirst(requestId);
     await clicked;
 
     await page.waitForSelector('[role="alert"]', { timeout: 15000 });
-    await caption(page, '13', '진 쪽은 낙관적 락에 걸려 막힌다. 같은 환자를 두 번 보내는 일이 생기지 않는다.');
+    await caption(page, '13', '나중에 누른 쪽은 막힌다. 같은 환자를 두 번 보내는 일이 생기지 않는다.');
     await beat(page, 4000);
     await page.unroute('**/transfer-requests/*/transitions');
 
     // ── 7. 관리자 통계
     await login(page, 'admin01', '관리자');
-    await caption(page, '14', 'A-01 통계 — 값은 전부 상태 전이 이력에서 계산된다.');
+    await caption(page, '14', '수간호사와 관리자는 검사실별 평균 대기시간을 본다.');
     await beat(page, 4000);
 
     console.log('\n리허설 완료');

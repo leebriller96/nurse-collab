@@ -85,9 +85,9 @@ export default function StatsPage() {
       </div>
 
       <div className="grid grid-cols-3 gap-3">
-        <Metric label="총 요청" value={data.overall.totalRequests} unit="건" />
-        <Metric label="평균 대기 (요청 → 접수)" value={data.overall.avgWaitingMinutes} unit="분" />
-        <Metric label="평균 소요 (요청 → 완료)" value={data.overall.avgTotalMinutes} unit="분" />
+        <Metric label="전체 요청 건수" value={data.overall.totalRequests} unit="건" />
+        <Metric label="요청부터 접수까지" value={data.overall.avgWaitingMinutes} unit="분" />
+        <Metric label="요청부터 검사 완료까지" value={data.overall.avgTotalMinutes} unit="분" />
       </div>
 
       <section className="mt-5 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">

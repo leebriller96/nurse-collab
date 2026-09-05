@@ -43,10 +43,10 @@ export default function ExamQueuePage() {
     <div className="p-6">
       <div className="mb-4 flex items-baseline justify-between">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">{staff?.department.name} 요청 큐</h1>
+          <h1 className="text-xl font-bold text-slate-900">{staff?.department.name}에 들어온 요청</h1>
           <p className="text-sm text-slate-500">진행중 {data.totalElements}건</p>
         </div>
-        <span className="text-xs text-slate-400">10초마다 자동 갱신</span>
+        
       </div>
 
       <div className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-slate-200">

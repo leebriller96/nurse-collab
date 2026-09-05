@@ -83,3 +83,30 @@ export function PriorityBadge({ priority }: { priority: TransferPriority }) {
     </span>
   );
 }
+
+/**
+ * 버튼에 쓰는 표현.
+ *
+ * 상태명은 "이미 그렇게 된 것" 을 가리키는 말이라 버튼에 그대로 쓰면 어색하다.
+ * "복귀중" 이라고 적힌 버튼을 누르라고 하면 무슨 뜻인지 한 번 더 생각해야 한다.
+ * 간호사가 실제로 하는 행동으로 적는다.
+ */
+const ACTION_LABEL: Record<TransferStatus, string> = {
+  REQUESTED: '요청',
+  ACCEPTED: '접수',
+  READY: '준비 완료',
+  IN_TRANSIT: '환자 출발',
+  IN_PROGRESS: '검사 시작',
+  RETURNED: '검사 종료',
+  COMPLETED: '병동 도착',
+  ON_HOLD: '보류',
+  CANCELLED: '취소',
+};
+
+export function actionLabel(target: TransferStatus, current: TransferStatus): string {
+  // 보류에서 원래 상태로 되돌리는 것은 "접수" 가 아니라 "보류 해제" 다
+  if (current === 'ON_HOLD' && target !== 'CANCELLED') {
+    return '보류 해제';
+  }
+  return ACTION_LABEL[target];
+}
