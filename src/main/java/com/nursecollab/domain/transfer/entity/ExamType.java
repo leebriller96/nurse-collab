@@ -1,6 +1,7 @@
 package com.nursecollab.domain.transfer.entity;
 
 import com.nursecollab.domain.department.entity.Department;
+import com.nursecollab.domain.patient.entity.AlertType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -56,7 +57,7 @@ public class ExamType {
 
     public static ExamType create(String code, String name, Department department,
                                   int defaultDuration, String prepInstruction,
-                                  List<String> requiredAlerts) {
+                                  List<AlertType> requiredAlerts) {
         ExamType examType = new ExamType();
         examType.code = code;
         examType.name = name;
@@ -64,19 +65,20 @@ public class ExamType {
         examType.defaultDuration = defaultDuration;
         examType.prepInstruction = prepInstruction;
         examType.requiredAlerts = (requiredAlerts == null || requiredAlerts.isEmpty())
-                ? null : String.join(",", requiredAlerts);
+                ? null : requiredAlerts.stream().map(Enum::name).collect(java.util.stream.Collectors.joining(","));
         examType.active = true;
         return examType;
     }
 
     /** 이 검사를 하기 전에 반드시 확인해야 하는 주의사항 유형 */
-    public List<String> requiredAlertTypes() {
+    public List<AlertType> requiredAlertTypes() {
         if (requiredAlerts == null || requiredAlerts.isBlank()) {
             return List.of();
         }
         return Arrays.stream(requiredAlerts.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
+                .map(AlertType::valueOf)
                 .toList();
     }
 }

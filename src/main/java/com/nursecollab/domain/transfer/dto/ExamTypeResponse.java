@@ -1,5 +1,6 @@
 package com.nursecollab.domain.transfer.dto;
 
+import com.nursecollab.domain.patient.entity.AlertType;
 import com.nursecollab.domain.transfer.entity.ExamType;
 
 import java.util.List;
@@ -11,7 +12,7 @@ public record ExamTypeResponse(
         DepartmentRef department,
         int defaultDuration,
         String prepInstruction,
-        List<String> requiredAlerts
+        List<AlertType> requiredAlerts
 ) {
     public record DepartmentRef(Long id, String name) {}
 

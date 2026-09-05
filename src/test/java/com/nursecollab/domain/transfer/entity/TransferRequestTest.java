@@ -4,6 +4,7 @@ import com.nursecollab.domain.department.entity.Department;
 import com.nursecollab.domain.department.entity.DeptType;
 import com.nursecollab.domain.encounter.entity.Encounter;
 import com.nursecollab.domain.patient.entity.Patient;
+import com.nursecollab.domain.patient.entity.AlertType;
 import com.nursecollab.domain.patient.entity.Sex;
 import com.nursecollab.domain.staff.entity.Staff;
 import com.nursecollab.domain.staff.entity.StaffRole;
@@ -47,7 +48,7 @@ class TransferRequestTest {
         ReflectionTestUtils.setField(encounter, "id", 501L);
 
         brainMri = ExamType.create("MRI_BRAIN", "뇌 MRI", mri, 40,
-                "검사 4시간 전부터 금식", List.of("METAL_IMPLANT"));
+                "검사 4시간 전부터 금식", List.of(AlertType.METAL_IMPLANT));
     }
 
     // ------------------------------------------------------------------
