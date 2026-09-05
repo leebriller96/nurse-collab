@@ -45,7 +45,7 @@ public class GlobalExceptionHandler {
                 .toList();
 
         return ResponseEntity.badRequest()
-                .body(ErrorResponse.of(ErrorCode.INTERNAL_ERROR, req.getRequestURI(), fieldErrors));
+                .body(ErrorResponse.of(ErrorCode.INVALID_INPUT, req.getRequestURI(), fieldErrors));
     }
 
     /** 예상 못 한 오류 */

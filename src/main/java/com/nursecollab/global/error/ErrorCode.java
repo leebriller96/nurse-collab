@@ -10,6 +10,9 @@ import org.springframework.http.HttpStatus;
 @Getter
 public enum ErrorCode {
 
+    // 입력값
+    INVALID_INPUT("VAL-001", HttpStatus.BAD_REQUEST, "입력값을 확인해 주세요."),
+
     // 인증
     INVALID_CREDENTIALS("AUTH-001", HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다."),
     TOKEN_EXPIRED("AUTH-002", HttpStatus.UNAUTHORIZED, "로그인이 만료되었습니다. 다시 로그인해 주세요."),
@@ -18,6 +21,10 @@ public enum ErrorCode {
     // 권한
     NOT_RELATED_DEPARTMENT("PERM-001", HttpStatus.FORBIDDEN, "해당 요청에 관여하는 파트가 아닙니다."),
     NOT_ALLOWED_ACTOR("PERM-002", HttpStatus.FORBIDDEN, "이 작업은 상대 파트에서 처리해야 합니다."),
+    INSUFFICIENT_ROLE("PERM-003", HttpStatus.FORBIDDEN, "이 작업을 수행할 권한이 없습니다."),
+
+    // 재원
+    DISCHARGED_ENCOUNTER("ENC-001", HttpStatus.UNPROCESSABLE_ENTITY, "퇴원한 환자에 대해서는 요청할 수 없습니다."),
 
     // 이송 요청
     REQUEST_NOT_FOUND("TR-000", HttpStatus.NOT_FOUND, "요청을 찾을 수 없습니다."),
