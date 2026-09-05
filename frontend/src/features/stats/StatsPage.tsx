@@ -129,16 +129,26 @@ export default function StatsPage() {
             </span>
           )}
         </div>
+        {/*
+          막대는 높이가 정해진 칸(h-32)의 직계 자식이어야 한다.
+          중간에 높이가 auto 인 열을 끼우면 퍼센트 높이가 기준을 잃고 전부 최소 높이로 깔린다.
+          그래서 눈금은 막대와 같은 칸에 넣지 않고 아래 줄로 뺀다.
+        */}
         <div className="flex h-32 items-end gap-[3px]">
           {data.byHour.map((h) => (
-            <div key={h.hour} className="flex flex-1 flex-col items-center gap-1">
-              <div
-                title={`${h.hour}시 ${h.requestCount}건`}
-                style={{ height: `${(h.requestCount / peak) * 100}%` }}
-                className={`w-full rounded-t ${h.requestCount > 0 ? 'bg-sky-500' : 'bg-slate-100'} min-h-[2px]`}
-              />
-              {h.hour % 3 === 0 && <span className="text-[10px] text-slate-400">{h.hour}</span>}
-            </div>
+            <div
+              key={h.hour}
+              title={`${h.hour}시 ${h.requestCount}건`}
+              style={{ height: `${(h.requestCount / peak) * 100}%` }}
+              className={`min-h-[2px] flex-1 rounded-t ${h.requestCount > 0 ? 'bg-sky-500' : 'bg-slate-100'}`}
+            />
+          ))}
+        </div>
+        <div className="mt-1 flex gap-[3px]">
+          {data.byHour.map((h) => (
+            <span key={h.hour} className="flex-1 text-center text-[10px] text-slate-400">
+              {h.hour % 3 === 0 ? h.hour : ''}
+            </span>
           ))}
         </div>
       </section>
