@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ward: oklch(0.55 0.16 255);
+  --color-exam: oklch(0.52 0.13 190);
+  --color-emergency: oklch(0.58 0.22 25);
+  --color-urgent: oklch(0.72 0.17 65);
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  /* 병원 환경은 조명이 밝고 화면을 흘긋 보는 경우가 많다. 대비를 낮추지 않는다. */
+  @apply bg-slate-100 text-slate-900 antialiased;
+}
