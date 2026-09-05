@@ -40,3 +40,4 @@ application-local.yml
 
 ### 로컬 실행 로그 ###
 boot.log
+vite.log

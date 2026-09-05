@@ -170,14 +170,58 @@ async function main() {
     await beat(page, 4000);
     await page.unroute('**/transfer-requests/*/transitions');
 
-    // ── 7. 관리자 통계
+    // ── 7. 검사실의 나머지 화면
+    await page.getByRole('link', { name: '일정' }).click();
+    await page.waitForURL(/\/exam\/schedule/);
+    await caption(page, '14', '접수하며 정한 시각이 일정 보드에 자리를 잡는다. 앞뒤가 비었는지 한눈에 본다.');
+    await beat(page, 3200);
+
+    await page.getByRole('link', { name: '지난 요청' }).click();
+    await page.waitForURL(/\/exam\/history/);
+    await caption(page, '15', '끝난 요청은 기간과 환자명으로 다시 찾는다. 아무것도 지우지 않는다.');
+    await beat(page, 3200);
+
+    // ── 8. 병동으로 돌아와 알림함과 간호기록
+    await login(page, 'ward01', '병동');
+    await page.getByRole('link', { name: '알림' }).click();
+    await page.waitForURL(/\/ward\/notifications/);
+    await caption(page, '16', '실시간 알림은 그 순간 화면을 보고 있어야 닿는다. 놓친 것은 여기 쌓인다.');
+    await beat(page, 3200);
+
+    await page.getByRole('link', { name: '환자' }).click();
+    await page.waitForURL(/\/ward\/board/);
+    await page.getByRole('link', { name: /김OO/ }).first().click();
+    await page.waitForURL(/\/ward\/encounters\/\d+$/);
+    await page.getByRole('link', { name: '간호기록' }).click();
+    await page.waitForURL(/\/notes$/);
+    await caption(page, '17', '간호기록은 SBAR 로 쓴다. 본인이 24시간 안에만 고칠 수 있고 삭제는 없다.');
+    await beat(page, 3600);
+
+    // ── 9. 관리자 화면
     await login(page, 'admin01', '관리자');
-    await caption(page, '14', '수간호사와 관리자는 검사실별 평균 대기시간을 본다.');
+    await caption(page, '18', '수간호사와 관리자는 검사실별 평균 대기시간을 본다.');
+    await beat(page, 4000);
+
+    await page.getByRole('link', { name: '접근 기록' }).click();
+    await page.waitForURL(/\/admin\/audit-logs/);
+    await caption(page, '19', '누가 어느 환자를 언제 열어봤는지가 자동으로 남는다.');
+    await beat(page, 3600);
+
+    await page.getByRole('link', { name: '기준 정보' }).click();
+    await page.waitForURL(/\/admin\/master/);
+    await caption(page, '20', '검사 종류에 확인 항목을 적어 두면, 그게 검사실 화면의 경고가 된다.');
     await beat(page, 4000);
 
     console.log('\n리허설 완료');
   } finally {
+    const video = page.video();
     await context.close();
+    // Playwright 는 파일명을 내부 GUID 로 짓는다. 매번 이름이 달라지면 공유하기 번거롭다.
+    if (video) {
+      await video.saveAs(`${OUT}/nurse-collab-rehearsal.webm`);
+      await video.delete();
+      console.log(`${OUT}/nurse-collab-rehearsal.webm`);
+    }
     await browser.close();
   }
 }
