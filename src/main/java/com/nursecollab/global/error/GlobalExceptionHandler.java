@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -46,6 +47,16 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.badRequest()
                 .body(ErrorResponse.of(ErrorCode.INVALID_INPUT, req.getRequestURI(), fieldErrors));
+    }
+
+    /**
+     * 본문을 아예 읽지 못한 경우(깨진 JSON, 잘못된 인코딩, 타입 불일치).
+     * 서버 잘못이 아니라 요청이 잘못된 것이므로 400 으로 돌려준다.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ErrorResponse> handleUnreadableBody(HttpServletRequest req) {
+        return ResponseEntity.badRequest()
+                .body(ErrorResponse.of(ErrorCode.INVALID_INPUT, req.getRequestURI()));
     }
 
     /** 예상 못 한 오류 */
