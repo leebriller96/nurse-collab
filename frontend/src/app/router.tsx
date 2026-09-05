@@ -16,6 +16,7 @@ import AuditLogPage from '@/features/audit/AuditLogPage';
 import NotificationPage from '@/features/notification/NotificationPage';
 import TransferHistoryPage from '@/features/transfer/TransferHistoryPage';
 import MasterAdminPage from '@/features/master/MasterAdminPage';
+import ExamSchedulePage from '@/features/transfer/ExamSchedulePage';
 import { useAuth } from '@/shared/hooks/useAuth';
 
 function RequireAuth() {
@@ -64,6 +65,7 @@ export default function Router() {
 
         <Route path="/exam" element={<ExamLayout />}>
           <Route path="queue" element={<ExamQueuePage />} />
+          <Route path="schedule" element={<ExamSchedulePage />} />
           <Route path="requests/:id" element={<TransferDetailPage />} />
           <Route path="notifications" element={<NotificationPage />} />
           <Route path="history" element={<TransferHistoryPage />} />

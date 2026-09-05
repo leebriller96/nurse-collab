@@ -15,7 +15,7 @@ export default function ExamLayout() {
         <div className="flex items-center gap-5">
           <span className="font-semibold text-slate-900">간호 협업 시스템</span>
           <nav className="flex gap-4 text-sm">
-            {[{ to: '/exam/queue', label: '들어온 요청' }, { to: '/exam/history', label: '지난 요청' }].map((t) => (
+            {[{ to: '/exam/queue', label: '들어온 요청' }, { to: '/exam/schedule', label: '일정' }, { to: '/exam/history', label: '지난 요청' }].map((t) => (
               <NavLink
                 key={t.to}
                 to={t.to}
