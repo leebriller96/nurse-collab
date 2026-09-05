@@ -507,6 +507,65 @@ PERM-003 은 역할 자체가 모자란 경우다. 일반 간호사가 통계를
 
 ---
 
+## 7-2. 마스터 관리 (관리자)
+
+조회는 누구나 하지만 변경은 관리자만 한다. 다른 역할은 `403 PERM-003`.
+
+**삭제 대신 비활성화한다.** 부서나 검사 종류를 지우면 그것을 참조하던 지난 요청의
+이력이 읽을 수 없게 된다. 기록은 남기고 새 요청에서만 고르지 못하게 한다.
+
+### POST /departments · PUT /departments/{id} · PATCH /departments/{id}/deactivate
+
+```json
+{
+  "code": "W07",
+  "name": "7병동",
+  "deptType": "WARD",
+  "location": "본관 7층",
+  "phone": "1707"
+}
+```
+
+### POST /staff · PUT /staff/{id} · PATCH /staff/{id}/deactivate
+
+```json
+{
+  "loginId": "ward07",
+  "password": "초기 비밀번호",
+  "employeeNo": "E10009",
+  "name": "한간호",
+  "role": "NURSE",
+  "departmentId": 1,
+  "phone": "1702"
+}
+```
+
+비밀번호는 생성할 때만 받는다. 수정에서 다루면 관리자가 남의 비밀번호를 바꿀 수 있게 된다.
+초기화가 필요하면 별도 엔드포인트로 분리한다(Phase 3).
+
+### POST /exam-types · PUT /exam-types/{id} · PATCH /exam-types/{id}/deactivate
+
+```json
+{
+  "code": "MRI_CSPINE",
+  "name": "경추 MRI",
+  "departmentId": 3,
+  "defaultDuration": 35,
+  "prepInstruction": "검사 4시간 전부터 금식",
+  "requiredAlerts": ["METAL_IMPLANT", "CLAUSTROPHOBIA"]
+}
+```
+
+`requiredAlerts` 가 검사실 체크리스트 경고의 근거다.
+여기를 비우면 그 검사는 아무 경고도 띄우지 않는다.
+
+| 코드 | HTTP | 상황 |
+|---|---|---|
+| MST-001 | 409 | 코드나 아이디가 이미 있음 |
+| MST-002 | 404 | 대상 없음 |
+
+---
+
 ## 8-2. 감사 로그 (관리자)
 
 ### GET /audit-logs?from=&to=&patientId=&actorId=&page=&size=

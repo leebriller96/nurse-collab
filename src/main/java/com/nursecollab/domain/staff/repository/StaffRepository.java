@@ -20,4 +20,11 @@ public interface StaffRepository extends JpaRepository<Staff, Long> {
     /** 알림 수신자. 비활성 계정에는 보내지 않는다. */
     @Query("select s.id from Staff s where s.department.id in :departmentIds and s.active = true")
     List<Long> findActiveIdsByDepartmentIds(Collection<Long> departmentIds);
+
+    boolean existsByLoginId(String loginId);
+
+    boolean existsByEmployeeNo(String employeeNo);
+
+    @Query("select s from Staff s join fetch s.department order by s.department.code asc, s.name asc")
+    List<Staff> findAllWithDepartment();
 }

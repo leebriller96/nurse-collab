@@ -20,4 +20,6 @@ public interface ExamTypeRepository extends JpaRepository<ExamType, Long> {
     /** 이송 요청 생성 시 수행 파트를 결정해야 하므로 파트를 함께 가져온다. */
     @Query("select e from ExamType e join fetch e.department where e.id = :id")
     Optional<ExamType> findByIdWithDepartment(Long id);
+
+    boolean existsByCode(String code);
 }

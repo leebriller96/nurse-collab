@@ -11,4 +11,6 @@ public interface DepartmentRepository extends JpaRepository<Department, Long> {
     List<Department> findAllByActiveTrueOrderByCodeAsc();
 
     List<Department> findAllByDeptTypeAndActiveTrueOrderByCodeAsc(DeptType deptType);
+
+    boolean existsByCode(String code);
 }

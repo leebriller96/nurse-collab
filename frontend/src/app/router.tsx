@@ -15,6 +15,7 @@ import NursingNotePage from '@/features/nursing/NursingNotePage';
 import AuditLogPage from '@/features/audit/AuditLogPage';
 import NotificationPage from '@/features/notification/NotificationPage';
 import TransferHistoryPage from '@/features/transfer/TransferHistoryPage';
+import MasterAdminPage from '@/features/master/MasterAdminPage';
 import { useAuth } from '@/shared/hooks/useAuth';
 
 function RequireAuth() {
@@ -58,6 +59,7 @@ export default function Router() {
         <Route path="/admin" element={<AdminLayout />}>
           <Route path="stats" element={<StatsPage />} />
           <Route path="audit-logs" element={<AuditLogPage />} />
+          <Route path="master" element={<MasterAdminPage />} />
         </Route>
 
         <Route path="/exam" element={<ExamLayout />}>

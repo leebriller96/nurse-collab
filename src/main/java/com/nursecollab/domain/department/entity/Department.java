@@ -54,6 +54,20 @@ public class Department extends BaseTimeEntity {
         return department;
     }
 
+    public void update(String code, String name, DeptType deptType,
+                       String location, String phone) {
+        this.code = code;
+        this.name = name;
+        this.deptType = deptType;
+        this.location = location;
+        this.phone = phone;
+    }
+
+    /** 지우지 않는다. 지난 요청 이력이 이 부서를 참조하고 있다. */
+    public void deactivate() {
+        this.active = false;
+    }
+
     public boolean isWard() {
         return deptType == DeptType.WARD;
     }

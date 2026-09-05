@@ -12,7 +12,7 @@ export default function AdminLayout() {
         <div className="flex items-center gap-5">
           <span className="font-semibold text-slate-900">간호 협업 시스템 · 관리</span>
           <nav className="flex gap-4 text-sm">
-            {[{ to: '/admin/stats', label: '통계' }, { to: '/admin/audit-logs', label: '접근 기록' }].map((t) => (
+            {[{ to: '/admin/stats', label: '통계' }, { to: '/admin/audit-logs', label: '접근 기록' }, { to: '/admin/master', label: '기준 정보' }].map((t) => (
               <NavLink
                 key={t.to}
                 to={t.to}

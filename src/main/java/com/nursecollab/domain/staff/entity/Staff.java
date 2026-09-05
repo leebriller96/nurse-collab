@@ -80,6 +80,18 @@ public class Staff extends BaseTimeEntity {
         this.passwordHash = newPasswordHash;
     }
 
+    public void updateProfile(String name, StaffRole role, Department department, String phone) {
+        this.name = name;
+        this.role = role;
+        this.department = department;
+        this.phone = phone;
+    }
+
+    /** 퇴사해도 계정을 지우지 않는다. 이 사람이 남긴 기록과 이력이 그대로 남아 있다. */
+    public void deactivate() {
+        this.active = false;
+    }
+
     public boolean isAdmin() {
         return role == StaffRole.ADMIN;
     }

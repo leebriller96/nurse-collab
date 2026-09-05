@@ -16,6 +16,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.util.Arrays;
+import java.util.stream.Collectors;
 import java.util.List;
 
 /**
@@ -64,10 +65,30 @@ public class ExamType {
         examType.department = department;
         examType.defaultDuration = defaultDuration;
         examType.prepInstruction = prepInstruction;
-        examType.requiredAlerts = (requiredAlerts == null || requiredAlerts.isEmpty())
-                ? null : requiredAlerts.stream().map(Enum::name).collect(java.util.stream.Collectors.joining(","));
+        examType.requiredAlerts = joinAlerts(requiredAlerts);
         examType.active = true;
         return examType;
+    }
+
+    public void update(String code, String name, Department department, int defaultDuration,
+                       String prepInstruction, List<AlertType> requiredAlerts) {
+        this.code = code;
+        this.name = name;
+        this.department = department;
+        this.defaultDuration = defaultDuration;
+        this.prepInstruction = prepInstruction;
+        this.requiredAlerts = joinAlerts(requiredAlerts);
+    }
+
+    /** 지우지 않는다. 지난 요청이 이 검사 종류를 참조하고 있다. */
+    public void deactivate() {
+        this.active = false;
+    }
+
+    private static String joinAlerts(List<AlertType> alerts) {
+        return (alerts == null || alerts.isEmpty())
+                ? null
+                : alerts.stream().map(Enum::name).collect(Collectors.joining(","));
     }
 
     /** 이 검사를 하기 전에 반드시 확인해야 하는 주의사항 유형 */
