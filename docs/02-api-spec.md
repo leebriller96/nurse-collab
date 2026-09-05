@@ -247,7 +247,6 @@ PERM-003 은 역할 자체가 모자란 경우다. 일반 간호사가 통계를
   "diagnosis": "뇌경색",
   "isMobile": false,
   "alerts": [ /* 전체 alert */ ],
-  "latestVitalSign": { "measuredAt": "...", "temperature": 36.8, "pulse": 72 },
   "activeRequests": [ { "id": 101, "examName": "뇌 MRI", "status": "ACCEPTED" } ]
 }
 ```
@@ -272,6 +271,9 @@ PERM-003 은 역할 자체가 모자란 경우다. 일반 간호사가 통계를
 - 진단명, 활력징후, 상세 간호기록은 **응답 자체에서 빠진다.** 마스킹이 아니라 미포함이다.
 - `checklistWarnings` 는 `exam_type.required_alerts` 와 환자 alert 를 교차 계산한 결과다.
 - 조회 시점에 `audit_log` 에 VIEW 기록이 남는다.
+- 접근 판정은 소속이 아니라 **관계**로 한다. 검사실은 "우리 파트로 온 진행중 요청이 있을 때" 만 볼 수 있고,
+  요청이 끝나면 접근 권한도 함께 사라진다. 관계가 없으면 `403 PERM-001`.
+- 활력징후(`latestVitalSign`)는 7단계에서 붙인다.
 
 ### GET /encounters/{encounterId}/alerts — 200
 ### POST /patients/{patientId}/alerts
@@ -343,7 +345,6 @@ PERM-003 은 역할 자체가 모자란 경우다. 일반 간호사가 통계를
       "scheduledAt": "2026-09-04T15:30:00+09:00",
       "waitingMinutes": 18,
       "criticalAlertCount": 1,
-      "unreadMessageCount": 2,
       "version": 3
     }
   ]
@@ -351,6 +352,12 @@ PERM-003 은 역할 자체가 모자란 경우다. 일반 간호사가 통계를
 ```
 
 `counterpartDepartment` : 병동이 보면 검사실, 검사실이 보면 병동. 상대 파트를 뜻한다.
+
+`waitingMinutes` : 요청 시각부터 흐른 시간. 진행중이면 지금까지, 끝났으면 완료 시각까지 센다.
+검사실 큐에서 오래 기다린 행을 진하게 칠하는 근거라서 "지금 기준" 이어야 한다.
+
+**`unreadMessageCount` 는 뺐다.** `request_message` 에 읽음 상태가 없어서 계산할 수 없다.
+누가 어디까지 읽었는지를 담는 테이블이 필요하므로 Phase 3 으로 미룬다.
 
 ### GET /transfer-requests/{id}
 

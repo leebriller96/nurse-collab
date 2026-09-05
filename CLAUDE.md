@@ -119,16 +119,30 @@ chore: Testcontainers 의존성 추가
 6. 동시성 처리 + 통계 화면
 7. 간호기록 + 감사 로그
 
-현재 위치: **3단계 완료 → 4단계 시작 전**
+현재 위치: **4단계 백엔드 완료 → 프론트엔드 시작 전**
 
-- 1단계 완료: Gradle 프로젝트, Flyway V1~V4, docker-compose(postgres 16 + redis),
-  `global` 공통 기반(에러 처리 / BaseTimeEntity / PageResponse).
-- 2단계 완료: JWT 인증(로그인 / 갱신 / 로그아웃 / 내 정보), 파트·직원·검사종류 엔티티,
-  마스터 조회 API, 시연용 시드 데이터(V3).
-- 3단계 완료: 환자·재원 엔티티, 상태 전이 규칙(`TransferStatus`), `TransferRequest`/`TransferEvent`,
-  요청 생성·전이 서비스, 요청번호 발번(V4), 단위 테스트 43건 + Testcontainers 통합 테스트 4건.
-- 남은 것: 관리자 마스터 CRUD(A-02~A-04)는 `02-api-spec.md` 에 엔드포인트가 없어 보류 중이다.
+- 1단계: Gradle 프로젝트, Flyway, docker-compose, `global` 공통 기반.
+- 2단계: JWT 인증, 파트·직원·검사종류, 마스터 조회 API.
+- 3단계: 상태 전이 규칙(`TransferStatus`), 이송 요청 도메인, 요청번호 발번(V4).
+- 4단계(백엔드): 환자 주의사항, 재원 조회(파트별 응답 분기), 이송 요청 목록·상세·타임라인,
+  요청 내 대화, 시연용 환자 시드(V5). 화면은 아직 없다.
+- 보류 중: 관리자 마스터 CRUD(A-02~A-04)는 `02-api-spec.md` 에 엔드포인트가 없어
   **문서를 먼저 추가한 뒤** 구현한다.
+
+### 구현된 API
+
+| 메서드 | 경로 | 화면 |
+|---|---|---|
+| POST | `/auth/login` `/auth/refresh` `/auth/logout` | C-01 |
+| GET | `/auth/me` | C-03 |
+| GET | `/departments` `/exam-types` | W-03, A-04 |
+| GET | `/encounters` | W-01 |
+| GET | `/encounters/{id}` `/encounters/{id}/alerts` | W-02, E-02 |
+| POST | `/transfer-requests` | W-03 |
+| GET | `/transfer-requests?direction=` | W-04, E-01 |
+| GET | `/transfer-requests/{id}` `/{id}/events` | W-05, E-02 |
+| POST | `/transfer-requests/{id}/transitions` | W-05, E-02 |
+| GET POST | `/transfer-requests/{id}/messages` | W-05, E-02 |
 
 ### 데모 계정
 

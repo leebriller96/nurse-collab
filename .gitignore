@@ -37,3 +37,6 @@ Thumbs.db
 ### 로컬 설정 (비밀값이 들어가므로 커밋하지 않는다) ###
 application-local.yml
 .env
+
+### 로컬 실행 로그 ###
+boot.log
