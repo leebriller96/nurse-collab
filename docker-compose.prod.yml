@@ -60,11 +60,22 @@ services:
 
   web:
     build: ./frontend
+    environment:
+      # 도메인을 넣으면 Caddy 가 인증서를 받아 HTTPS 로 뜬다.
+      # 비워 두면 :80 평문이다. 로컬에는 도메인이 없어 인증서를 받을 수 없다.
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@localhost}
+      TZ: Asia/Seoul
     ports:
       - "${WEB_PORT:-80}:80"
+      # 인증서 발급(HTTP-01)은 80 으로 들어온다. 443 만 열면 발급이 안 된다.
+      - "${WEB_TLS_PORT:-443}:443"
+    volumes:
+      # 받아 둔 인증서를 여기 둔다. 이게 없으면 컨테이너를 새로 만들 때마다
+      # 다시 발급받고, Let's Encrypt 발급 한도에 걸린다.
+      - caddy-data:/data
+      - caddy-config:/config
     depends_on:
-      # nginx 는 기동할 때 proxy_pass 의 호스트명을 찾는다.
-      # backend 가 없는 상태로 뜨면 "host not found in upstream" 으로 죽는다.
       backend:
         condition: service_healthy
     restart: unless-stopped
@@ -72,3 +83,5 @@ services:
 volumes:
   postgres-data:
   redis-data:
+  caddy-data:
+  caddy-config:

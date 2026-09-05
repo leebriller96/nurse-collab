@@ -175,7 +175,7 @@ return TransitionResponse.of(request, actor);
 | 인증 | Spring Security + JWT (access 30분 / refresh 14일) |
 | 프론트 | React 19, TypeScript, Vite, TanStack Query, Tailwind CSS 4 |
 | 테스트 | JUnit 5, AssertJ, Testcontainers |
-| 배포 | Docker, Docker Compose, nginx, GitHub Actions |
+| 배포 | Docker, Docker Compose, Caddy (자동 HTTPS), GitHub Actions |
 
 테이블 13개, Flyway 마이그레이션 6개, 백엔드 클래스 126개.
 
@@ -208,15 +208,21 @@ npm run dev                   # http://localhost:5173
 
 ### 배포
 
-이미지 두 개(백엔드 JAR, nginx + 정적 파일)와 DB · Redis 를 한 번에 올린다.
+이미지 두 개(백엔드 JAR, Caddy + 정적 파일)와 DB · Redis 를 한 번에 올린다.
 
 ```bash
-cp .env.example .env          # POSTGRES_PASSWORD, JWT_SECRET 를 채운다
+cp .env.example .env          # POSTGRES_PASSWORD, JWT_SECRET, SITE_ADDRESS 를 채운다
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-밖으로 여는 포트는 웹 80 하나뿐이다. DB · Redis · 백엔드는 내부 네트워크에만 붙는다.
-nginx 가 같은 오리진에서 화면과 `/api`, `/ws` 를 함께 내보내므로
+`SITE_ADDRESS` 에 도메인을 넣으면 **Caddy 가 인증서를 받아 HTTPS 로 뜬다.**
+발급과 갱신이 자동이다. 비워 두면 `:80` 평문으로 떠서 로컬 확인용이 된다.
+
+HTTPS 는 선택이 아니다. 폰 브라우저는 `http://` 페이지에서 `wss://` 를 막기 때문에
+평문으로 공개하면 **실시간 갱신이 조용히 죽는다.**
+
+밖에서 닿는 것은 웹뿐이다. DB · Redis · 백엔드는 내부 네트워크에만 붙는다.
+Caddy 가 같은 오리진에서 화면과 `/api`, `/ws` 를 함께 내보내므로
 프론트 코드 어디에도 서버 주소가 들어가지 않는다.
 
 ### 테스트

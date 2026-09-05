@@ -25,7 +25,7 @@ EMR 대체가 아니라 **EMR 옆에 붙는 협업 레이어**로 포지셔닝�
 | 인증 | Spring Security + JWT |
 | 프론트 | React 19, TypeScript, Vite, TanStack Query, Tailwind CSS 4 |
 | 테스트 | JUnit 5, AssertJ, Testcontainers |
-| 빌드/배포 | Gradle, Docker, Docker Compose, nginx, GitHub Actions |
+| 빌드/배포 | Gradle, Docker, Docker Compose, Caddy, GitHub Actions |
 
 아직 하지 않은 것. 스택표에 미리 적어 두면 있는 줄 알게 된다.
 
@@ -155,12 +155,17 @@ chore: Testcontainers 의존성 추가
 - 마무리: README, GitHub Actions CI, 배포 구성.
   - CI 는 백엔드(Testcontainers 포함)·프론트·도커 이미지 세 잡이다.
     이미지 잡은 앞의 둘이 통과한 뒤에만 돈다.
-  - 배포는 `docker-compose.prod.yml` 로 이미지 두 개(백엔드 JAR, nginx+정적파일)와
-    DB·Redis 를 올린다. 밖으로 여는 포트는 웹 하나뿐이고 나머지는 내부 네트워크에만 붙는다.
-  - nginx 가 같은 오리진에서 `/api` 와 `/ws` 를 중계한다. 개발 때 Vite 프록시가 하던 것과 같은 모양이라
+  - 배포는 `docker-compose.prod.yml` 로 이미지 두 개(백엔드 JAR, Caddy+정적파일)와
+    DB·Redis 를 올린다. 밖에서 닿는 것은 웹뿐이고 나머지는 내부 네트워크에만 붙는다.
+  - Caddy 가 같은 오리진에서 `/api` 와 `/ws` 를 중계한다. 개발 때 Vite 프록시가 하던 것과 같은 모양이라
     프론트 코드 어디에도 서버 주소가 없다.
+  - `SITE_ADDRESS` 에 도메인을 넣으면 인증서 발급·갱신이 자동이다. 비우면 `:80` 평문으로 뜬다.
+    nginx+certbot 대신 Caddy 를 고른 이유는 **갱신이 조용히 실패하는 것**이 이 구성에서
+    제일 무서운 고장이기 때문이다.
+  - HTTPS 는 선택이 아니다. 폰 브라우저가 `http://` 페이지에서 `wss://` 를 막아
+    평문으로 공개하면 실시간 갱신이 조용히 죽는다. PWA 도 HTTPS 가 전제다.
   - `prod` 프로파일에서만 `forward-headers-strategy` 를 켠다. 켜지 않으면 감사 로그의 IP 가
-    전부 nginx 가 되고, 반대로 백엔드가 직접 열려 있는 로컬에서 켜면 헤더를 위조당한다.
+    전부 웹 컨테이너가 되고, 반대로 백엔드가 직접 열려 있는 로컬에서 켜면 헤더를 위조당한다.
   - README 스크린샷은 `e2e/screenshots.mjs` 가 뽑는다. 리허설 녹화와 분리한 이유는
     영상에 덮어쓰는 자막이 스틸에 그대로 찍히기 때문이다.
 
