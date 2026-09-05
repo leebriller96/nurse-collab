@@ -119,10 +119,27 @@ chore: Testcontainers 의존성 추가
 6. 동시성 처리 + 통계 화면
 7. 간호기록 + 감사 로그
 
-현재 위치: **1단계 완료 → 2단계 시작 전**
+현재 위치: **2단계 진행 중**
 
-1단계 산출물: Gradle 프로젝트, Flyway V1/V2, docker-compose(postgres 16 + redis),
-`global` 공통 기반(에러 처리 / BaseTimeEntity / PageResponse), 도메인 패키지 뼈대.
+- 1단계 완료: Gradle 프로젝트, Flyway V1/V2, docker-compose(postgres 16 + redis),
+  `global` 공통 기반(에러 처리 / BaseTimeEntity / PageResponse), 도메인 패키지 뼈대.
+- 2단계 완료분: JWT 인증(로그인 / 갱신 / 로그아웃 / 내 정보), 파트·직원·검사종류 엔티티,
+  마스터 조회 API(`GET /departments`, `GET /exam-types`), 시연용 시드 데이터(V3).
+- 2단계 남은 것: 관리자 마스터 CRUD(A-02~A-04). `02-api-spec.md` 에 엔드포인트가
+  정의돼 있지 않으므로 **문서를 먼저 추가한 뒤** 구현한다.
+
+### 데모 계정
+
+비밀번호는 전부 `nurse1234!` 다. 전부 가상 인물이다.
+
+| 아이디 | 역할 | 소속 |
+|---|---|---|
+| `admin01` | ADMIN | 전산팀 |
+| `head01` | HEAD_NURSE | 3병동 |
+| `ward01` | NURSE | 3병동 |
+| `ward02` | NURSE | 5병동 |
+| `mri01` | NURSE | MRI실 |
+| `ct01` | NURSE | CT실 |
 
 ## 최종 목표 (시연 시나리오)
 
