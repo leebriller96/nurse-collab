@@ -42,6 +42,9 @@ public enum ErrorCode {
     NOTE_EDIT_WINDOW_CLOSED("NN-002", HttpStatus.UNPROCESSABLE_ENTITY, "작성 후 24시간이 지난 기록은 수정할 수 없습니다. 정정 기록을 새로 남겨 주세요."),
     NOTE_CONTENT_REQUIRED("NN-003", HttpStatus.BAD_REQUEST, "기록 내용은 비워 둘 수 없습니다."),
 
+    // 알림
+    NOTIFICATION_NOT_FOUND("NTF-000", HttpStatus.NOT_FOUND, "알림을 찾을 수 없습니다."),
+
     // 기타
     STAFF_NOT_FOUND("STF-001", HttpStatus.NOT_FOUND, "직원 정보를 찾을 수 없습니다."),
     INTERNAL_ERROR("SYS-001", HttpStatus.INTERNAL_SERVER_ERROR, "일시적인 오류가 발생했습니다.");
