@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# 같은 브랜치에 연달아 밀면 앞의 실행은 취소한다. 마지막 커밋 결과만 의미가 있다.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: 백엔드 빌드 · 테스트
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Testcontainers 가 진짜 PostgreSQL 을 띄운다. ubuntu 러너에는 도커가 이미 있다.
+      - name: 빌드와 테스트
+        run: ./gradlew build --no-daemon
+
+      # 실패했을 때 어느 테스트가 깨졌는지 보려면 리포트가 있어야 한다
+      - name: 테스트 리포트 보관
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: build/reports/tests/test
+          retention-days: 7
+
+  frontend:
+    name: 프론트 빌드
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      # tsc -b 가 포함돼 있어 타입 오류도 여기서 걸린다
+      - run: npm run build
+
+  images:
+    name: 배포 이미지 빌드
+    runs-on: ubuntu-latest
+    # 코드가 통과한 뒤에만 이미지를 만든다. 먼저 돌려 봐야 시간만 쓴다.
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      # 레지스트리에 올리지 않는다. Dockerfile 이 아직 빌드되는지만 확인한다.
+      - name: 백엔드 이미지
+        run: docker build -t nurse-collab-backend:ci .
+
+      - name: 웹 이미지
+        run: docker build -t nurse-collab-web:ci ./frontend
