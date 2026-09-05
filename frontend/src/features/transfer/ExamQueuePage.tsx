@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import type { PageResponse, TransferSummary } from '@/shared/api/types';
 import { PriorityBadge, StatusBadge } from '@/shared/ui/badges';
@@ -17,6 +18,7 @@ function waitingStyle(minutes: number) {
  */
 export default function ExamQueuePage() {
   const { staff } = useAuth();
+  const navigate = useNavigate();
 
   const { data, isPending, isError, error } = useQuery({
     queryKey: ['transfer-requests', 'INBOUND'],
@@ -62,7 +64,11 @@ export default function ExamQueuePage() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {data.content.map((row) => (
-              <tr key={row.id} className={waitingStyle(row.waitingMinutes)}>
+              <tr
+                key={row.id}
+                onClick={() => navigate(`/exam/requests/${row.id}`)}
+                className={`cursor-pointer hover:bg-slate-50 ${waitingStyle(row.waitingMinutes)}`}
+              >
                 <td className="px-3 py-3">
                   <PriorityBadge priority={row.priority} />
                 </td>

@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { Link } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import type { EncounterSummary, PageResponse } from '@/shared/api/types';
 import { AlertBadge } from '@/shared/ui/badges';
@@ -39,7 +40,7 @@ export default function WardBoardPage() {
       <ul className="space-y-2 px-3">
         {data.content.map((encounter) => (
           <li key={encounter.encounterId}>
-            <article className="rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200">
+            <Link to={`/ward/encounters/${encounter.encounterId}`} className="block rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200">
               <div className="flex items-baseline justify-between gap-2">
                 <div className="flex items-baseline gap-2">
                   <span className="text-base font-bold text-slate-900">
@@ -68,7 +69,7 @@ export default function WardBoardPage() {
                   ))}
                 </div>
               )}
-            </article>
+            </Link>
           </li>
         ))}
       </ul>

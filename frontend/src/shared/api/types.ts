@@ -102,3 +102,81 @@ export interface ApiError {
   path: string;
   fieldErrors?: { field: string; reason: string }[];
 }
+
+export interface ChecklistWarning {
+  alertType: AlertType;
+  message: string;
+}
+
+export interface EncounterFullView {
+  encounterId: number;
+  patient: { patientNo: string; name: string; birthDate: string; age: number; sex: Sex };
+  department: DepartmentSummary;
+  roomNo: string;
+  bedNo: string;
+  admittedAt: string;
+  diagnosis: string | null;
+  isMobile: boolean;
+  alerts: AlertResponse[];
+  activeRequests: {
+    id: number;
+    requestNo: string;
+    examName: string;
+    status: TransferStatus;
+    scheduledAt: string | null;
+  }[];
+}
+
+export interface TransferDetail {
+  id: number;
+  requestNo: string;
+  status: TransferStatus;
+  priority: TransferPriority;
+  encounter: { encounterId: number; roomNo: string; bedNo: string; isMobile: boolean };
+  patient: { patientNo: string; name: string; age: number; sex: Sex };
+  examType: {
+    id: number;
+    code: string;
+    name: string;
+    defaultDuration: number;
+    prepInstruction: string | null;
+  };
+  fromDepartment: DepartmentSummary;
+  toDepartment: DepartmentSummary;
+  requestedBy: { id: number; name: string };
+  requestedAt: string;
+  desiredAt: string | null;
+  scheduledAt: string | null;
+  startedAt: string | null;
+  completedAt: string | null;
+  note: string | null;
+  holdReason: string | null;
+  alerts: AlertResponse[];
+  checklistWarnings: ChecklistWarning[];
+  availableTransitions: TransferStatus[];
+  version: number;
+}
+
+export interface TransferEvent {
+  id: number;
+  fromStatus: TransferStatus | null;
+  toStatus: TransferStatus;
+  actor: { id: number; name: string; departmentName: string };
+  occurredAt: string;
+  reason: string | null;
+}
+
+export interface Message {
+  id: number;
+  sender: { id: number; name: string; departmentName: string };
+  content: string;
+  createdAt: string;
+}
+
+export interface TransitionResponse {
+  id: number;
+  status: TransferStatus;
+  scheduledAt: string | null;
+  availableTransitions: TransferStatus[];
+  version: number;
+}

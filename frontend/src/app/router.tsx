@@ -1,7 +1,11 @@
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import LoginPage from '@/features/auth/LoginPage';
 import WardBoardPage from '@/features/encounter/WardBoardPage';
+import EncounterDetailPage from '@/features/encounter/EncounterDetailPage';
 import ExamQueuePage from '@/features/transfer/ExamQueuePage';
+import WardRequestsPage from '@/features/transfer/WardRequestsPage';
+import TransferCreatePage from '@/features/transfer/TransferCreatePage';
+import TransferDetailPage from '@/features/transfer/TransferDetailPage';
 import WardLayout from '@/layouts/WardLayout';
 import ExamLayout from '@/layouts/ExamLayout';
 import { useAuth } from '@/shared/hooks/useAuth';
@@ -28,11 +32,18 @@ export default function Router() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<RequireAuth />}>
         <Route path="/" element={<Home />} />
+
         <Route path="/ward" element={<WardLayout />}>
           <Route path="board" element={<WardBoardPage />} />
+          <Route path="encounters/:id" element={<EncounterDetailPage />} />
+          <Route path="requests" element={<WardRequestsPage />} />
+          <Route path="requests/new" element={<TransferCreatePage />} />
+          <Route path="requests/:id" element={<TransferDetailPage />} />
         </Route>
+
         <Route path="/exam" element={<ExamLayout />}>
           <Route path="queue" element={<ExamQueuePage />} />
+          <Route path="requests/:id" element={<TransferDetailPage />} />
         </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />

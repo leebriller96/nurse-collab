@@ -1,5 +1,10 @@
-import { Outlet } from 'react-router-dom';
+import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/shared/hooks/useAuth';
+
+const TABS = [
+  { to: '/ward/board', label: '환자' },
+  { to: '/ward/requests', label: '요청' },
+];
 
 /** 병동은 모바일 우선. 한 손으로, 이동 중에, 짧게 쓴다. */
 export default function WardLayout() {
@@ -11,17 +16,34 @@ export default function WardLayout() {
         <Outlet />
       </main>
 
-      <nav className="sticky bottom-0 flex items-center justify-between border-t border-slate-200 bg-white px-4 py-3">
-        <span className="text-sm text-slate-600">
-          {staff?.name} <span className="text-slate-400">· {staff?.department.name}</span>
-        </span>
-        <button
-          type="button"
-          onClick={() => void logout()}
-          className="rounded-lg px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-100"
-        >
-          로그아웃
-        </button>
+      <nav className="sticky bottom-0 border-t border-slate-200 bg-white">
+        <div className="flex">
+          {TABS.map((tab) => (
+            <NavLink
+              key={tab.to}
+              to={tab.to}
+              className={({ isActive }) =>
+                `flex-1 py-3 text-center text-sm font-semibold ${
+                  isActive ? 'text-sky-600' : 'text-slate-400'
+                }`
+              }
+            >
+              {tab.label}
+            </NavLink>
+          ))}
+        </div>
+        <div className="flex items-center justify-between border-t border-slate-100 px-4 py-2">
+          <span className="text-xs text-slate-500">
+            {staff?.name} · {staff?.department.name}
+          </span>
+          <button
+            type="button"
+            onClick={() => void logout()}
+            className="text-xs text-slate-400 hover:text-slate-600"
+          >
+            로그아웃
+          </button>
+        </div>
       </nav>
     </div>
   );
