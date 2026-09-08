@@ -1,9 +1,0 @@
-
-> frontend@0.0.0 preview
-> vite preview
-
-[33m(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
-  - `__dirname` (vite.config.ts:63:32). Use `import.meta.dirname` instead
-Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.[39m
-  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m4173[22m/[39m
-[2m  [32m➜[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m
