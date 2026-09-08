@@ -157,7 +157,27 @@ return TransitionResponse.of(request, actor);
 간호사가 환자 정보를 못 보게 되면 안 되기 때문이다.
 대신 이 설계 때문에 **적재 실패가 조용히 넘어간다** — 개발 중에 이걸 눈치채는 데 세 번의 재기동이 걸렸다.
 
-### 6. 화면에 개발자의 말을 쓰지 않는다
+### 6. 오프라인에서 낡은 값을 보여주지 않는다
+
+폰에 설치해 앱처럼 쓴다. 서비스 워커가 앱 껍데기를 캐시하지만
+**API 응답은 캐시하지 않는다.**
+
+병동 간호사는 엘리베이터와 지하 검사실을 오간다. 끊기는 것이 예외가 아니라 일상이다.
+그때 캐시해 둔 값을 보여주면 지난 활력징후나 이미 끝난 이송이 지금 값처럼 보인다.
+**모르는 것보다 틀리게 아는 것이 나쁘다.** 그래서 값을 내놓는 대신 끊겼다고 알린다.
+
+```
+연결이 끊겼습니다 · 지금은 저장되지 않습니다
+```
+
+이 띠는 `fixed` 가 아니라 `sticky` 다. `fixed` 로 두면 검사실 화면의 상단 메뉴를 덮어
+끊긴 동안 로그아웃도 탭 이동도 못 하게 된다.
+
+렌더링 오류도 받아낸다. `ErrorBoundary` 가 없으면 오류 하나에 화면이 백지가 되는데,
+근무 중에 앱이 하얗게 변하면 간호사는 결국 전화기를 든다.
+이 프로젝트가 없애려던 바로 그 전화다.
+
+### 7. 화면에 개발자의 말을 쓰지 않는다
 
 `ACCEPTED`, `IN_TRANSIT` 같은 상태 이름은 화면에 나오지 않는다.
 버튼에는 다음에 할 일이 적혀 있다 — **접수 / 준비 완료 / 환자 출발 / 검사 시작 / 검사 종료 / 병동 도착**.
@@ -173,7 +193,7 @@ return TransitionResponse.of(request, actor);
 | 데이터 | PostgreSQL 16, Flyway, Spring Data JPA |
 | 실시간 | Spring WebSocket + STOMP, Redis |
 | 인증 | Spring Security + JWT (access 30분 / refresh 14일) |
-| 프론트 | React 19, TypeScript, Vite, TanStack Query, Tailwind CSS 4 |
+| 프론트 | React 19, TypeScript, Vite, TanStack Query, Tailwind CSS 4, PWA |
 | 테스트 | JUnit 5, AssertJ, Testcontainers |
 | 배포 | Docker, Docker Compose, Caddy (자동 HTTPS), GitHub Actions |
 
@@ -233,6 +253,21 @@ Caddy 가 같은 오리진에서 화면과 `/api`, `/ws` 를 함께 내보내므
 ```bash
 ./gradlew test                # Docker 가 떠 있어야 한다 (Testcontainers)
 ```
+
+설치 가능한 앱으로 제대로 빌드됐는지는 따로 확인한다.
+PWA 는 조용히 깨진다 — 매니페스트 항목이 빠져도 화면은 멀쩡히 뜨고,
+폰에서 "홈 화면에 추가" 가 안 나오고 나서야 알게 된다.
+
+```bash
+cd frontend && npm run build && npm run preview
+```
+
+```bash
+cd e2e && node check-pwa.mjs
+```
+
+개발 서버(`npm run dev`)에서는 서비스 워커를 꺼 둔다.
+캐시가 HMR 과 얽히면 고친 코드가 왜 안 나오는지 한참 찾게 된다.
 
 ---
 

@@ -24,6 +24,7 @@ EMR 대체가 아니라 **EMR 옆에 붙는 협업 레이어**로 포지셔닝�
 | 실시간 | Spring WebSocket + STOMP (내장 SimpleBroker) |
 | 인증 | Spring Security + JWT |
 | 프론트 | React 19, TypeScript, Vite, TanStack Query, Tailwind CSS 4 |
+| PWA | vite-plugin-pwa — 홈 화면 설치. 실제 폰 설치는 HTTPS 가 전제다 |
 | 테스트 | JUnit 5, AssertJ, Testcontainers |
 | 빌드/배포 | Gradle, Docker, Docker Compose, Caddy, GitHub Actions |
 
@@ -31,7 +32,6 @@ EMR 대체가 아니라 **EMR 옆에 붙는 협업 레이어**로 포지셔닝�
 
 | 항목 | 상태 |
 |---|---|
-| PWA (`vite-plugin-pwa`) | 미설치. 폰에서 홈 화면에 추가하려면 필요하고, HTTPS 가 전제다 |
 | shadcn/ui | 미사용. Tailwind 로 직접 만들었다 |
 | Redis Pub/Sub | 미사용. 인스턴스를 여러 대로 늘릴 때 SimpleBroker 를 릴레이로 바꾼다 |
 
@@ -179,6 +179,17 @@ chore: Testcontainers 의존성 추가
     `audit_log` 가 비어서 통계·이력 화면이 텅 빈다.
   - 시각만 SQL 로 되돌린다. `now()` 기준이어야 한다. 고정 시각에 맞추면 그 전에 돌렸을 때
     요청이 미래로 가고 대기시간이 전부 0분으로 찍힌다.
+- 폰에서 쓸 수 있게(PWA·오프라인·오류 차단):
+  - **API 응답은 절대 캐시하지 않는다.** 앱 껍데기만 캐시한다. 오프라인에서 지난 활력징후나
+    낡은 이송 상태를 지금 값처럼 보여주면 이미 끝난 검사를 다시 보내게 된다.
+    모르는 것보다 틀리게 아는 것이 나쁘다. 그래서 끊기면 값을 내놓는 대신 끊겼다고 알린다.
+  - 오프라인 배너는 `fixed` 가 아니라 `sticky` 다. `fixed` 면 검사실·관리자 화면의
+    상단 메뉴를 덮어 끊긴 동안 로그아웃도 탭 이동도 못 한다.
+  - `ErrorBoundary` 가 없으면 렌더링 오류 하나에 화면이 백지가 된다. 근무 중에 그러면
+    간호사는 결국 전화기를 든다. 이 프로젝트가 없애려던 그 전화다.
+  - 개발 서버에서는 서비스 워커를 끈다. 캐시가 HMR 과 얽히면 고친 코드가 왜 안 나오는지
+    한참 찾게 된다. 확인은 `npm run build && npm run preview` 후 `e2e/check-pwa.mjs` 로 한다.
+  - 내장 브라우저 패널은 서비스 워커를 막는다. 확인은 Playwright 로 해야 한다.
 - API 레벨 테스트: 권한 판정과 에러 코드는 컨트롤러·필터·예외 변환을 지나야 확정된다.
   서비스를 직접 부르는 테스트로는 `403 PERM-002` 가 실제로 그 값으로 나가는지 알 수 없다.
   MockMvc 로 진짜 JWT 를 받아 호출한다.

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!--
+    한 곳에서 다른 곳으로 환자를 보낸다는 것만 남긴 모양.
+    글자를 쓰지 않은 이유는 홈 화면에서 16px 로도 줄어들기 때문이다.
+
+    글리프를 가운데 60% 안에 넣었다. 안드로이드가 아이콘 모서리를 둥글게 깎거나
+    원으로 잘라내는데(maskable), 가장자리까지 그리면 그때 잘려 나간다.
+  -->
+  <rect width="512" height="512" rx="112" fill="#0284c7"/>
+  <g fill="none" stroke="#fff" stroke-width="30" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="152" cy="256" r="34" fill="#fff" stroke="none"/>
+    <path d="M200 256h108"/>
+    <path d="M300 210l46 46-46 46"/>
+  </g>
+</svg>

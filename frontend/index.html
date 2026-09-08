@@ -2,8 +2,14 @@
 <html lang="ko">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <!-- iOS 는 매니페스트의 icons 를 읽지 않는다. 이 태그가 없으면 홈 화면에
+         화면을 캡처한 이미지가 아이콘으로 들어간다. -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <!-- 폰 브라우저 상단 막대 색. 앱처럼 보이게 하는 데 이게 제일 크다. -->
+    <meta name="theme-color" content="#0284c7" />
+    <!-- viewport-fit=cover 는 노치 있는 기기에서 화면 끝까지 쓰기 위한 것이다 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>간호 협업 시스템</title>
   </head>
   <body>

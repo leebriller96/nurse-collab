@@ -60,6 +60,22 @@ jobs:
       # tsc -b 가 포함돼 있어 타입 오류도 여기서 걸린다
       - run: npm run build
 
+      # PWA 는 조용히 깨진다. 매니페스트 항목이 빠지거나 아이콘 경로가 틀려도
+      # 화면은 멀쩡히 뜨고, 폰에서 "홈 화면에 추가" 가 안 나오고 나서야 알게 된다.
+      # 백엔드 없이 도는 검사라 DB 를 띄우지 않는다.
+      - name: 브라우저 준비
+        working-directory: e2e
+        run: npm ci && npx playwright install --with-deps chromium
+
+      - name: 설치 가능한 앱인지 확인
+        run: |
+          npm run preview &
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:4173/ >/dev/null && break
+            sleep 1
+          done
+          cd ../e2e && node check-pwa.mjs
+
   images:
     name: 배포 이미지 빌드
     runs-on: ubuntu-latest
