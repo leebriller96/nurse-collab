@@ -6,6 +6,7 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -71,6 +72,20 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErrorResponse> handleBadParameter(HttpServletRequest req) {
         return ResponseEntity.badRequest()
                 .body(ErrorResponse.of(ErrorCode.INVALID_INPUT, req.getRequestURI()));
+    }
+
+    /**
+     * 있는 경로에 없는 메서드로 부른 경우. DELETE /nursing-notes/{id} 같은 것이다.
+     *
+     * 이걸 잡지 않으면 아래 catch-all 로 떨어져 500 SYS-001 이 나간다.
+     * 부른 쪽 잘못인데 서버가 고장난 것처럼 보이고, 오류 모니터링에도 섞여
+     * 진짜 장애를 가린다.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErrorResponse> handleMethodNotAllowed(HttpServletRequest req) {
+        ErrorCode code = ErrorCode.METHOD_NOT_ALLOWED;
+        return ResponseEntity.status(code.getStatus())
+                .body(ErrorResponse.of(code, req.getRequestURI()));
     }
 
     /** 예상 못 한 오류 */

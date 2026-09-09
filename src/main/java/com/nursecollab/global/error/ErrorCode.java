@@ -12,6 +12,7 @@ public enum ErrorCode {
 
     // 입력값
     INVALID_INPUT("VAL-001", HttpStatus.BAD_REQUEST, "입력값을 확인해 주세요."),
+    METHOD_NOT_ALLOWED("VAL-002", HttpStatus.METHOD_NOT_ALLOWED, "지원하지 않는 요청입니다."),
 
     // 인증
     INVALID_CREDENTIALS("AUTH-001", HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다."),
