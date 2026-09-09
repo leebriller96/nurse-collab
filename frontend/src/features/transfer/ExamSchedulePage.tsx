@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { api, messageOf } from '@/shared/api/client';
+import { api } from '@/shared/api/client';
 import { useAuth } from '@/shared/hooks/useAuth';
 import type { PageResponse, TransferSummary } from '@/shared/api/types';
 import { PriorityBadge, StatusBadge } from '@/shared/ui/badges';
+import LoadFailed from '@/shared/ui/LoadFailed';
 
 /** 기본은 검사실이 실제로 움직이는 시간대. 새벽 칸이 화면 절반을 먹으면 읽기 어렵다. */
 const DEFAULT_START = 7;
@@ -49,7 +50,7 @@ export default function ExamSchedulePage() {
   const navigate = useNavigate();
   const [date, setDate] = useState(localDate(new Date()));
 
-  const { data, isPending, isError, error } = useQuery({
+  const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['exam-schedule', date],
     queryFn: async () =>
       (await api.get<PageResponse<TransferSummary>>('/transfer-requests', {
@@ -59,7 +60,7 @@ export default function ExamSchedulePage() {
   });
 
   if (isPending) return <p className="p-6 text-sm text-slate-500">불러오는 중…</p>;
-  if (isError) return <p className="p-6 text-sm text-red-600">{messageOf(error)}</p>;
+  if (isError) return <LoadFailed error={error} onRetry={() => void refetch()} />;
 
   const scheduled = data.content.filter((r) => r.scheduledAt);
   const unscheduled = data.content.filter((r) => !r.scheduledAt);

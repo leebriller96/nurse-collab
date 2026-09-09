@@ -4,6 +4,7 @@ import { api } from '@/shared/api/client';
 import type { PageResponse, TransferSummary } from '@/shared/api/types';
 import { PriorityBadge, StatusBadge } from '@/shared/ui/badges';
 import { useAuth } from '@/shared/hooks/useAuth';
+import LoadFailed from '@/shared/ui/LoadFailed';
 
 /** 대기가 길어질수록 행이 진해진다. 숫자만으로는 눈에 들어오지 않기 때문이다. */
 function waitingStyle(minutes: number) {
@@ -20,7 +21,7 @@ export default function ExamQueuePage() {
   const { staff } = useAuth();
   const navigate = useNavigate();
 
-  const { data, isPending, isError, error } = useQuery({
+  const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['transfer-requests', 'INBOUND'],
     queryFn: async () => {
       const res = await api.get<PageResponse<TransferSummary>>('/transfer-requests', {
@@ -36,7 +37,7 @@ export default function ExamQueuePage() {
     return <p className="p-6 text-sm text-slate-500">불러오는 중…</p>;
   }
   if (isError) {
-    return <p className="p-6 text-sm text-red-600">{(error as Error).message}</p>;
+    return <LoadFailed error={error} onRetry={() => void refetch()} />;
   }
 
   return (

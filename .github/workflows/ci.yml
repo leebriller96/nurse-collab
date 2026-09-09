@@ -119,6 +119,12 @@ jobs:
           npm ci && npx playwright install --with-deps chromium
           APP=http://localhost:8081 node check-csp.mjs
 
+      # 막히는 자리가 없는지. 조회가 실패했을 때 빠져나올 수 있는지와
+      # 되돌릴 수 없는 동작에 한 번 더 묻는지는 화면만 봐서는 알 수 없다.
+      - name: 사용 흐름 확인
+        working-directory: e2e
+        run: APP=http://localhost:8081 node check-ux.mjs
+
       - name: 실패하면 스택 로그를 남긴다
         if: failure()
         run: docker compose -p ci -f docker-compose.prod.yml logs --tail 80

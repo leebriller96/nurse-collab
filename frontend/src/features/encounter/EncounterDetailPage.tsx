@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { api, messageOf } from '@/shared/api/client';
+import { api } from '@/shared/api/client';
 import type { EncounterFullView } from '@/shared/api/types';
 import { AlertBadge, StatusBadge } from '@/shared/ui/badges';
+import LoadFailed from '@/shared/ui/LoadFailed';
 
 /** W-02 환자 상세. 여기서 바로 요청을 걸 수 있어야 한다. */
 export default function EncounterDetailPage() {
@@ -10,13 +11,13 @@ export default function EncounterDetailPage() {
   const encounterId = Number(id);
   const navigate = useNavigate();
 
-  const { data, isPending, isError, error } = useQuery({
+  const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['encounter', encounterId],
     queryFn: async () => (await api.get<EncounterFullView>(`/encounters/${encounterId}`)).data,
   });
 
   if (isPending) return <p className="p-4 text-sm text-slate-500">불러오는 중…</p>;
-  if (isError) return <p className="p-4 text-sm text-red-600">{messageOf(error)}</p>;
+  if (isError) return <LoadFailed error={error} onRetry={() => void refetch()} />;
 
   return (
     <div className="pb-28">

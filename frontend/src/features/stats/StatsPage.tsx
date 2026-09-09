@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api, messageOf } from '@/shared/api/client';
+import { api } from '@/shared/api/client';
 import { useAuth } from '@/shared/hooks/useAuth';
+import LoadFailed from '@/shared/ui/LoadFailed';
 
 interface WaitingTimeStats {
   period: { from: string; to: string };
@@ -44,14 +45,14 @@ export default function StatsPage() {
   const [from, setFrom] = useState(daysAgo(7));
   const [to, setTo] = useState(today());
 
-  const { data, isPending, isError, error } = useQuery({
+  const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['stats', from, to],
     queryFn: async () =>
       (await api.get<WaitingTimeStats>('/stats/waiting-time', { params: { from, to } })).data,
   });
 
   if (isPending) return <p className="p-6 text-sm text-slate-500">불러오는 중…</p>;
-  if (isError) return <p className="p-6 text-sm text-red-600">{messageOf(error)}</p>;
+  if (isError) return <LoadFailed error={error} onRetry={() => void refetch()} />;
 
   const peak = Math.max(1, ...data.byHour.map((h) => h.requestCount));
   const busiest = data.byHour.reduce((a, b) => (b.requestCount > a.requestCount ? b : a));

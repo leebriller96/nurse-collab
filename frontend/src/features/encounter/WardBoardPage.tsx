@@ -4,6 +4,7 @@ import { api } from '@/shared/api/client';
 import type { EncounterSummary, PageResponse } from '@/shared/api/types';
 import { AlertBadge } from '@/shared/ui/badges';
 import { useAuth } from '@/shared/hooks/useAuth';
+import LoadFailed from '@/shared/ui/LoadFailed';
 
 /**
  * W-01 환자 보드. 모바일 우선.
@@ -13,7 +14,7 @@ import { useAuth } from '@/shared/hooks/useAuth';
 export default function WardBoardPage() {
   const { staff } = useAuth();
 
-  const { data, isPending, isError, error } = useQuery({
+  const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['encounters'],
     queryFn: async () => {
       const res = await api.get<PageResponse<EncounterSummary>>('/encounters', {
@@ -27,7 +28,7 @@ export default function WardBoardPage() {
     return <p className="p-4 text-sm text-slate-500">불러오는 중…</p>;
   }
   if (isError) {
-    return <p className="p-4 text-sm text-red-600">{(error as Error).message}</p>;
+    return <LoadFailed error={error} onRetry={() => void refetch()} />;
   }
 
   return (

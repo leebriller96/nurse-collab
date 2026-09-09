@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { api, messageOf } from '@/shared/api/client';
+import { api } from '@/shared/api/client';
 import type { AuditLogEntry, PageResponse } from '@/shared/api/types';
+import LoadFailed from '@/shared/ui/LoadFailed';
 
 const ACTION_LABEL: Record<string, string> = {
   VIEW: '열람',
@@ -40,7 +41,7 @@ export default function AuditLogPage() {
   const [patientNo, setPatientNo] = useState('');
   const [page, setPage] = useState(0);
 
-  const { data, isPending, isError, error } = useQuery({
+  const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['audit-logs', from, to, page],
     queryFn: async () =>
       (await api.get<PageResponse<AuditLogEntry>>('/audit-logs',
@@ -48,7 +49,7 @@ export default function AuditLogPage() {
   });
 
   if (isPending) return <p className="p-6 text-sm text-slate-500">불러오는 중…</p>;
-  if (isError) return <p className="p-6 text-sm text-red-600">{messageOf(error)}</p>;
+  if (isError) return <LoadFailed error={error} onRetry={() => void refetch()} />;
 
   // 등록번호 검색은 화면에서 거른다. 서버는 환자 식별자로만 받기 때문이다.
   const rows = patientNo.trim()

@@ -4,10 +4,23 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { api, messageOf } from '@/shared/api/client';
 import type { Message, TransferDetail, TransferEvent, TransferStatus } from '@/shared/api/types';
 import { AlertBadge, PriorityBadge, StatusBadge, actionLabel, statusLabel } from '@/shared/ui/badges';
+import LoadFailed from '@/shared/ui/LoadFailed';
 
 /** 전이마다 무엇을 더 받아야 하는지. 서버 규칙과 짝을 이룬다. */
 const NEEDS_REASON: TransferStatus[] = ['ON_HOLD', 'CANCELLED'];
 const NEEDS_SCHEDULE: TransferStatus[] = ['ACCEPTED'];
+
+/**
+ * 한 번 더 묻는 전이.
+ *
+ * 앞으로 나아가는 동작은 대부분 바로 실행한다. 이동 중에 한 손으로 누르는 화면이라
+ * 매번 확인을 받으면 오히려 방해가 된다.
+ *
+ * 완료만 예외다. 종료 상태여서 여기서 나가는 전이가 규칙표에 없다.
+ * 잘못 누르면 되돌릴 방법이 없고, 이력은 지우지 않으므로 흔적도 남는다.
+ * 취소는 사유를 받으므로 이미 한 단계를 거친다.
+ */
+const NEEDS_CONFIRM: TransferStatus[] = ['COMPLETED'];
 
 const time = (iso: string) =>
   new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
@@ -83,11 +96,15 @@ export default function TransferDetailPage() {
 
   if (detail.isPending) return <p className="p-6 text-sm text-slate-500">불러오는 중…</p>;
   if (detail.isError) {
-    return <p className="p-6 text-sm text-red-600">{messageOf(detail.error)}</p>;
+    return <LoadFailed error={detail.error} onRetry={() => void detail.refetch()} />;
   }
 
   const d = detail.data;
-  const needsInput = pending && (NEEDS_REASON.includes(pending) || NEEDS_SCHEDULE.includes(pending));
+  const needsInput =
+    pending &&
+    (NEEDS_REASON.includes(pending) ||
+      NEEDS_SCHEDULE.includes(pending) ||
+      NEEDS_CONFIRM.includes(pending));
   const canSubmit =
     pending &&
     (!NEEDS_REASON.includes(pending) || reason.trim().length > 0) &&
@@ -220,6 +237,12 @@ export default function TransferDetailPage() {
         <div className="fixed inset-x-0 bottom-[var(--app-bottom-bar,0px)] z-10 mx-auto max-w-3xl border-t border-slate-200 bg-white p-3">
           {needsInput && (
             <div className="mb-2 space-y-2">
+              {NEEDS_CONFIRM.includes(pending) && (
+                <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                  환자가 병동에 도착한 것이 맞습니까? 확정하면 이 요청은 끝나고
+                  되돌릴 수 없습니다.
+                </p>
+              )}
               {NEEDS_SCHEDULE.includes(pending) && (
                 <input
                   type="datetime-local"
@@ -237,12 +260,17 @@ export default function TransferDetailPage() {
                 />
               )}
               <div className="flex gap-2">
+                {/*
+                  "취소" 라고 쓰면 안 된다. 이 앱에서 취소는 요청 취소라는 상태 이름이다.
+                  요청을 취소하려고 사유를 적는 중이면 "취소" 옆에 "요청 취소 확정" 이
+                  나란히 놓여 어느 쪽이 무엇인지 알 수 없게 된다.
+                */}
                 <button
                   type="button"
                   onClick={() => setPending(null)}
                   className="flex-1 rounded-lg bg-slate-100 py-2.5 text-sm font-semibold text-slate-600"
                 >
-                  취소
+                  그만두기
                 </button>
                 <button
                   type="button"
@@ -267,7 +295,11 @@ export default function TransferDetailPage() {
                   disabled={transition.isPending}
                   onClick={() => {
                     setError(null);
-                    if (NEEDS_REASON.includes(status) || NEEDS_SCHEDULE.includes(status)) {
+                    if (
+                      NEEDS_REASON.includes(status) ||
+                      NEEDS_SCHEDULE.includes(status) ||
+                      NEEDS_CONFIRM.includes(status)
+                    ) {
                       setPending(status);
                     } else {
                       transition.mutate(status);

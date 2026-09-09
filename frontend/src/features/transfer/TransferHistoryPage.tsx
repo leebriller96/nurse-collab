@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { api, messageOf } from '@/shared/api/client';
+import { api } from '@/shared/api/client';
 import { useAuth } from '@/shared/hooks/useAuth';
 import type { PageResponse, TransferStatus, TransferSummary } from '@/shared/api/types';
 import { PriorityBadge, StatusBadge } from '@/shared/ui/badges';
+import LoadFailed from '@/shared/ui/LoadFailed';
 
 const FINISHED: TransferStatus[] = ['COMPLETED', 'CANCELLED'];
 
@@ -33,7 +34,7 @@ export default function TransferHistoryPage() {
 
   const inbound = staff?.department.deptType === 'EXAM';
 
-  const { data, isPending, isError, error } = useQuery({
+  const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['transfer-history', from, to, query, onlyFinished, page],
     queryFn: async () =>
       (await api.get<PageResponse<TransferSummary>>('/transfer-requests', {
@@ -97,7 +98,7 @@ export default function TransferHistoryPage() {
       </form>
 
       {isPending && <p className="text-sm text-slate-500">불러오는 중…</p>}
-      {isError && <p className="text-sm text-red-600">{messageOf(error)}</p>}
+      {isError && <LoadFailed error={error} onRetry={() => void refetch()} compact />}
 
       {data && (
         <>

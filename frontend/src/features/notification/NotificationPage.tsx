@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { api, messageOf } from '@/shared/api/client';
+import { api } from '@/shared/api/client';
 import { useAuth } from '@/shared/hooks/useAuth';
 import type { NotificationsResponse } from '@/shared/api/types';
+import LoadFailed from '@/shared/ui/LoadFailed';
 
 const ago = (iso: string) => {
   const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -25,7 +26,7 @@ export default function NotificationPage() {
   const queryClient = useQueryClient();
   const [unreadOnly, setUnreadOnly] = useState(false);
 
-  const { data, isPending, isError, error } = useQuery({
+  const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['notifications', unreadOnly],
     queryFn: async () =>
       (await api.get<NotificationsResponse>('/notifications',
@@ -48,7 +49,7 @@ export default function NotificationPage() {
   });
 
   if (isPending) return <p className="p-4 text-sm text-slate-500">불러오는 중…</p>;
-  if (isError) return <p className="p-4 text-sm text-red-600">{messageOf(error)}</p>;
+  if (isError) return <LoadFailed error={error} onRetry={() => void refetch()} />;
 
   const detailPath = staff?.department.deptType === 'EXAM' ? '/exam/requests' : '/ward/requests';
 

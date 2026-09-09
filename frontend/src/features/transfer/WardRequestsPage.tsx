@@ -3,10 +3,11 @@ import { Link } from 'react-router-dom';
 import { api } from '@/shared/api/client';
 import type { PageResponse, TransferSummary } from '@/shared/api/types';
 import { PriorityBadge, StatusBadge } from '@/shared/ui/badges';
+import LoadFailed from '@/shared/ui/LoadFailed';
 
 /** W-04 내 요청 현황. 우리 병동이 보낸 요청만 본다. */
 export default function WardRequestsPage() {
-  const { data, isPending, isError } = useQuery({
+  const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['transfer-requests', 'OUTBOUND'],
     queryFn: async () => {
       const res = await api.get<PageResponse<TransferSummary>>('/transfer-requests', {
@@ -19,7 +20,7 @@ export default function WardRequestsPage() {
   });
 
   if (isPending) return <p className="p-4 text-sm text-slate-500">불러오는 중…</p>;
-  if (isError) return <p className="p-4 text-sm text-red-600">목록을 불러오지 못했습니다.</p>;
+  if (isError) return <LoadFailed error={error} onRetry={() => void refetch()} />;
 
   return (
     <div className="pb-24">
