@@ -378,7 +378,21 @@ docker compose -f docker-compose.prod.yml up -d
 docker compose -f docker-compose.prod.yml logs backend --tail 50
 ```
 
-`JWT_SECRET` 이 비었거나 너무 짧으면 기동하지 않는다. 32바이트 이상이어야 한다.
+`JWT_SECRET` 이 비었거나, 너무 짧거나, **개발용 기본값 그대로면 일부러 기동을 막는다.**
+
+```
+개발용 기본 서명 키로 운영에 띄우려 했습니다.
+```
+
+이 키는 저장소에 공개돼 있어서, 그대로 뜨면 **누구나 관리자 토큰을 위조할 수 있다.**
+로그인조차 필요 없다. 화면은 멀쩡히 돌기 때문에 아무도 눈치채지 못한다.
+그래서 조용히 도는 대신 뜨지 않게 했다.
+
+```bash
+openssl rand -base64 48
+```
+
+나온 값을 `.env` 의 `JWT_SECRET` 에 넣고 다시 올린다.
 
 ---
 

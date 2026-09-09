@@ -26,7 +26,9 @@ spring:
       port: 6379
 
 jwt:
-  # 로컬 개발용 기본값이다. 운영에서는 반드시 JWT_SECRET 환경변수로 덮어쓴다.
+  # 로컬 개발용 기본값이다. 이 값은 저장소에 공개돼 있으므로 운영에서 쓰면
+  # 누구나 관리자 토큰을 위조할 수 있다. prod 프로파일에서는 JwtSecretGuard 가
+  # "local-dev-only" 표식을 보고 기동을 막는다. 표식을 지우지 말 것.
   secret: ${JWT_SECRET:local-dev-only-secret-please-override-in-production-0123456789}
   access-token-validity: 30m
   refresh-token-validity: 14d
