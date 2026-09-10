@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/shared/api/client';
 import { useAuth } from '@/shared/hooks/useAuth';
 import LoadFailed from '@/shared/ui/LoadFailed';
+import { Skeleton } from '@/shared/ui/Skeleton';
 
 interface WaitingTimeStats {
   period: { from: string; to: string };
@@ -51,7 +52,42 @@ export default function StatsPage() {
       (await api.get<WaitingTimeStats>('/stats/waiting-time', { params: { from, to } })).data,
   });
 
-  if (isPending) return <p className="p-6 text-sm text-slate-500">불러오는 중…</p>;
+  if (isPending) {
+    // 숫자 카드 3장과 아래 두 칸. 실제 화면과 같은 자리를 잡아 둔다.
+    return (
+      <div role="status" aria-live="polite" className="mx-auto max-w-5xl p-6">
+        <span className="sr-only">불러오는 중</span>
+        {/* 제목 왼쪽, 기간 입력칸 오른쪽. 입력칸을 빼면 헤더가 낮아져 아래가 밀린다. */}
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <Skeleton className="h-6 w-32" />
+            <Skeleton className="mt-2 h-4 w-20" />
+          </div>
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-8 w-32 rounded-lg" />
+            <Skeleton className="h-8 w-32 rounded-lg" />
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="mt-2 h-7 w-16" />
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 h-40 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="mt-4 h-3 w-full" />
+          <Skeleton className="mt-3 h-3 w-full" />
+        </div>
+        <div className="mt-5 h-44 rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+          <Skeleton className="h-3 w-24" />
+          <Skeleton className="mt-4 h-24 w-full" />
+        </div>
+      </div>
+    );
+  }
   if (isError) return <LoadFailed error={error} onRetry={() => void refetch()} />;
 
   const peak = Math.max(1, ...data.byHour.map((h) => h.requestCount));

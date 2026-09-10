@@ -5,6 +5,7 @@ import type { PageResponse, TransferSummary } from '@/shared/api/types';
 import { PriorityBadge, StatusBadge } from '@/shared/ui/badges';
 import { useAuth } from '@/shared/hooks/useAuth';
 import LoadFailed from '@/shared/ui/LoadFailed';
+import { TableSkeleton } from '@/shared/ui/Skeleton';
 
 /** 대기가 길어질수록 행이 진해진다. 숫자만으로는 눈에 들어오지 않기 때문이다. */
 function waitingStyle(minutes: number) {
@@ -34,7 +35,11 @@ export default function ExamQueuePage() {
   });
 
   if (isPending) {
-    return <p className="p-6 text-sm text-slate-500">불러오는 중…</p>;
+    return (
+      <div className="p-6">
+        <TableSkeleton header />
+      </div>
+    );
   }
   if (isError) {
     return <LoadFailed error={error} onRetry={() => void refetch()} />;

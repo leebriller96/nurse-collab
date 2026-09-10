@@ -4,6 +4,7 @@ import { api } from '@/shared/api/client';
 import type { EncounterFullView } from '@/shared/api/types';
 import { AlertBadge, StatusBadge } from '@/shared/ui/badges';
 import LoadFailed from '@/shared/ui/LoadFailed';
+import { DetailSkeleton } from '@/shared/ui/Skeleton';
 
 /** W-02 환자 상세. 여기서 바로 요청을 걸 수 있어야 한다. */
 export default function EncounterDetailPage() {
@@ -16,7 +17,7 @@ export default function EncounterDetailPage() {
     queryFn: async () => (await api.get<EncounterFullView>(`/encounters/${encounterId}`)).data,
   });
 
-  if (isPending) return <p className="p-4 text-sm text-slate-500">불러오는 중…</p>;
+  if (isPending) return <DetailSkeleton />;
   if (isError) return <LoadFailed error={error} onRetry={() => void refetch()} />;
 
   return (

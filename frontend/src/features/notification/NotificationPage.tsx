@@ -5,6 +5,7 @@ import { api } from '@/shared/api/client';
 import { useAuth } from '@/shared/hooks/useAuth';
 import type { NotificationsResponse } from '@/shared/api/types';
 import LoadFailed from '@/shared/ui/LoadFailed';
+import { CardListSkeleton } from '@/shared/ui/Skeleton';
 
 const ago = (iso: string) => {
   const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -48,7 +49,7 @@ export default function NotificationPage() {
     onSuccess: refresh,
   });
 
-  if (isPending) return <p className="p-4 text-sm text-slate-500">불러오는 중…</p>;
+  if (isPending) return <CardListSkeleton rows={5} />;
   if (isError) return <LoadFailed error={error} onRetry={() => void refetch()} />;
 
   const detailPath = staff?.department.deptType === 'EXAM' ? '/exam/requests' : '/ward/requests';

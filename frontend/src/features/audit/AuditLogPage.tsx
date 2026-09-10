@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '@/shared/api/client';
 import type { AuditLogEntry, PageResponse } from '@/shared/api/types';
 import LoadFailed from '@/shared/ui/LoadFailed';
+import { TableSkeleton } from '@/shared/ui/Skeleton';
 
 const ACTION_LABEL: Record<string, string> = {
   VIEW: '열람',
@@ -48,7 +49,13 @@ export default function AuditLogPage() {
         { params: { from, to, page, size: 30 } })).data,
   });
 
-  if (isPending) return <p className="p-6 text-sm text-slate-500">불러오는 중…</p>;
+  if (isPending) {
+    return (
+      <div className="p-6">
+        <TableSkeleton columns={6} header />
+      </div>
+    );
+  }
   if (isError) return <LoadFailed error={error} onRetry={() => void refetch()} />;
 
   // 등록번호 검색은 화면에서 거른다. 서버는 환자 식별자로만 받기 때문이다.

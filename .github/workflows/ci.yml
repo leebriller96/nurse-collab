@@ -125,6 +125,12 @@ jobs:
         working-directory: e2e
         run: APP=http://localhost:8081 node check-ux.mjs
 
+      # 스켈레톤은 자리를 잡아 두는 것이 목적이다. 모양이 어긋나면 값이 들어올 때
+      # 화면이 밀려서, 글자 한 줄보다 나을 것이 없어진다. 눈이 아니라 좌표로 잰다.
+      - name: 로딩 자리 확인
+        working-directory: e2e
+        run: APP=http://localhost:8081 node check-skeleton.mjs
+
       - name: 실패하면 스택 로그를 남긴다
         if: failure()
         run: docker compose -p ci -f docker-compose.prod.yml logs --tail 80

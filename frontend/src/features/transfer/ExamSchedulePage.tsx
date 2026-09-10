@@ -6,6 +6,7 @@ import { useAuth } from '@/shared/hooks/useAuth';
 import type { PageResponse, TransferSummary } from '@/shared/api/types';
 import { PriorityBadge, StatusBadge } from '@/shared/ui/badges';
 import LoadFailed from '@/shared/ui/LoadFailed';
+import { Skeleton } from '@/shared/ui/Skeleton';
 
 /** 기본은 검사실이 실제로 움직이는 시간대. 새벽 칸이 화면 절반을 먹으면 읽기 어렵다. */
 const DEFAULT_START = 7;
@@ -59,7 +60,27 @@ export default function ExamSchedulePage() {
     refetchInterval: 60_000,
   });
 
-  if (isPending) return <p className="p-6 text-sm text-slate-500">불러오는 중…</p>;
+  if (isPending) {
+    // 시간 눈금과 그 옆의 배치 영역. 보드가 통째로 접혔다 펴지지 않게 한다.
+    return (
+      <div role="status" aria-live="polite" className="mx-auto max-w-5xl p-6">
+        <span className="sr-only">불러오는 중</span>
+        <Skeleton className="mb-5 h-6 w-40" />
+        <div className="flex overflow-hidden rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+          <div className="w-14 shrink-0 border-r border-slate-200 p-2">
+            {Array.from({ length: 6 }, (_, i) => (
+              <Skeleton key={i} className="mb-8 h-3 w-8" />
+            ))}
+          </div>
+          <div className="flex-1 space-y-4 p-3">
+            {Array.from({ length: 4 }, (_, i) => (
+              <Skeleton key={i} className="h-11 w-full rounded-lg" />
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (isError) return <LoadFailed error={error} onRetry={() => void refetch()} />;
 
   const scheduled = data.content.filter((r) => r.scheduledAt);

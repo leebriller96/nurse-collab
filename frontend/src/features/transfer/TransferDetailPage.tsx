@@ -5,6 +5,7 @@ import { api, messageOf } from '@/shared/api/client';
 import type { Message, TransferDetail, TransferEvent, TransferStatus } from '@/shared/api/types';
 import { AlertBadge, PriorityBadge, StatusBadge, actionLabel, statusLabel } from '@/shared/ui/badges';
 import LoadFailed from '@/shared/ui/LoadFailed';
+import { DetailSkeleton } from '@/shared/ui/Skeleton';
 
 /** 전이마다 무엇을 더 받아야 하는지. 서버 규칙과 짝을 이룬다. */
 const NEEDS_REASON: TransferStatus[] = ['ON_HOLD', 'CANCELLED'];
@@ -94,7 +95,7 @@ export default function TransferDetailPage() {
     onError: (e) => setError(messageOf(e, '전송에 실패했습니다.')),
   });
 
-  if (detail.isPending) return <p className="p-6 text-sm text-slate-500">불러오는 중…</p>;
+  if (detail.isPending) return <DetailSkeleton />;
   if (detail.isError) {
     return <LoadFailed error={detail.error} onRetry={() => void detail.refetch()} />;
   }

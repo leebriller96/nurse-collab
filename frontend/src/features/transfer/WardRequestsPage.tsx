@@ -4,6 +4,7 @@ import { api } from '@/shared/api/client';
 import type { PageResponse, TransferSummary } from '@/shared/api/types';
 import { PriorityBadge, StatusBadge } from '@/shared/ui/badges';
 import LoadFailed from '@/shared/ui/LoadFailed';
+import { CardListSkeleton } from '@/shared/ui/Skeleton';
 
 /** W-04 내 요청 현황. 우리 병동이 보낸 요청만 본다. */
 export default function WardRequestsPage() {
@@ -19,7 +20,7 @@ export default function WardRequestsPage() {
     refetchInterval: 60_000,
   });
 
-  if (isPending) return <p className="p-4 text-sm text-slate-500">불러오는 중…</p>;
+  if (isPending) return <CardListSkeleton />;
   if (isError) return <LoadFailed error={error} onRetry={() => void refetch()} />;
 
   return (

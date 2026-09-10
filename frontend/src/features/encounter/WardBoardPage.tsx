@@ -5,6 +5,7 @@ import type { EncounterSummary, PageResponse } from '@/shared/api/types';
 import { AlertBadge } from '@/shared/ui/badges';
 import { useAuth } from '@/shared/hooks/useAuth';
 import LoadFailed from '@/shared/ui/LoadFailed';
+import { CardListSkeleton } from '@/shared/ui/Skeleton';
 
 /**
  * W-01 환자 보드. 모바일 우선.
@@ -25,7 +26,7 @@ export default function WardBoardPage() {
   });
 
   if (isPending) {
-    return <p className="p-4 text-sm text-slate-500">불러오는 중…</p>;
+    return <CardListSkeleton />;
   }
   if (isError) {
     return <LoadFailed error={error} onRetry={() => void refetch()} />;

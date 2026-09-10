@@ -6,6 +6,7 @@ import { useAuth } from '@/shared/hooks/useAuth';
 import type { PageResponse, TransferStatus, TransferSummary } from '@/shared/api/types';
 import { PriorityBadge, StatusBadge } from '@/shared/ui/badges';
 import LoadFailed from '@/shared/ui/LoadFailed';
+import { TableSkeleton } from '@/shared/ui/Skeleton';
 
 const FINISHED: TransferStatus[] = ['COMPLETED', 'CANCELLED'];
 
@@ -97,7 +98,7 @@ export default function TransferHistoryPage() {
         </label>
       </form>
 
-      {isPending && <p className="text-sm text-slate-500">불러오는 중…</p>}
+      {isPending && <TableSkeleton rows={4} />}
       {isError && <LoadFailed error={error} onRetry={() => void refetch()} compact />}
 
       {data && (
