@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, messageOf } from '@/shared/api/client';
 import type { EncounterFullView, NoteType, NursingNote, PageResponse } from '@/shared/api/types';
+import { useToast } from '@/shared/ui/toast';
 
 const SBAR_FIELDS = [
   { key: 'situation', label: '지금 상황', hint: '22시경 어지러움 호소' },
@@ -36,6 +37,7 @@ export default function NursingNotePage() {
   const encounterId = Number(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   const [noteType, setNoteType] = useState<NoteType>('SBAR');
   const [sbar, setSbar] = useState(emptySbar);
@@ -76,10 +78,13 @@ export default function NursingNotePage() {
         await api.post(`/encounters/${encounterId}/nursing-notes`, body);
       }
     },
-    onSuccess: () => {
+    onSuccess: (_data, _vars, wasEditing: boolean) => {
       reset();
       void queryClient.invalidateQueries({ queryKey: ['nursing-notes', encounterId] });
+      toast.show(wasEditing ? '기록을 고쳤습니다' : '기록을 남겼습니다', { tone: 'success' });
     },
+    // 저장하고 나면 editingId 가 지워져서 무엇을 했는지 알 수 없다. 미리 기억해 둔다.
+    onMutate: () => editingId !== null,
     onError: (e) => setError(messageOf(e, '저장하지 못했습니다.')),
   });
 

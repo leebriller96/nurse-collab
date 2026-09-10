@@ -87,6 +87,7 @@ public class TransferEventListener {
                             request.getEncounter().getPatient().getName(),
                             request.getEncounter().getRoomNo(),
                             request.getExamType().getName(),
+                            actor.getId(),
                             actor.getName(),
                             actor.getDepartment().getName(),
                             OffsetDateTime.now()));

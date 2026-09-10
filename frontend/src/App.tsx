@@ -4,6 +4,7 @@ import Router from '@/app/router';
 import { AuthProvider } from '@/shared/hooks/useAuth';
 import ErrorBoundary from '@/shared/ui/ErrorBoundary';
 import OfflineBanner from '@/shared/ui/OfflineBanner';
+import { ToastProvider } from '@/shared/ui/toast';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -25,9 +26,12 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <BrowserRouter>
           <AuthProvider>
-            {/* 로그인 전에도 보여야 한다. 끊긴 채로 로그인 버튼을 누르는 일이 많다. */}
-            <OfflineBanner />
-            <Router />
+            {/* 실시간 알림과 내 동작 확인이 같은 자리에 뜬다. 한 곳에서 그려야 겹치지 않는다. */}
+            <ToastProvider>
+              {/* 로그인 전에도 보여야 한다. 끊긴 채로 로그인 버튼을 누르는 일이 많다. */}
+              <OfflineBanner />
+              <Router />
+            </ToastProvider>
           </AuthProvider>
         </BrowserRouter>
       </QueryClientProvider>

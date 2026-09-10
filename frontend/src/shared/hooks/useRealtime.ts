@@ -14,6 +14,7 @@ export interface RealtimeEvent {
   patientName: string;
   roomNo: string;
   examName: string;
+  actorId: number;
   actorName: string;
   actorDepartmentName: string;
   occurredAt: string;

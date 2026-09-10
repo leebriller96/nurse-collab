@@ -5,6 +5,7 @@ import { api, messageOf } from '@/shared/api/client';
 import type { Message, TransferDetail, TransferEvent, TransferStatus } from '@/shared/api/types';
 import { AlertBadge, PriorityBadge, StatusBadge, actionLabel, statusLabel } from '@/shared/ui/badges';
 import LoadFailed from '@/shared/ui/LoadFailed';
+import { useToast } from '@/shared/ui/toast';
 import { DetailSkeleton } from '@/shared/ui/Skeleton';
 
 /** 전이마다 무엇을 더 받아야 하는지. 서버 규칙과 짝을 이룬다. */
@@ -32,6 +33,7 @@ export default function TransferDetailPage() {
   const requestId = Number(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   const [pending, setPending] = useState<TransferStatus | null>(null);
   const [reason, setReason] = useState('');
@@ -64,6 +66,11 @@ export default function TransferDetailPage() {
   };
 
   const transition = useMutation({
+    // 무엇을 눌렀는지 확인 문구에 쓰려면 기억해 둬야 한다.
+    // 성공한 시점에는 이미 상태가 바뀌어 있어서 다시 만들 수 없다.
+    onMutate: (toStatus: TransferStatus) => ({
+      label: actionLabel(toStatus, detail.data?.status ?? 'REQUESTED'),
+    }),
     mutationFn: async (toStatus: TransferStatus) => {
       const { data } = await api.post(`/transfer-requests/${requestId}/transitions`, {
         toStatus,
@@ -73,12 +80,15 @@ export default function TransferDetailPage() {
       });
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_data, _toStatus, context) => {
       setPending(null);
       setReason('');
       setScheduledAt('');
       setError(null);
       refreshAll();
+      // 폰에서는 누른 버튼이 화면 아래에 있고 상태 뱃지는 맨 위에 있다.
+      // 이동 중에 한 손으로 누르면 바뀐 것을 못 보고 한 번 더 누르게 된다.
+      toast.show(`${context.label} 처리했습니다`, { tone: 'success' });
     },
     // 서버가 준 문장을 그대로 띄운다. "다른 사용자가 먼저 처리했습니다" 같은 것들이다.
     onError: (e) => setError(messageOf(e, '처리에 실패했습니다.')),

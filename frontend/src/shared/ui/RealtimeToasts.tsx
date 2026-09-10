@@ -1,82 +1,64 @@
-import { useCallback, useState } from 'react';
+import { useCallback } from 'react';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useRealtime } from '@/shared/hooks/useRealtime';
 import type { RealtimeEvent } from '@/shared/hooks/useRealtime';
 import { priorityLabel, statusLabel } from '@/shared/ui/badges';
+import { useToast, type ToastTone } from '@/shared/ui/toast';
 
-interface Toast {
-  key: number;
-  title: string;
-  body: string;
-  emphasis: boolean;
-}
-
-function describe(event: RealtimeEvent): Toast {
+function describe(event: RealtimeEvent): { title: string; body: string; tone: ToastTone } {
   const who = `${event.actorDepartmentName} ${event.actorName}`;
   const patient = `${event.roomNo}호 ${event.patientName} · ${event.examName}`;
 
   if (event.eventType === 'TRANSFER_CREATED') {
     return {
-      key: Date.now() + Math.random(),
       title: `새 요청 (${priorityLabel(event.priority)})`,
       body: `${patient} — ${who}`,
-      emphasis: event.priority === 'EMERGENCY',
+      tone: event.priority === 'EMERGENCY' ? 'urgent' : 'info',
     };
   }
   if (event.eventType === 'MESSAGE_CREATED') {
-    return { key: Date.now() + Math.random(), title: '새 메시지', body: `${patient} — ${who}`, emphasis: false };
+    return { title: '새 메시지', body: `${patient} — ${who}`, tone: 'info' };
   }
   return {
-    key: Date.now() + Math.random(),
     title: event.toStatus ? statusLabel(event.toStatus) : '상태 변경',
     body: `${patient} — ${who}`,
-    emphasis: false,
+    tone: 'info',
   };
 }
 
 /**
  * 파트 채널을 구독하고, 들어온 변화를 잠깐 띄운다.
  * 화면 갱신 자체는 useRealtime 이 캐시를 무효화해서 처리한다. 여기는 알림만 담당한다.
+ *
+ * 띄우는 일은 ToastProvider 가 한다. 내 동작 확인과 같은 자리에 뜨므로
+ * 따로 그리면 둘이 겹친다.
  */
 export default function RealtimeToasts() {
   const { staff } = useAuth();
-  const [toasts, setToasts] = useState<Toast[]>([]);
+  const toast = useToast();
 
-  const push = useCallback((event: RealtimeEvent) => {
-    const toast = describe(event);
-    setToasts((prev) => [...prev, toast].slice(-3));
-    window.setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.key !== toast.key));
-    }, 6000);
-  }, []);
+  const push = useCallback(
+    (event: RealtimeEvent) => {
+      // 내가 한 일은 나에게 알리지 않는다.
+      // 방송은 파트 채널로 나가므로 누른 사람에게도 되돌아온다. 그대로 두면
+      // "환자 출발 처리했습니다" 확인과 "이송중 — 3병동 김간호" 알림이 동시에 뜬다.
+      // 알림함이 이미 지키는 규칙과 같다.
+      if (event.actorId === staff?.id) return;
+
+      const { title, body, tone } = describe(event);
+      toast.show(title, { body, tone });
+    },
+    [toast, staff?.id],
+  );
 
   const { connected } = useRealtime(staff?.department.id, push);
 
   return (
-    <>
-      <div className="pointer-events-none fixed inset-x-0 top-2 z-50 mx-auto flex max-w-md flex-col gap-2 px-3">
-        {toasts.map((toast) => (
-          <div
-            key={toast.key}
-            role="status"
-            className={`rounded-xl px-4 py-3 shadow-lg ring-1 ${
-              toast.emphasis
-                ? 'bg-red-600 text-white ring-red-700'
-                : 'bg-slate-900/95 text-white ring-slate-700'
-            }`}
-          >
-            <p className="text-sm font-bold">{toast.title}</p>
-            <p className="text-xs opacity-90">{toast.body}</p>
-          </div>
-        ))}
-      </div>
-
-      <span
-        title={connected ? '실시간으로 받는 중' : '연결을 다시 맺는 중'}
-        className={`fixed bottom-1 right-1 z-50 h-2 w-2 rounded-full ${
-          connected ? 'bg-emerald-500' : 'bg-slate-300'
-        }`}
-      />
-    </>
+    <span
+      title={connected ? '실시간으로 받는 중' : '연결을 다시 맺는 중'}
+      className={`fixed bottom-1 right-1 z-50 h-2 w-2 rounded-full ${
+        connected ? 'bg-emerald-500' : 'bg-slate-300'
+      }`}
+    />
   );
 }

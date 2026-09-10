@@ -131,6 +131,12 @@ jobs:
         working-directory: e2e
         run: APP=http://localhost:8081 node check-skeleton.mjs
 
+      # 내 동작 확인과 실시간 알림이 같은 자리에 뜬다. 한쪽만 보면
+      # 다른 쪽이 죽었거나 둘이 겹치는 것을 모른다.
+      - name: 동작 확인 표시
+        working-directory: e2e
+        run: APP=http://localhost:8081 node check-feedback.mjs
+
       - name: 실패하면 스택 로그를 남긴다
         if: failure()
         run: docker compose -p ci -f docker-compose.prod.yml logs --tail 80

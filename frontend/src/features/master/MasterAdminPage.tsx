@@ -4,6 +4,7 @@ import { api, messageOf } from '@/shared/api/client';
 import type {
   AlertType, DepartmentSummary, DeptType, ExamType, StaffRole,
 } from '@/shared/api/types';
+import { useToast } from '@/shared/ui/toast';
 
 interface DepartmentRow extends DepartmentSummary {
   phone: string | null;
@@ -54,6 +55,7 @@ export default function MasterAdminPage() {
   const [tab, setTab] = useState<TabKey>('departments');
   const [error, setError] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   const departments = useQuery({
     queryKey: ['admin', 'departments'],
@@ -77,13 +79,22 @@ export default function MasterAdminPage() {
     mutationFn: async ({ path, body }: { path: string; body: unknown }) => {
       await api.post(path, body);
     },
-    onSuccess: () => { setError(null); refresh(); },
+    onSuccess: () => {
+      setError(null);
+      refresh();
+      toast.show('추가했습니다', { tone: 'success' });
+    },
     onError: (e) => setError(messageOf(e, '저장하지 못했습니다.')),
   });
 
   const deactivate = useMutation({
     mutationFn: async (path: string) => { await api.patch(path); },
-    onSuccess: () => { setError(null); refresh(); },
+    onSuccess: () => {
+      setError(null);
+      refresh();
+      // 중지하면 목록에서 행이 사라진다. 확인이 없으면 지워진 것으로 오해한다.
+      toast.show('사용 중지했습니다', { body: '기록은 그대로 남습니다', tone: 'success' });
+    },
     onError: (e) => setError(messageOf(e, '처리하지 못했습니다.')),
   });
 

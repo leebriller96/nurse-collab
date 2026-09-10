@@ -672,7 +672,9 @@ CONNECT 헤더 : Authorization: Bearer {accessToken}
   "patientName": "김OO",
   "roomNo": "302",
   "examName": "뇌 MRI",
+  "actorId": 5,
   "actorName": "박간호",
+  "actorDepartmentName": "MRI실",
   "occurredAt": "2026-09-04T14:30:00+09:00"
 }
 ```
@@ -681,6 +683,13 @@ CONNECT 헤더 : Authorization: Bearer {accessToken}
 
 페이로드에 사람이 읽을 수 있는 필드를 함께 싣는 것은 **토스트 문구를 만들기 위해서**다.
 화면을 이 내용으로 그리라는 뜻이 아니다. 목록과 상세는 반드시 REST 로 다시 받아온다.
+
+`actorId` 는 **자기가 한 일을 자기에게 알리지 않기 위해** 싣는다.
+방송은 파트 채널로 나가므로 누른 사람에게도 되돌아온다.
+그대로 두면 버튼을 누른 사람에게 "동작했습니다" 확인과 "누가 무엇을 했다" 알림이
+동시에 뜬다. 알림함이 이미 지키는 규칙(행위자 본인은 뺀다)과 같은 이유다.
+
+이름으로 거르지 않는 이유는 동명이인이 있기 때문이다.
 
 **중요: 재접속 시 유실 보정**
 

@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, messageOf } from '@/shared/api/client';
 import type { EncounterFullView, PageResponse, VitalSign } from '@/shared/api/types';
+import { useToast } from '@/shared/ui/toast';
 
 /** 입력 칸 정의를 한곳에 모은다. 칸이 늘거나 순서가 바뀌어도 여기만 고치면 된다. */
 const FIELDS = [
@@ -33,6 +34,7 @@ export default function VitalSignPage() {
   const encounterId = Number(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const toast = useToast();
 
   const [measuredAt, setMeasuredAt] = useState(nowForInput);
   const [values, setValues] = useState<Record<FieldKey, string>>({
@@ -66,6 +68,8 @@ export default function VitalSignPage() {
       setMeasuredAt(nowForInput());
       setError(null);
       void queryClient.invalidateQueries({ queryKey: ['vital-signs', encounterId] });
+      // 저장하면 입력칸이 비워진다. 그것만으로는 저장된 것인지 지워진 것인지 알 수 없다.
+      toast.show('활력징후를 기록했습니다', { tone: 'success' });
     },
     onError: (e) => setError(messageOf(e, '저장하지 못했습니다.')),
   });
