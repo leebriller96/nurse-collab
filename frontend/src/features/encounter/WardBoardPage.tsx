@@ -5,6 +5,7 @@ import type { EncounterSummary, PageResponse } from '@/shared/api/types';
 import { AlertBadge } from '@/shared/ui/badges';
 import { useAuth } from '@/shared/hooks/useAuth';
 import LoadFailed from '@/shared/ui/LoadFailed';
+import PullToRefresh from '@/shared/ui/PullToRefresh';
 import { CardListSkeleton } from '@/shared/ui/Skeleton';
 
 /**
@@ -33,6 +34,7 @@ export default function WardBoardPage() {
   }
 
   return (
+    <PullToRefresh onRefresh={refetch}>
     <div className="pb-24">
       <div className="sticky top-0 z-10 bg-slate-100/95 px-4 py-3 backdrop-blur">
         <h1 className="text-lg font-bold text-slate-900">{staff?.department.name}</h1>
@@ -80,5 +82,6 @@ export default function WardBoardPage() {
         <p className="px-4 py-10 text-center text-sm text-slate-500">재원 중인 환자가 없습니다.</p>
       )}
     </div>
+    </PullToRefresh>
   );
 }

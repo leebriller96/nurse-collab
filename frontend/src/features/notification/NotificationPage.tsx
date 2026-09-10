@@ -5,6 +5,7 @@ import { api } from '@/shared/api/client';
 import { useAuth } from '@/shared/hooks/useAuth';
 import type { NotificationsResponse } from '@/shared/api/types';
 import LoadFailed from '@/shared/ui/LoadFailed';
+import PullToRefresh from '@/shared/ui/PullToRefresh';
 import { CardListSkeleton } from '@/shared/ui/Skeleton';
 
 const ago = (iso: string) => {
@@ -55,6 +56,7 @@ export default function NotificationPage() {
   const detailPath = staff?.department.deptType === 'EXAM' ? '/exam/requests' : '/ward/requests';
 
   return (
+    <PullToRefresh onRefresh={refetch}>
     <div className="pb-24">
       <div className="sticky top-0 z-10 bg-slate-100/95 px-4 py-3 backdrop-blur">
         <div className="flex items-baseline justify-between">
@@ -118,5 +120,6 @@ export default function NotificationPage() {
         </p>
       )}
     </div>
+    </PullToRefresh>
   );
 }

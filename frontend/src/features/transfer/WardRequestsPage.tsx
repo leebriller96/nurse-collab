@@ -4,6 +4,7 @@ import { api } from '@/shared/api/client';
 import type { PageResponse, TransferSummary } from '@/shared/api/types';
 import { PriorityBadge, StatusBadge } from '@/shared/ui/badges';
 import LoadFailed from '@/shared/ui/LoadFailed';
+import PullToRefresh from '@/shared/ui/PullToRefresh';
 import { CardListSkeleton } from '@/shared/ui/Skeleton';
 
 /** W-04 내 요청 현황. 우리 병동이 보낸 요청만 본다. */
@@ -24,6 +25,7 @@ export default function WardRequestsPage() {
   if (isError) return <LoadFailed error={error} onRetry={() => void refetch()} />;
 
   return (
+    <PullToRefresh onRefresh={refetch}>
     <div className="pb-24">
       <div className="sticky top-0 z-10 bg-slate-100/95 px-4 py-3 backdrop-blur">
         <h1 className="text-lg font-bold text-slate-900">내 요청 현황</h1>
@@ -61,5 +63,6 @@ export default function WardRequestsPage() {
         <p className="px-4 py-10 text-center text-sm text-slate-500">보낸 요청이 없습니다.</p>
       )}
     </div>
+    </PullToRefresh>
   );
 }
