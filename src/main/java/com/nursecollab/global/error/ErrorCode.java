@@ -26,6 +26,7 @@ public enum ErrorCode {
 
     // 재원 / 검사
     ENCOUNTER_NOT_FOUND("ENC-000", HttpStatus.NOT_FOUND, "재원 정보를 찾을 수 없습니다."),
+    ALERT_NOT_FOUND("ALT-000", HttpStatus.NOT_FOUND, "주의사항을 찾을 수 없습니다."),
     DISCHARGED_ENCOUNTER("ENC-001", HttpStatus.UNPROCESSABLE_ENTITY, "퇴원한 환자에 대해서는 요청할 수 없습니다."),
     EXAM_TYPE_NOT_FOUND("EXM-001", HttpStatus.NOT_FOUND, "검사 종류를 찾을 수 없습니다."),
 

@@ -147,6 +147,12 @@ jobs:
         working-directory: e2e
         run: APP=http://localhost:8081 node check-pull-refresh.mjs
 
+      # 병동이 남긴 주의사항이 검사실 화면의 경고까지 이어지는지.
+      # 이 연결이 이 프로젝트에서 제일 특징적인 부분이라 끊기면 안 된다.
+      - name: 주의사항이 경고로 이어지는지
+        working-directory: e2e
+        run: APP=http://localhost:8081 node check-alerts.mjs
+
       - name: 실패하면 스택 로그를 남긴다
         if: failure()
         run: docker compose -p ci -f docker-compose.prod.yml logs --tail 80

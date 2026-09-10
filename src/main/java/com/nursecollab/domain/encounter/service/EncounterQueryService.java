@@ -116,6 +116,18 @@ public class EncounterQueryService {
                 .stream().map(AlertResponse::from).toList();
     }
 
+    /**
+     * 이 환자를 볼 수 있는지 판정하고 재원 건을 준다.
+     *
+     * 주의사항을 붙이는 쪽에서 쓴다. 판정을 그쪽에 다시 구현하면
+     * 한쪽만 고쳐지는 날이 오고, 그때 남의 병동 환자에게 주의사항을 붙일 수 있게 된다.
+     */
+    public Encounter requireViewableByPatient(Long patientId, LoginStaff loginStaff) {
+        Encounter encounter = encounterRepository.findAdmittedByPatientId(patientId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ENCOUNTER_NOT_FOUND));
+        return loadViewable(encounter.getId(), loginStaff);
+    }
+
     /** 상세와 같은 접근 판정을 거치게 해서 우회 경로를 만들지 않는다 */
     private Encounter loadViewable(Long encounterId, LoginStaff loginStaff) {
         Encounter encounter = encounterRepository.findByIdWithPatientAndDepartment(encounterId)

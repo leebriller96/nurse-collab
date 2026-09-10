@@ -110,7 +110,7 @@ export interface ChecklistWarning {
 
 export interface EncounterFullView {
   encounterId: number;
-  patient: { patientNo: string; name: string; birthDate: string; age: number; sex: Sex };
+  patient: { id: number; patientNo: string; name: string; birthDate: string; age: number; sex: Sex };
   department: DepartmentSummary;
   roomNo: string;
   bedNo: string;

@@ -19,6 +19,21 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
             """)
     Optional<Encounter> findByIdWithPatientAndDepartment(Long id);
 
+    /**
+     * 환자의 재원 중인 건.
+     *
+     * 주의사항은 환자에 붙지만(퇴원한다고 인공관절이 사라지지 않는다)
+     * 접근 판정은 재원 기준이다. 그 연결을 여기서 만든다.
+     */
+    @Query("""
+            select e from Encounter e
+            join fetch e.patient
+            join fetch e.department
+            where e.patient.id = :patientId
+              and e.status = com.nursecollab.domain.encounter.entity.EncounterStatus.ADMITTED
+            """)
+    Optional<Encounter> findAdmittedByPatientId(Long patientId);
+
     /** 환자 보드(W-01). 병실 순으로 보여야 간호사가 동선대로 확인할 수 있다. */
     @Query(value = """
             select e from Encounter e
