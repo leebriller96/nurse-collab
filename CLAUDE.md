@@ -197,6 +197,15 @@ chore: Testcontainers 의존성 추가
   - 실패해도 기동을 막지 않는다. 기본 파티션이 받아 주므로 기록은 계속 남는다.
     감사 때문에 진료가 멈추면 안 된다는 원칙과 같다.
   - `audit_log_default` 에 행이 있으면 이 작업이 밀렸다는 뜻이다. 경고를 남긴다.
+- 환자 주의사항(W-02)은 간호사가 남긴다. 낙상 위험, 폐소공포 이력, 격리처럼
+  EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
+  - 경로가 재원이 아니라 환자다. 퇴원한다고 인공관절이 사라지지 않는다.
+    접근 판정만 재원 기준이라 `requireViewableByPatient` 로 잇는다.
+    판정을 다시 구현하면 한쪽만 고쳐지는 날이 오고, 그때 남의 병동 환자에게 붙일 수 있게 된다.
+  - 지우지 않고 내린다. 이 주의사항을 보고 판단한 지난 요청이 있다.
+  - 위험도는 화면에서 "참고 / 주의 / 중대" 로 푼다. INFO/WARN/CRITICAL 로는 무엇을 고를지 모른다.
+  - 검사실도 요청이 걸려 있는 동안은 남길 수 있다. "검사대에 눕히니 폐소공포 반응" 은
+    검사실에서만 알 수 있다.
 - 조회 조건은 `useUrlParam` 으로 주소에 담는다. 컴포넌트 안에만 두면 한 건을 열어 보고
   돌아왔을 때 기간과 검색어가 전부 처음으로 돌아간다. 링크로 넘길 수도 있게 된다.
   - `replace: true` 로 바꾼다. 조건을 고칠 때마다 방문 기록이 쌓이면 뒤로가기가
@@ -263,6 +272,15 @@ chore: Testcontainers 의존성 추가
 | GET | `/transfer-requests/{id}` `/{id}/events` | W-05, E-02 |
 | POST | `/transfer-requests/{id}/transitions` | W-05, E-02 |
 | GET POST | `/transfer-requests/{id}/messages` | W-05, E-02 |
+| POST | `/patients/{patientId}/alerts` | W-02 |
+| PATCH | `/patients/alerts/{alertId}/deactivate` | W-02 |
+| GET POST | `/encounters/{id}/vital-signs` | W-06 |
+| GET POST | `/encounters/{id}/nursing-notes` | W-07 |
+| PUT | `/nursing-notes/{noteId}` | W-07 |
+| GET PATCH POST | `/notifications` `/{id}/read` `/read-all` | C-02 |
+| GET | `/stats/waiting-time` | A-01 |
+| GET | `/audit-logs` | A-05 |
+| GET POST PUT PATCH | `/staff` `/departments` `/exam-types` (+ `/{id}/deactivate`) | A-02~04 |
 
 ### 데모 계정
 

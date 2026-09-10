@@ -106,6 +106,7 @@ X-Request-Id: {UUID}        -- 선택. 로그 추적용
 | TR-004 | 409 | 이미 종료된 요청 |
 | TR-005 | 400 | 접수 시 예정시각 누락 |
 | ENC-000 | 404 | 재원 없음 |
+| ALT-000 | 404 | 주의사항 없음 |
 | ENC-001 | 422 | 퇴원한 재원 건에 대한 요청 |
 | EXM-001 | 404 | 검사 종류 없음 |
 | STF-001 | 404 | 직원 없음 |
@@ -277,6 +278,7 @@ PERM-003 은 역할 자체가 모자란 경우다. 일반 간호사가 통계를
 - 활력징후(`latestVitalSign`)는 7단계에서 붙인다.
 
 ### GET /encounters/{encounterId}/alerts — 200
+
 ### POST /patients/{patientId}/alerts
 
 ```json
@@ -284,6 +286,17 @@ PERM-003 은 역할 자체가 모자란 경우다. 일반 간호사가 통계를
 { "alertType": "CONTRAST_ALLERGY", "severity": "CRITICAL", "content": "요오드 조영제 아나필락시스 이력" }
 // Response 201
 ```
+
+주의사항은 간호사가 남긴다. 낙상 위험, 폐소공포 이력, 격리처럼
+EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
+
+접근 판정은 환자 조회와 같다. 관계가 없으면 `403 PERM-001`.
+남의 병동 환자에게 주의사항을 붙일 수 있으면 안 된다.
+
+### PATCH /patients/alerts/{alertId}/deactivate — 204
+
+지우지 않고 내린다. 이 주의사항을 보고 판단한 지난 요청이 있기 때문이다.
+`GET /encounters/{id}/alerts` 는 내려간 것을 빼고 준다.
 
 ---
 
@@ -657,7 +670,14 @@ CONNECT 헤더 : Authorization: Bearer {accessToken}
 | 채널 | 대상 | 용도 |
 |---|---|---|
 | `/topic/department/{departmentId}` | 파트 전체 | 신규 요청, 상태 변경 |
-| `/user/queue/notifications` | 개인 | 개인 알림 |
+
+개인 채널(`/user/queue/notifications`)은 두지 않는다.
+
+알림함의 미읽음 수는 파트 채널이 오면 조회 캐시를 무효화해 다시 받아오고,
+그때 서버가 **그 사람의** 미읽음만 세어 준다. 개인 채널을 따로 두어도
+같은 결과에 연결만 하나 더 는다.
+
+파트 전체가 아니라 한 사람에게만 보내야 하는 알림이 생기면 그때 추가한다.
 
 ### 수신 페이로드
 
