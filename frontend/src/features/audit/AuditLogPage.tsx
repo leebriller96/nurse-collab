@@ -1,8 +1,8 @@
-import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '@/shared/api/client';
 import type { AuditLogEntry, PageResponse } from '@/shared/api/types';
 import LoadFailed from '@/shared/ui/LoadFailed';
+import { useUrlParam } from '@/shared/hooks/useUrlParam';
 import { TableSkeleton } from '@/shared/ui/Skeleton';
 
 const ACTION_LABEL: Record<string, string> = {
@@ -37,10 +37,13 @@ const stamp = (iso: string) =>
 
 /** A-05 접근 기록. 누가 어떤 환자 정보를 열어봤는지 확인한다. */
 export default function AuditLogPage() {
-  const [from, setFrom] = useState(localDate(new Date(Date.now() - 6 * 86400000)));
-  const [to, setTo] = useState(localDate(new Date()));
-  const [patientNo, setPatientNo] = useState('');
-  const [page, setPage] = useState(0);
+  // 조회 조건은 주소에 담는다. 기간을 맞춰 놓고 다른 탭에 다녀와도 살아 있어야 한다.
+  const [from, setFrom] = useUrlParam('from', localDate(new Date(Date.now() - 6 * 86400000)));
+  const [to, setTo] = useUrlParam('to', localDate(new Date()));
+  const [patientNo, setPatientNo] = useUrlParam('patientNo');
+  const [pageParam, setPageParam] = useUrlParam('page', '0');
+
+  const page = Number(pageParam) || 0;
 
   const { data, isPending, isError, error, refetch } = useQuery({
     queryKey: ['audit-logs', from, to, page],
@@ -75,13 +78,13 @@ export default function AuditLogPage() {
         <div className="flex flex-wrap items-center gap-2 text-sm">
           <input
             type="date" value={from} max={to}
-            onChange={(e) => { setFrom(e.target.value); setPage(0); }}
+            onChange={(e) => setFrom(e.target.value, { page: '' })}
             className="rounded-lg border border-slate-300 px-2 py-1.5"
           />
           <span className="text-slate-400">~</span>
           <input
             type="date" value={to} min={from}
-            onChange={(e) => { setTo(e.target.value); setPage(0); }}
+            onChange={(e) => setTo(e.target.value, { page: '' })}
             className="rounded-lg border border-slate-300 px-2 py-1.5"
           />
           <input
@@ -153,7 +156,7 @@ export default function AuditLogPage() {
         <div className="mt-4 flex items-center justify-center gap-3 text-sm">
           <button
             type="button" disabled={page === 0}
-            onClick={() => setPage((p) => p - 1)}
+            onClick={() => setPageParam(String(page - 1))}
             className="rounded-lg px-3 py-1.5 text-slate-600 disabled:text-slate-300"
           >
             이전
@@ -161,7 +164,7 @@ export default function AuditLogPage() {
           <span className="tabular-nums text-slate-500">{page + 1} / {data.totalPages}</span>
           <button
             type="button" disabled={page + 1 >= data.totalPages}
-            onClick={() => setPage((p) => p + 1)}
+            onClick={() => setPageParam(String(page + 1))}
             className="rounded-lg px-3 py-1.5 text-slate-600 disabled:text-slate-300"
           >
             다음

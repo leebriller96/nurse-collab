@@ -6,6 +6,7 @@ import { useAuth } from '@/shared/hooks/useAuth';
 import type { PageResponse, TransferStatus, TransferSummary } from '@/shared/api/types';
 import { PriorityBadge, StatusBadge } from '@/shared/ui/badges';
 import LoadFailed from '@/shared/ui/LoadFailed';
+import { useUrlParam } from '@/shared/hooks/useUrlParam';
 import { TableSkeleton } from '@/shared/ui/Skeleton';
 
 const FINISHED: TransferStatus[] = ['COMPLETED', 'CANCELLED'];
@@ -26,12 +27,19 @@ export default function TransferHistoryPage() {
   const { staff } = useAuth();
   const navigate = useNavigate();
 
-  const [from, setFrom] = useState(localDate(new Date(Date.now() - 13 * 86400000)));
-  const [to, setTo] = useState(localDate(new Date()));
-  const [keyword, setKeyword] = useState('');
-  const [query, setQuery] = useState('');
-  const [onlyFinished, setOnlyFinished] = useState(true);
-  const [page, setPage] = useState(0);
+  // 조회 조건은 주소에 담는다. 한 건을 열어 보고 돌아왔을 때 조건이 살아 있어야 한다.
+  const [from, setFrom] = useUrlParam('from', localDate(new Date(Date.now() - 13 * 86400000)));
+  const [to, setTo] = useUrlParam('to', localDate(new Date()));
+  const [query, setQuery] = useUrlParam('q');
+  const [finished, setFinished] = useUrlParam('finished', '1');
+  const [pageParam, setPageParam] = useUrlParam('page', '0');
+
+  const onlyFinished = finished === '1';
+  const page = Number(pageParam) || 0;
+
+  // 입력 중인 글자까지 주소에 넣으면 한 자 칠 때마다 조회가 나간다.
+  // 찾기를 누른 것만 주소로 올린다.
+  const [keyword, setKeyword] = useState(query);
 
   const inbound = staff?.department.deptType === 'EXAM';
 
@@ -64,19 +72,19 @@ export default function TransferHistoryPage() {
         className="mb-4 flex flex-wrap items-center gap-2 text-sm"
         onSubmit={(e) => {
           e.preventDefault();
-          setQuery(keyword.trim());
-          setPage(0);
+          // 조건이 바뀌면 첫 쪽으로 돌아간다. 3쪽을 보다 검색하면 결과가 없을 수 있다.
+          setQuery(keyword.trim(), { page: '' });
         }}
       >
         <input
           type="date" value={from} max={to}
-          onChange={(e) => { setFrom(e.target.value); setPage(0); }}
+          onChange={(e) => setFrom(e.target.value, { page: '' })}
           className="rounded-lg border border-slate-300 px-2 py-1.5"
         />
         <span className="text-slate-400">~</span>
         <input
           type="date" value={to} min={from}
-          onChange={(e) => { setTo(e.target.value); setPage(0); }}
+          onChange={(e) => setTo(e.target.value, { page: '' })}
           className="rounded-lg border border-slate-300 px-2 py-1.5"
         />
         <input
@@ -92,7 +100,7 @@ export default function TransferHistoryPage() {
           <input
             type="checkbox"
             checked={onlyFinished}
-            onChange={(e) => { setOnlyFinished(e.target.checked); setPage(0); }}
+            onChange={(e) => setFinished(e.target.checked ? '1' : '0', { page: '' })}
           />
           끝난 것만
         </label>
@@ -160,7 +168,7 @@ export default function TransferHistoryPage() {
             <div className="mt-4 flex items-center justify-center gap-3 text-sm">
               <button
                 type="button" disabled={page === 0}
-                onClick={() => setPage((p) => p - 1)}
+                onClick={() => setPageParam(String(page - 1))}
                 className="rounded-lg px-3 py-1.5 text-slate-600 disabled:text-slate-300"
               >
                 이전
@@ -168,7 +176,7 @@ export default function TransferHistoryPage() {
               <span className="tabular-nums text-slate-500">{page + 1} / {data.totalPages}</span>
               <button
                 type="button" disabled={page + 1 >= data.totalPages}
-                onClick={() => setPage((p) => p + 1)}
+                onClick={() => setPageParam(String(page + 1))}
                 className="rounded-lg px-3 py-1.5 text-slate-600 disabled:text-slate-300"
               >
                 다음
