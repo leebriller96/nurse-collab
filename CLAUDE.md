@@ -46,6 +46,7 @@ EMR 대체가 아니라 **EMR 옆에 붙는 협업 레이어**로 포지셔닝�
 | `docs/03-backend-structure.md` | 패키지 구조, 상태 전이 코드 |
 | `docs/04-screens-permissions.md` | 화면 17개 정의, 권한 매트릭스 |
 | `docs/05-deployment.md` | 배포 가이드. 서버·도메인 선택과 단계별 절차 |
+| `docs/06-hospital-scale.md` | 병원 통합 확장. 원내/클라우드 분리와 업무 요청 일반화 |
 
 문서와 코드가 어긋나면 **문서를 먼저 고치고** 코드를 작성한다.
 
