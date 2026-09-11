@@ -32,7 +32,7 @@ export default function LoginPage() {
         staff.department.deptType === 'ADMIN'
           ? '/admin/stats'
           : staff.department.deptType === 'EXAM'
-            ? '/exam/queue'
+            ? '/service/queue'
             : '/ward/board';
       navigate(home, { replace: true });
     } catch (e) {

@@ -1,4 +1,4 @@
-import type { AlertSeverity, AlertType, TransferPriority, TransferStatus } from '@/shared/api/types';
+import type { AlertSeverity, AlertType, OrderPriority, OrderStatus } from '@/shared/api/types';
 
 const ALERT_LABEL: Record<AlertType, string> = {
   METAL_IMPLANT: '금속물',
@@ -28,7 +28,7 @@ export function AlertBadge({ type, severity }: { type: AlertType; severity: Aler
   );
 }
 
-const STATUS_LABEL: Record<TransferStatus, string> = {
+const STATUS_LABEL: Record<OrderStatus, string> = {
   REQUESTED: '요청됨',
   ACCEPTED: '접수됨',
   READY: '준비완료',
@@ -40,7 +40,7 @@ const STATUS_LABEL: Record<TransferStatus, string> = {
   CANCELLED: '취소',
 };
 
-const STATUS_STYLE: Record<TransferStatus, string> = {
+const STATUS_STYLE: Record<OrderStatus, string> = {
   REQUESTED: 'bg-slate-200 text-slate-800',
   ACCEPTED: 'bg-sky-100 text-sky-800',
   READY: 'bg-indigo-100 text-indigo-800',
@@ -52,9 +52,9 @@ const STATUS_STYLE: Record<TransferStatus, string> = {
   CANCELLED: 'bg-slate-200 text-slate-500 line-through',
 };
 
-export const statusLabel = (status: TransferStatus) => STATUS_LABEL[status];
+export const statusLabel = (status: OrderStatus) => STATUS_LABEL[status];
 
-export function StatusBadge({ status }: { status: TransferStatus }) {
+export function StatusBadge({ status }: { status: OrderStatus }) {
   return (
     <span className={`inline-flex rounded px-2 py-0.5 text-xs font-semibold ${STATUS_STYLE[status]}`}>
       {STATUS_LABEL[status]}
@@ -62,21 +62,21 @@ export function StatusBadge({ status }: { status: TransferStatus }) {
   );
 }
 
-const PRIORITY_LABEL: Record<TransferPriority, string> = {
+const PRIORITY_LABEL: Record<OrderPriority, string> = {
   ROUTINE: '일반',
   URGENT: '긴급',
   EMERGENCY: '응급',
 };
 
-const PRIORITY_STYLE: Record<TransferPriority, string> = {
+const PRIORITY_STYLE: Record<OrderPriority, string> = {
   ROUTINE: 'bg-slate-100 text-slate-600',
   URGENT: 'bg-amber-500 text-white',
   EMERGENCY: 'bg-red-600 text-white',
 };
 
-export const priorityLabel = (priority: TransferPriority) => PRIORITY_LABEL[priority];
+export const priorityLabel = (priority: OrderPriority) => PRIORITY_LABEL[priority];
 
-export function PriorityBadge({ priority }: { priority: TransferPriority }) {
+export function PriorityBadge({ priority }: { priority: OrderPriority }) {
   return (
     <span className={`inline-flex rounded px-2 py-0.5 text-xs font-bold ${PRIORITY_STYLE[priority]}`}>
       {PRIORITY_LABEL[priority]}
@@ -91,7 +91,7 @@ export function PriorityBadge({ priority }: { priority: TransferPriority }) {
  * "복귀중" 이라고 적힌 버튼을 누르라고 하면 무슨 뜻인지 한 번 더 생각해야 한다.
  * 간호사가 실제로 하는 행동으로 적는다.
  */
-const ACTION_LABEL: Record<TransferStatus, string> = {
+const ACTION_LABEL: Record<OrderStatus, string> = {
   REQUESTED: '요청',
   ACCEPTED: '접수',
   READY: '준비 완료',
@@ -103,7 +103,7 @@ const ACTION_LABEL: Record<TransferStatus, string> = {
   CANCELLED: '취소',
 };
 
-export function actionLabel(target: TransferStatus, current: TransferStatus): string {
+export function actionLabel(target: OrderStatus, current: OrderStatus): string {
   // 보류에서 원래 상태로 되돌리는 것은 "접수" 가 아니라 "보류 해제" 다
   if (current === 'ON_HOLD' && target !== 'CANCELLED') {
     return '보류 해제';

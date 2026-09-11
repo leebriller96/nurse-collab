@@ -90,7 +90,7 @@ try {
     label: '검사실 들어온 요청',
     loginId: 'mri01',
     viewport: { width: 1280, height: 720 },
-    apiPattern: '**/api/v1/transfer-requests**',
+    apiPattern: '**/api/v1/work-orders**',
     duringSelector: '[role="status"] .overflow-hidden',
     afterSelector: '.overflow-x-auto',
   });

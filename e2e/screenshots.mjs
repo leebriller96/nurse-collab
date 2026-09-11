@@ -54,7 +54,7 @@ async function main() {
     await shot(desk.page, 'exam-queue');
 
     await desk.page.getByRole('link', { name: '일정' }).click();
-    await desk.page.waitForURL(/\/exam\/schedule/);
+    await desk.page.waitForURL(/\/service\/schedule/);
     await shot(desk.page, 'exam-schedule');
 
     await login(desk.page, 'admin01');

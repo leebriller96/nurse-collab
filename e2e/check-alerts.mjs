@@ -69,7 +69,7 @@ try {
 
   // ── 검사실 화면에도 경고로 뜬다
   await login('mri01');
-  await page.goto(`${APP}/exam/requests/${requestId}`);
+  await page.goto(`${APP}/service/requests/${requestId}`);
   await page.waitForLoadState('networkidle');
   // 종류마다 문구가 다르다. 폐소공포는 "검사 전 진정 여부를 확인하세요" 다.
   record(

@@ -128,7 +128,7 @@ class PatientAlertApiTest extends IntegrationTest {
         addAlert("ward01");
         long requestId = createMriRequest();
 
-        mvc.perform(get("/api/v1/transfer-requests/" + requestId)
+        mvc.perform(get("/api/v1/work-orders/" + requestId)
                         .header("Authorization", bearer("mri01")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.checklistWarnings.length()").value(1));
@@ -138,20 +138,20 @@ class PatientAlertApiTest extends IntegrationTest {
 
     /** 뇌 MRI 는 확인 항목에 폐소공포가 들어 있다 */
     private long createMriRequest() throws Exception {
-        var exams = om.readTree(mvc.perform(get("/api/v1/exam-types")
+        var exams = om.readTree(mvc.perform(get("/api/v1/service-items")
                         .header("Authorization", bearer("ward01")))
                 .andReturn().getResponse().getContentAsString());
-        long examTypeId = -1;
+        long serviceItemId = -1;
         for (var e : exams) {
-            if (e.get("code").asText().equals("MRI_BRAIN")) examTypeId = e.get("id").asLong();
+            if (e.get("code").asText().equals("MRI_BRAIN")) serviceItemId = e.get("id").asLong();
         }
 
-        String body = mvc.perform(post("/api/v1/transfer-requests")
+        String body = mvc.perform(post("/api/v1/work-orders")
                         .header("Authorization", bearer("ward01"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"encounterId":%d,"examTypeId":%d,"priority":"ROUTINE"}"""
-                                .formatted(encounterId, examTypeId)))
+                                {"encounterId":%d,"serviceItemId":%d,"priority":"ROUTINE"}"""
+                                .formatted(encounterId, serviceItemId)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return om.readTree(body).get("id").asLong();

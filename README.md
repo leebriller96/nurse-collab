@@ -60,7 +60,7 @@ EMR 을 대체하지 않는다. **EMR 옆에 붙는 협업 레이어**로 만들
 ### 1. 상태 전이 규칙은 한 곳에만 있다
 
 이송 요청은 9개 상태를 오간다. 전이할 수 있는 조합, 그 전이를 누를 수 있는 쪽,
-사유나 예정시각이 필수인지가 전부 `TransferStatus.RULES` 테이블 하나에 들어 있다.
+사유나 예정시각이 필수인지가 전부 `OrderStatus.RULES` 테이블 하나에 들어 있다.
 
 ```java
 new Rule(REQUESTED, ACCEPTED,  ActorSide.PERFORMER, false, true),   // 접수는 검사실이, 예정시각 필수
@@ -112,7 +112,7 @@ transferRequestRepository.existsActiveByEncounterAndToDepartment(encounterId, de
 
 검사실 간호사 둘이 같은 요청을 동시에 접수하면 환자가 두 번 불려 간다.
 요청에 `@Version` 을 걸고, 전이 요청에 클라이언트가 들고 있던 버전을 함께 받는다.
-늦게 도착한 쪽은 `409 TR-002` 로 막힌다.
+늦게 도착한 쪽은 `409 ORD-002` 로 막힌다.
 
 여기서 실제로 버그를 하나 만났다.
 `@Version` 은 flush 시점에 올라가는데 그 전에 응답을 만들면 **증가하지 않은 버전이 나간다.**
@@ -147,7 +147,7 @@ return TransitionResponse.of(request, actor);
 
 ### 5. 기록은 지우지 않는다
 
-`transfer_event`, `nursing_note`, `audit_log` 에는 DELETE 가 없다. API 도 만들지 않았다.
+`work_order_event`, `nursing_note`, `audit_log` 에는 DELETE 가 없다. API 도 만들지 않았다.
 
 - 간호기록은 **본인이 24시간 안에만** 고칠 수 있고, 고치기 전 내용은 감사 로그에 before/after 로 남는다
 - 부서·직원·검사 종류도 삭제하지 않고 **사용 중지**만 한다. 지난 요청 이력이 그 이름을 참조하고 있기 때문이다

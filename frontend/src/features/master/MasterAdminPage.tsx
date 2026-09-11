@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, messageOf } from '@/shared/api/client';
 import type {
-  AlertType, DepartmentSummary, DeptType, ExamType, StaffRole,
+  AlertType, DepartmentSummary, DeptType, ServiceItem, StaffRole,
 } from '@/shared/api/types';
 import { useToast } from '@/shared/ui/toast';
 
@@ -38,7 +38,7 @@ const ALERT_LABEL: Record<AlertType, string> = {
 const TABS = [
   { key: 'departments', label: '부서' },
   { key: 'staff', label: '직원' },
-  { key: 'exam-types', label: '검사 종류' },
+  { key: 'service-items', label: '검사 종류' },
 ] as const;
 
 type TabKey = (typeof TABS)[number]['key'];
@@ -66,13 +66,13 @@ export default function MasterAdminPage() {
     queryFn: async () => (await api.get<StaffRow[]>('/staff')).data,
   });
   const examTypes = useQuery({
-    queryKey: ['admin', 'exam-types'],
-    queryFn: async () => (await api.get<ExamType[]>('/exam-types')).data,
+    queryKey: ['admin', 'service-items'],
+    queryFn: async () => (await api.get<ServiceItem[]>('/service-items')).data,
   });
 
   const refresh = () => {
     void queryClient.invalidateQueries({ queryKey: ['admin'] });
-    void queryClient.invalidateQueries({ queryKey: ['exam-types'] });
+    void queryClient.invalidateQueries({ queryKey: ['service-items'] });
   };
 
   const create = useMutation({
@@ -156,20 +156,20 @@ export default function MasterAdminPage() {
         />
       )}
 
-      {tab === 'exam-types' && (
+      {tab === 'service-items' && (
         <Section
           title="검사 종류"
           rows={examTypes.data ?? []}
           columns={['코드', '이름', '검사실', '소요', '확인 항목']}
-          renderRow={(e: ExamType) => [
+          renderRow={(e: ServiceItem) => [
             e.code, e.name, e.department.name, `${e.defaultDuration}분`,
             e.requiredAlerts.map((a) => ALERT_LABEL[a]).join(', ') || '없음',
           ]}
-          onDeactivate={(e: ExamType) => deactivate.mutate(`/exam-types/${e.id}/deactivate`)}
+          onDeactivate={(e: ServiceItem) => deactivate.mutate(`/service-items/${e.id}/deactivate`)}
           form={
-            <ExamTypeForm
+            <ServiceItemForm
               departments={(departments.data ?? []).filter((d) => d.deptType === 'EXAM')}
-              onSubmit={(body) => create.mutate({ path: '/exam-types', body })}
+              onSubmit={(body) => create.mutate({ path: '/service-items', body })}
             />
           }
         />
@@ -298,7 +298,7 @@ function StaffForm({ departments, onSubmit }: {
   );
 }
 
-function ExamTypeForm({ departments, onSubmit }: {
+function ServiceItemForm({ departments, onSubmit }: {
   departments: DepartmentRow[];
   onSubmit: (body: unknown) => void;
 }) {

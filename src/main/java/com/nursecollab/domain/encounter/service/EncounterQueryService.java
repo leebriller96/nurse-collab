@@ -14,9 +14,9 @@ import com.nursecollab.domain.patient.entity.AlertType;
 import com.nursecollab.domain.patient.entity.PatientAlert;
 import com.nursecollab.domain.patient.repository.PatientAlertRepository;
 import com.nursecollab.domain.staff.entity.StaffRole;
-import com.nursecollab.domain.transfer.entity.TransferRequest;
-import com.nursecollab.domain.transfer.entity.TransferStatus;
-import com.nursecollab.domain.transfer.repository.TransferRequestRepository;
+import com.nursecollab.domain.workorder.entity.WorkOrder;
+import com.nursecollab.domain.workorder.entity.OrderStatus;
+import com.nursecollab.domain.workorder.repository.WorkOrderRepository;
 import com.nursecollab.global.common.PageResponse;
 import com.nursecollab.global.error.BusinessException;
 import com.nursecollab.global.error.ErrorCode;
@@ -39,7 +39,7 @@ public class EncounterQueryService {
 
     private final EncounterRepository encounterRepository;
     private final PatientAlertRepository alertRepository;
-    private final TransferRequestRepository transferRequestRepository;
+    private final WorkOrderRepository workOrderRepository;
 
     /**
      * 내 파트의 재원 목록.
@@ -70,8 +70,8 @@ public class EncounterQueryService {
                 .collect(Collectors.groupingBy(a -> a.getPatient().getId(),
                         Collectors.mapping(AlertSummary::from, Collectors.toList())));
 
-        Map<Long, Long> requestCountByEncounter = transferRequestRepository
-                .findActiveByEncounterIds(encounterIds, TransferStatus.terminals())
+        Map<Long, Long> requestCountByEncounter = workOrderRepository
+                .findActiveByEncounterIds(encounterIds, OrderStatus.terminals())
                 .stream()
                 .collect(Collectors.groupingBy(r -> r.getEncounter().getId(), Collectors.counting()));
 
@@ -100,9 +100,9 @@ public class EncounterQueryService {
             return fullView(encounter, alerts);
         }
 
-        List<TransferRequest> relatedRequests = transferRequestRepository
+        List<WorkOrder> relatedRequests = workOrderRepository
                 .findActiveByEncounterAndToDepartment(encounterId, loginStaff.departmentId(),
-                        TransferStatus.terminals());
+                        OrderStatus.terminals());
 
         if (relatedRequests.isEmpty()) {
             throw new BusinessException(ErrorCode.NOT_RELATED_DEPARTMENT);
@@ -137,19 +137,19 @@ public class EncounterQueryService {
         if (loginStaff.role() == StaffRole.ADMIN || ownWard) {
             return encounter;
         }
-        if (!transferRequestRepository.existsActiveByEncounterAndToDepartment(
-                encounterId, loginStaff.departmentId(), TransferStatus.terminals())) {
+        if (!workOrderRepository.existsActiveByEncounterAndToDepartment(
+                encounterId, loginStaff.departmentId(), OrderStatus.terminals())) {
             throw new BusinessException(ErrorCode.NOT_RELATED_DEPARTMENT);
         }
         return encounter;
     }
 
     private EncounterFullView fullView(Encounter encounter, List<PatientAlert> alerts) {
-        List<EncounterFullView.ActiveRequest> activeRequests = transferRequestRepository
-                .findActiveByEncounterIds(List.of(encounter.getId()), TransferStatus.terminals())
+        List<EncounterFullView.ActiveRequest> activeRequests = workOrderRepository
+                .findActiveByEncounterIds(List.of(encounter.getId()), OrderStatus.terminals())
                 .stream()
                 .map(r -> new EncounterFullView.ActiveRequest(
-                        r.getId(), r.getRequestNo(), r.getExamType().getName(),
+                        r.getId(), r.getRequestNo(), r.getServiceItem().getName(),
                         r.getStatus().name(), r.getScheduledAt()))
                 .toList();
 
@@ -159,10 +159,10 @@ public class EncounterQueryService {
     }
 
     private EncounterExamView examView(Encounter encounter, List<PatientAlert> alerts,
-                                       List<TransferRequest> relatedRequests) {
+                                       List<WorkOrder> relatedRequests) {
         // 우리 파트로 온 요청들의 필수 확인 항목을 모아 환자 주의사항과 교차시킨다
         Collection<AlertType> required = new ArrayList<>();
-        relatedRequests.forEach(r -> required.addAll(r.getExamType().requiredAlertTypes()));
+        relatedRequests.forEach(r -> required.addAll(r.getServiceItem().requiredAlertTypes()));
 
         return EncounterExamView.of(encounter,
                 alerts.stream().map(AlertResponse::from).toList(),

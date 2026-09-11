@@ -2,15 +2,15 @@ import { useEffect, useRef, useState } from 'react';
 import { Client } from '@stomp/stompjs';
 import { useQueryClient } from '@tanstack/react-query';
 import { tokenStore } from '@/shared/api/client';
-import type { TransferPriority, TransferStatus } from '@/shared/api/types';
+import type { OrderPriority, OrderStatus } from '@/shared/api/types';
 
 export interface RealtimeEvent {
   eventType: 'TRANSFER_CREATED' | 'TRANSFER_STATUS_CHANGED' | 'MESSAGE_CREATED';
   requestId: number;
   requestNo: string;
-  fromStatus: TransferStatus | null;
-  toStatus: TransferStatus | null;
-  priority: TransferPriority;
+  fromStatus: OrderStatus | null;
+  toStatus: OrderStatus | null;
+  priority: OrderPriority;
   patientName: string;
   roomNo: string;
   examName: string;

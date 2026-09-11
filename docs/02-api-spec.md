@@ -44,9 +44,9 @@ X-Request-Id: {UUID}        -- 선택. 로그 추적용
 {
   "timestamp": "2026-09-04T22:31:05+09:00",
   "status": 409,
-  "code": "TR-002",
+  "code": "ORD-002",
   "message": "다른 사용자가 먼저 처리했습니다. 화면을 새로고침해 주세요.",
-  "path": "/api/v1/transfer-requests/101/transitions"
+  "path": "/api/v1/work-orders/101/transitions"
 }
 ```
 
@@ -59,7 +59,7 @@ X-Request-Id: {UUID}        -- 선택. 로그 추적용
   "status": 400,
   "code": "VAL-001",
   "message": "입력값을 확인해 주세요.",
-  "path": "/api/v1/transfer-requests/101/transitions",
+  "path": "/api/v1/work-orders/101/transitions",
   "fieldErrors": [
     { "field": "toStatus", "reason": "변경할 상태는 필수입니다." }
   ]
@@ -99,16 +99,16 @@ X-Request-Id: {UUID}        -- 선택. 로그 추적용
 | PERM-001 | 403 | 요청에 관여하지 않는 파트의 접근 |
 | PERM-002 | 403 | 상대 파트가 처리해야 할 전이를 시도 |
 | PERM-003 | 403 | 역할 권한 부족 (통계·감사로그 등) |
-| TR-000 | 404 | 요청 없음 |
-| TR-001 | 409 | 허용되지 않는 상태 전이 |
-| TR-002 | 409 | 낙관적 락 충돌 (동시 처리) |
-| TR-003 | 400 | 보류/취소 사유 누락 |
-| TR-004 | 409 | 이미 종료된 요청 |
-| TR-005 | 400 | 접수 시 예정시각 누락 |
+| ORD-000 | 404 | 요청 없음 |
+| ORD-001 | 409 | 허용되지 않는 상태 전이 |
+| ORD-002 | 409 | 낙관적 락 충돌 (동시 처리) |
+| ORD-003 | 400 | 보류/취소 사유 누락 |
+| ORD-004 | 409 | 이미 종료된 요청 |
+| ORD-005 | 400 | 접수 시 예정시각 누락 |
 | ENC-000 | 404 | 재원 없음 |
 | ALT-000 | 404 | 주의사항 없음 |
 | ENC-001 | 422 | 퇴원한 재원 건에 대한 요청 |
-| EXM-001 | 404 | 검사 종류 없음 |
+| SVC-001 | 404 | 업무 항목 없음 |
 | STF-001 | 404 | 직원 없음 |
 | SYS-001 | 500 | 서버 내부 오류 |
 
@@ -173,7 +173,7 @@ PERM-003 은 역할 자체가 모자란 경우다. 일반 간호사가 통계를
 ]
 ```
 
-### GET /exam-types
+### GET /service-items
 
 | 파라미터 | 타입 | 설명 |
 |---|---|---|
@@ -271,7 +271,7 @@ PERM-003 은 역할 자체가 모자란 경우다. 일반 간호사가 통계를
 ```
 
 - 진단명, 활력징후, 상세 간호기록은 **응답 자체에서 빠진다.** 마스킹이 아니라 미포함이다.
-- `checklistWarnings` 는 `exam_type.required_alerts` 와 환자 alert 를 교차 계산한 결과다.
+- `checklistWarnings` 는 `service_item.required_alerts` 와 환자 alert 를 교차 계산한 결과다.
 - 조회 시점에 `audit_log` 에 VIEW 기록이 남는다.
 - 접근 판정은 소속이 아니라 **관계**로 한다. 검사실은 "우리 파트로 온 진행중 요청이 있을 때" 만 볼 수 있고,
   요청이 끝나면 접근 권한도 함께 사라진다. 관계가 없으면 `403 PERM-001`.
@@ -302,13 +302,13 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 
 ## 4. 이송 요청 (핵심)
 
-### POST /transfer-requests
+### POST /work-orders
 
 ```json
 // Request
 {
   "encounterId": 501,
-  "examTypeId": 21,
+  "serviceItemId": 21,
   "priority": "URGENT",
   "desiredAt": "2026-09-04T15:00:00+09:00",
   "note": "휠체어 이송 필요, 보호자 동반"
@@ -316,7 +316,7 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 ```
 
 ```json
-// Response 201  (Location: /api/v1/transfer-requests/101)
+// Response 201  (Location: /api/v1/work-orders/101)
 {
   "id": 101,
   "requestNo": "TR20260904-0001",
@@ -327,10 +327,10 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 }
 ```
 
-- `toDepartmentId` 는 클라이언트가 보내지 않는다. `examTypeId` 로 서버가 결정한다.
+- `toDepartmentId` 는 클라이언트가 보내지 않는다. `serviceItemId` 로 서버가 결정한다.
 - 생성 즉시 대상 검사실 파트에 WebSocket 알림이 발송된다.
 
-### GET /transfer-requests
+### GET /work-orders
 
 | 파라미터 | 타입 | 설명 |
 |---|---|---|
@@ -376,7 +376,7 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 **`unreadMessageCount` 는 뺐다.** `request_message` 에 읽음 상태가 없어서 계산할 수 없다.
 누가 어디까지 읽었는지를 담는 테이블이 필요하므로 Phase 3 으로 미룬다.
 
-### GET /transfer-requests/{id}
+### GET /work-orders/{id}
 
 ```json
 {
@@ -386,7 +386,7 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
   "priority": "URGENT",
   "encounter": { "encounterId": 501, "roomNo": "302", "bedNo": "1", "isMobile": false },
   "patient": { "patientNo": "P0001234", "name": "김OO", "age": 68, "sex": "M" },
-  "examType": { "id": 21, "name": "뇌 MRI", "defaultDuration": 40, "prepInstruction": "검사 4시간 전부터 금식" },
+  "serviceItem": { "id": 21, "name": "뇌 MRI", "defaultDuration": 40, "prepInstruction": "검사 4시간 전부터 금식" },
   "fromDepartment": { "id": 3, "name": "3병동", "phone": "1303" },
   "toDepartment": { "id": 7, "name": "MRI실", "phone": "1707" },
   "requestedBy": { "id": 12, "name": "김간호" },
@@ -409,7 +409,7 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 현재 상태 + 호출자 파트 + 역할을 서버가 계산해서 "지금 누를 수 있는 버튼 목록"을 내려준다.
 프론트는 이 배열만 보고 버튼을 렌더링하면 된다. 상태 전이 규칙을 프론트에 중복 구현하지 않는다.
 
-### POST /transfer-requests/{id}/transitions
+### POST /work-orders/{id}/transitions
 
 상태 변경 전용 단일 엔드포인트.
 
@@ -437,7 +437,7 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 **왜 `/accept`, `/ready`, `/start` 로 나누지 않는가**
 
 1. 상태가 9개인데 엔드포인트가 9개로 늘어나면 권한 검증 코드가 9곳에 흩어진다
-2. 이력(`transfer_event`) 기록 로직이 중복된다
+2. 이력(`work_order_event`) 기록 로직이 중복된다
 3. 상태를 추가할 때마다 API 문서와 프론트 코드를 같이 고쳐야 한다
 4. 하나로 두면 전이 검증 → 권한 검증 → 상태 변경 → 이력 적재 → 알림 발송이 **한 흐름**으로 정리된다
 
@@ -445,12 +445,12 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 `toStatus` 기준으로 검증 규칙을 분기하면 관리 가능한 수준이다.
 
 **필수 규칙**
-- `version` 미포함 또는 불일치 → `409 TR-002`
+- `version` 미포함 또는 불일치 → `409 ORD-002`
 - `ON_HOLD`, `CANCELLED` 인데 `reason` 없음 → `400 TR-003`
-- 허용되지 않는 전이 → `409 TR-001`
+- 허용되지 않는 전이 → `409 ORD-001`
 - `ACCEPTED` 인데 `scheduledAt` 없음 → `400`
 
-### GET /transfer-requests/{id}/events
+### GET /work-orders/{id}/events
 
 ```json
 [
@@ -464,8 +464,8 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 
 ## 5. 요청 내 대화
 
-### GET /transfer-requests/{id}/messages — 200 (오름차순)
-### POST /transfer-requests/{id}/messages
+### GET /work-orders/{id}/messages — 200 (오름차순)
+### POST /work-orders/{id}/messages
 
 ```json
 // Request
@@ -557,7 +557,7 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 비밀번호는 생성할 때만 받는다. 수정에서 다루면 관리자가 남의 비밀번호를 바꿀 수 있게 된다.
 초기화가 필요하면 별도 엔드포인트로 분리한다(Phase 3).
 
-### POST /exam-types · PUT /exam-types/{id} · PATCH /exam-types/{id}/deactivate
+### POST /service-items · PUT /service-items/{id} · PATCH /service-items/{id}/deactivate
 
 ```json
 {
@@ -617,7 +617,7 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
     {
       "id": 900,
       "notiType": "STATUS_CHANGED",
-      "refType": "TRANSFER_REQUEST",
+      "refType": "WORK_ORDER",
       "refId": 101,
       "title": "MRI실에서 요청을 접수했습니다",
       "body": "302호 김OO / 뇌 MRI / 15:30 예정",
@@ -714,7 +714,7 @@ CONNECT 헤더 : Authorization: Bearer {accessToken}
 **중요: 재접속 시 유실 보정**
 
 WebSocket 은 끊길 수 있다. 병원 와이파이면 더 자주 끊긴다.
-재연결 직후 무조건 `GET /transfer-requests?direction=INBOUND` 를 다시 호출해서
+재연결 직후 무조건 `GET /work-orders?direction=INBOUND` 를 다시 호출해서
 현재 상태로 화면을 덮어쓴다. 실시간 메시지는 "빠른 갱신"일 뿐, **진실의 원천은 REST 조회**다.
 
 ---

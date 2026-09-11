@@ -58,10 +58,10 @@ async function otherNurseCompletesFirst(requestId) {
     'Content-Type': 'application/json',
   };
   const current = await (
-    await fetch(`${API}/transfer-requests/${requestId}`, { headers })
+    await fetch(`${API}/work-orders/${requestId}`, { headers })
   ).json();
 
-  const res = await fetch(`${API}/transfer-requests/${requestId}/transitions`, {
+  const res = await fetch(`${API}/work-orders/${requestId}/transitions`, {
     method: 'POST',
     headers,
     body: JSON.stringify({ toStatus: 'READY', version: current.version }),
@@ -124,7 +124,7 @@ async function main() {
 
     // 큐는 우선순위·오래된 순이라 첫 행이 방금 만든 요청이 아니다. 번호로 집는다.
     await page.locator(`tbody tr:has-text("${requestNo}")`).click();
-    await page.waitForURL(/\/exam\/requests\/\d+/);
+    await page.waitForURL(/\/service\/requests\/\d+/);
     await caption(page, '9', '열어보면 "MRI 금기 가능성" 안내가 이미 떠 있다. 따로 확인하러 갈 필요가 없다.');
     await beat(page, 3200);
 
@@ -155,7 +155,7 @@ async function main() {
     const requestId = page.url().split('/').pop();
 
     // 화면이 보낸 요청을 잠깐 붙잡아 두고, 그 사이 다른 사람이 먼저 커밋하게 한다
-    await page.route('**/transfer-requests/*/transitions', async (route) => {
+    await page.route('**/work-orders/*/transitions', async (route) => {
       await new Promise((r) => setTimeout(r, 2500));
       await route.continue();
     });
@@ -168,16 +168,16 @@ async function main() {
     await page.waitForSelector('[role="alert"]', { timeout: 15000 });
     await caption(page, '13', '나중에 누른 쪽은 막힌다. 같은 환자를 두 번 보내는 일이 생기지 않는다.');
     await beat(page, 4000);
-    await page.unroute('**/transfer-requests/*/transitions');
+    await page.unroute('**/work-orders/*/transitions');
 
     // ── 7. 검사실의 나머지 화면
     await page.getByRole('link', { name: '일정' }).click();
-    await page.waitForURL(/\/exam\/schedule/);
+    await page.waitForURL(/\/service\/schedule/);
     await caption(page, '14', '접수하며 정한 시각이 일정 보드에 자리를 잡는다. 앞뒤가 비었는지 한눈에 본다.');
     await beat(page, 3200);
 
     await page.getByRole('link', { name: '지난 요청' }).click();
-    await page.waitForURL(/\/exam\/history/);
+    await page.waitForURL(/\/service\/history/);
     await caption(page, '15', '끝난 요청은 기간과 환자명으로 다시 찾는다. 아무것도 지우지 않는다.');
     await beat(page, 3200);
 

@@ -225,7 +225,7 @@ src/
 │   └── stats/
 └── layouts/
     ├── WardLayout.tsx          # 모바일 우선 (하단 탭바)
-    └── ExamLayout.tsx          # PC 우선 (사이드바 + 넓은 테이블)
+    └── ServiceLayout.tsx          # PC 우선 (사이드바 + 넓은 테이블)
 ```
 
 ### 실시간 갱신 처리 패턴

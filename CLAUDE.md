@@ -52,14 +52,14 @@ EMR 대체가 아니라 **EMR 옆에 붙는 협업 레이어**로 포지셔닝�
 
 ## 절대 규칙
 
-### 1. 상태 전이 규칙은 `TransferStatus` enum 안에만 존재한다
+### 1. 상태 전이 규칙은 `OrderStatus` enum 안에만 존재한다
 
 서비스나 컨트롤러에 `if (status == ...)` 분기를 만들지 않는다.
-새 상태나 전이가 필요하면 `TransferStatus.RULES` 에만 추가한다.
+새 상태나 전이가 필요하면 `OrderStatus.RULES` 에만 추가한다.
 
 ### 2. 검증은 엔티티가 한다
 
-`TransferRequest.transitionTo()` 안에서 검증하고 예외를 던진다.
+`WorkOrder.transitionTo()` 안에서 검증하고 예외를 던진다.
 서비스는 조회/저장/이벤트 발행만 담당한다.
 
 ### 3. 알림은 반드시 커밋 이후에 발송한다
@@ -79,7 +79,7 @@ transferRequestRepository.existsByEncounterIdAndToDepartmentIdAndStatusNotIn(...
 
 ### 5. 간호기록과 이송 이력은 삭제하지 않는다
 
-`transfer_event`, `nursing_note` 는 append only.
+`work_order_event`, `nursing_note` 는 append only.
 DELETE 쿼리나 삭제 API 를 만들지 않는다.
 
 ### 6. 환자 데이터는 전부 가상 인물이다
@@ -132,14 +132,14 @@ chore: Testcontainers 의존성 추가
 
 - 1단계: Gradle 프로젝트, Flyway, docker-compose, `global` 공통 기반.
 - 2단계: JWT 인증, 파트·직원·검사종류, 마스터 조회 API.
-- 3단계: 상태 전이 규칙(`TransferStatus`), 이송 요청 도메인, 요청번호 발번(V4).
+- 3단계: 상태 전이 규칙(`OrderStatus`), 이송 요청 도메인, 요청번호 발번(V4).
 - 4단계: 백엔드 API 전체 + 화면 7개(C-01 로그인, W-01 보드, W-02 환자상세, W-03 요청등록,
   W-04 현황, W-05/E-02 요청상세, E-01 큐). frontend/ 하위에 React 19 + Vite.
   실시간 갱신은 5단계에서 붙였다.
 - 5단계: STOMP WebSocket. 요청 생성·상태 전이·메시지가 양쪽 파트 채널로 즉시 전파된다.
   알림은 AFTER_COMMIT 리스너에서만 나간다. 프론트는 알림으로 화면을 그리지 않고
   조회 캐시를 무효화해 REST 로 다시 받아온다. 폴링은 60초 보조 장치로만 남겼다.
-- 6단계: 대기시간 통계 API 와 대시보드(A-01). 집계는 SQL 로 하고, 값은 전부 transfer_event 에서 나온다.
+- 6단계: 대기시간 통계 API 와 대시보드(A-01). 집계는 SQL 로 하고, 값은 전부 work_order_event 에서 나온다.
   일반 간호사는 403, 수간호사는 자기 파트가 관여한 요청만, 관리자는 전체를 본다.
   동시성 처리(낙관적 락)는 3단계에서 이미 끝났고 화면에서도 확인했다.
 - 7단계(백엔드): 활력징후, 간호기록(SBAR), 감사 로그.
@@ -176,7 +176,7 @@ chore: Testcontainers 의존성 추가
     방문자가 `admin01` 을 간호사로 강등시키면 목록 방식으로는 그 상태가 영구히 남아
     아무도 관리자 화면에 못 들어간다(실제로 재현해 확인했다). 시드에 행을 추가할 때
     목록을 같이 고쳐야 하는 문제도 없어진다.
-  - 요청은 SQL 이 아니라 실제 API 로 만든다. 직접 꽂으면 `transfer_event` 와
+  - 요청은 SQL 이 아니라 실제 API 로 만든다. 직접 꽂으면 `work_order_event` 와
     `audit_log` 가 비어서 통계·이력 화면이 텅 빈다.
   - 시각만 SQL 로 되돌린다. `now()` 기준이어야 한다. 고정 시각에 맞추면 그 전에 돌렸을 때
     요청이 미래로 가고 대기시간이 전부 0분으로 찍힌다.
@@ -265,14 +265,14 @@ chore: Testcontainers 의존성 추가
 |---|---|---|
 | POST | `/auth/login` `/auth/refresh` `/auth/logout` | C-01 |
 | GET | `/auth/me` | C-03 |
-| GET | `/departments` `/exam-types` | W-03, A-04 |
+| GET | `/departments` `/service-items` | W-03, A-04 |
 | GET | `/encounters` | W-01 |
 | GET | `/encounters/{id}` `/encounters/{id}/alerts` | W-02, E-02 |
-| POST | `/transfer-requests` | W-03 |
-| GET | `/transfer-requests?direction=` | W-04, E-01 |
-| GET | `/transfer-requests/{id}` `/{id}/events` | W-05, E-02 |
-| POST | `/transfer-requests/{id}/transitions` | W-05, E-02 |
-| GET POST | `/transfer-requests/{id}/messages` | W-05, E-02 |
+| POST | `/work-orders` | W-03 |
+| GET | `/work-orders?direction=` | W-04, E-01 |
+| GET | `/work-orders/{id}` `/{id}/events` | W-05, E-02 |
+| POST | `/work-orders/{id}/transitions` | W-05, E-02 |
+| GET POST | `/work-orders/{id}/messages` | W-05, E-02 |
 | POST | `/patients/{patientId}/alerts` | W-02 |
 | PATCH | `/patients/alerts/{alertId}/deactivate` | W-02 |
 | GET POST | `/encounters/{id}/vital-signs` | W-06 |
@@ -281,7 +281,7 @@ chore: Testcontainers 의존성 추가
 | GET PATCH POST | `/notifications` `/{id}/read` `/read-all` | C-02 |
 | GET | `/stats/waiting-time` | A-01 |
 | GET | `/audit-logs` | A-05 |
-| GET POST PUT PATCH | `/staff` `/departments` `/exam-types` (+ `/{id}/deactivate`) | A-02~04 |
+| GET POST PUT PATCH | `/staff` `/departments` `/service-items` (+ `/{id}/deactivate`) | A-02~04 |
 
 ### 데모 계정
 

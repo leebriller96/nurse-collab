@@ -15,9 +15,9 @@ DBMS: PostgreSQL 16
 | 환자 | `patient` | 환자 기본정보 (변하지 않는 것) |
 | 환자 | `encounter` | 재원 정보 (입원할 때마다 새로 생김) |
 | 환자 | `patient_alert` | 파트별 주의사항 (금속물, 알레르기 등) |
-| 이송 | `exam_type` | 검사 종류 마스터 |
-| 이송 | `transfer_request` | 이송 요청 (핵심 테이블) |
-| 이송 | `transfer_event` | 상태 변경 이력 |
+| 이송 | `service_item` | 검사 종류 마스터 |
+| 이송 | `work_order` | 이송 요청 (핵심 테이블) |
+| 이송 | `work_order_event` | 상태 변경 이력 |
 | 소통 | `request_message` | 요청 단위 대화 스레드 |
 | 소통 | `notification` | 개인별 알림함 |
 | 기록 | `vital_sign` | 활력징후 |
@@ -40,8 +40,8 @@ DBMS: PostgreSQL 16
 
 ### (2) 상태는 컬럼, 이력은 별도 테이블
 
-`transfer_request.status` 에 현재 상태를 두고,
-상태가 바뀔 때마다 `transfer_event` 에 한 줄씩 쌓는다.
+`work_order.status` 에 현재 상태를 두고,
+상태가 바뀔 때마다 `work_order_event` 에 한 줄씩 쌓는다.
 
 - 현재 상태 조회 = 빠름 (컬럼 하나)
 - "누가 언제 왜 보류시켰나" 추적 = 가능 (이력 테이블)
@@ -215,7 +215,7 @@ COMMENT ON TABLE patient_alert IS
 -- ---------------------------------------------------------
 -- 6. 이송 : 검사 종류 마스터
 -- ---------------------------------------------------------
-CREATE TABLE exam_type (
+CREATE TABLE service_item (
     id                  BIGSERIAL    PRIMARY KEY,
     code                VARCHAR(20)  NOT NULL UNIQUE,  -- 예: MRI_BRAIN
     name                VARCHAR(100) NOT NULL,         -- 예: 뇌 MRI
@@ -226,16 +226,16 @@ CREATE TABLE exam_type (
     is_active           BOOLEAN      NOT NULL DEFAULT TRUE
 );
 
-COMMENT ON TABLE exam_type IS '검사 종류. required_alerts 로 파트별 필수 확인 항목을 정의한다';
+COMMENT ON TABLE service_item IS '검사 종류. required_alerts 로 파트별 필수 확인 항목을 정의한다';
 
 -- ---------------------------------------------------------
 -- 7. 이송 : 요청 (핵심 테이블)
 -- ---------------------------------------------------------
-CREATE TABLE transfer_request (
+CREATE TABLE work_order (
     id                  BIGSERIAL    PRIMARY KEY,
     request_no          VARCHAR(30)  NOT NULL UNIQUE, -- 요청번호 (예: TR20260904-0001)
     encounter_id        BIGINT       NOT NULL REFERENCES encounter(id),
-    exam_type_id        BIGINT       NOT NULL REFERENCES exam_type(id),
+    service_item_id        BIGINT       NOT NULL REFERENCES service_item(id),
     from_department_id  BIGINT       NOT NULL REFERENCES department(id), -- 요청 파트(병동)
     to_department_id    BIGINT       NOT NULL REFERENCES department(id), -- 수행 파트(검사실)
 
@@ -257,19 +257,19 @@ CREATE TABLE transfer_request (
 );
 
 -- 검사실 화면: "우리 파트로 온 진행중 요청" 조회가 가장 빈번함
-CREATE INDEX idx_tr_to_dept_status ON transfer_request(to_department_id, status, requested_at DESC);
+CREATE INDEX idx_tr_to_dept_status ON work_order(to_department_id, status, requested_at DESC);
 -- 병동 화면: "우리가 보낸 요청" 조회
-CREATE INDEX idx_tr_from_dept      ON transfer_request(from_department_id, status);
-CREATE INDEX idx_tr_encounter      ON transfer_request(encounter_id);
+CREATE INDEX idx_tr_from_dept      ON work_order(from_department_id, status);
+CREATE INDEX idx_tr_encounter      ON work_order(encounter_id);
 
-COMMENT ON TABLE transfer_request IS '파트 간 환자 이송/검사 요청. 이 시스템의 심장';
+COMMENT ON TABLE work_order IS '파트 간 환자 이송/검사 요청. 이 시스템의 심장';
 
 -- ---------------------------------------------------------
 -- 8. 이송 : 상태 변경 이력
 -- ---------------------------------------------------------
-CREATE TABLE transfer_event (
+CREATE TABLE work_order_event (
     id              BIGSERIAL    PRIMARY KEY,
-    request_id      BIGINT       NOT NULL REFERENCES transfer_request(id),
+    request_id      BIGINT       NOT NULL REFERENCES work_order(id),
     from_status     VARCHAR(20),                    -- 최초 생성 시 NULL
     to_status       VARCHAR(20)  NOT NULL,
     actor_id        BIGINT       NOT NULL REFERENCES staff(id),
@@ -278,9 +278,9 @@ CREATE TABLE transfer_event (
     occurred_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_te_request ON transfer_event(request_id, occurred_at);
+CREATE INDEX idx_te_request ON work_order_event(request_id, occurred_at);
 
-COMMENT ON TABLE transfer_event IS
+COMMENT ON TABLE work_order_event IS
 '상태 전이 이력. 대기시간 통계는 이 테이블만으로 계산 가능하다';
 
 -- ---------------------------------------------------------
@@ -288,7 +288,7 @@ COMMENT ON TABLE transfer_event IS
 -- ---------------------------------------------------------
 CREATE TABLE request_message (
     id              BIGSERIAL    PRIMARY KEY,
-    request_id      BIGINT       NOT NULL REFERENCES transfer_request(id),
+    request_id      BIGINT       NOT NULL REFERENCES work_order(id),
     sender_id       BIGINT       NOT NULL REFERENCES staff(id),
     content         VARCHAR(1000) NOT NULL,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
@@ -305,8 +305,8 @@ COMMENT ON TABLE request_message IS
 CREATE TABLE notification (
     id              BIGSERIAL    PRIMARY KEY,
     recipient_id    BIGINT       NOT NULL REFERENCES staff(id),
-    noti_type       VARCHAR(30)  NOT NULL,          -- TRANSFER_REQUESTED/STATUS_CHANGED/MESSAGE
-    ref_type        VARCHAR(30)  NOT NULL,          -- TRANSFER_REQUEST 등
+    noti_type       VARCHAR(30)  NOT NULL,          -- ORDER_CREATED/STATUS_CHANGED/MESSAGE
+    ref_type        VARCHAR(30)  NOT NULL,          -- WORK_ORDER 등
     ref_id          BIGINT       NOT NULL,
     title           VARCHAR(100) NOT NULL,
     body            VARCHAR(300),
@@ -365,7 +365,7 @@ CREATE TABLE audit_log (
     id              BIGSERIAL,
     actor_id        BIGINT,                         -- 행위자 (비로그인 시 NULL)
     action          VARCHAR(30)  NOT NULL,          -- VIEW/CREATE/UPDATE/DELETE/LOGIN
-    target_type     VARCHAR(50)  NOT NULL,          -- PATIENT/TRANSFER_REQUEST 등
+    target_type     VARCHAR(50)  NOT NULL,          -- PATIENT/WORK_ORDER 등
     target_id       BIGINT,
     patient_id      BIGINT,                         -- 환자정보 접근 추적용 (중요)
     ip_address      INET,
@@ -398,8 +398,8 @@ SELECT
     d.name AS 검사실,
     COUNT(*) AS 요청건수,
     ROUND(AVG(EXTRACT(EPOCH FROM (e.occurred_at - r.requested_at)) / 60)) AS 평균대기분
-FROM transfer_request r
-JOIN transfer_event e
+FROM work_order r
+JOIN work_order_event e
       ON e.request_id = r.id
      AND e.to_status  = 'ACCEPTED'
 JOIN department d ON d.id = r.to_department_id

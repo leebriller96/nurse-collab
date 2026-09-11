@@ -30,15 +30,15 @@ const h = (t) => ({ Authorization: `Bearer ${t}`, 'Content-Type': 'application/j
 async function createRequest() {
   const ward = await token('ward01');
   const encounters = await (await fetch(`${API}/encounters`, { headers: h(ward) })).json();
-  const exams = await (await fetch(`${API}/exam-types`, { headers: h(ward) })).json();
+  const exams = await (await fetch(`${API}/service-items`, { headers: h(ward) })).json();
   const mriExam = exams.find((e) => e.code.startsWith('MRI'));
 
-  return (await (await fetch(`${API}/transfer-requests`, {
+  return (await (await fetch(`${API}/work-orders`, {
     method: 'POST',
     headers: h(ward),
     body: JSON.stringify({
       encounterId: (encounters.content ?? encounters)[0].encounterId,
-      examTypeId: mriExam.id,
+      serviceItemId: mriExam.id,
       priority: 'ROUTINE',
     }),
   })).json()).id;
@@ -55,10 +55,10 @@ try {
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.getByRole('button', { name: /mri01/ }).click();
-  await page.waitForURL(/\/exam\//, { timeout: 15000 });
+  await page.waitForURL(/\/service\//, { timeout: 15000 });
 
   // ── 1. 내가 한 동작에 확인이 뜨는가
-  await page.goto(`${APP}/exam/requests/${requestId}`);
+  await page.goto(`${APP}/service/requests/${requestId}`);
   await page.waitForLoadState('networkidle');
 
   await page.getByRole('button', { name: '접수', exact: true }).click();
@@ -85,7 +85,7 @@ try {
 
   // ── 2. 실시간 알림이 여전히 뜨는가
   // 다른 사람이 새 요청을 만들면 검사실 화면에 떠야 한다
-  await page.goto(`${APP}/exam/queue`);
+  await page.goto(`${APP}/service/queue`);
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(1500); // STOMP 구독이 붙을 시간
 

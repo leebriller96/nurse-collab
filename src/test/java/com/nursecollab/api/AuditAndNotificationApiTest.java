@@ -151,24 +151,24 @@ class AuditAndNotificationApiTest extends IntegrationTest {
 
     /** MRI실로 요청을 보내 mri01 에게 알림이 쌓이게 하고 그 알림 id 를 준다 */
     private long createRequestAndFindNotification() throws Exception {
-        // MRI 검사를 골라야 mri01 이 받는다. 수행 파트는 검사 종류가 정한다.
-        var exams = om.readTree(mvc.perform(get("/api/v1/exam-types")
+        // MRI 검사를 골라야 mri01 이 받는다. 수행 파트는 업무 항목이 정한다.
+        var exams = om.readTree(mvc.perform(get("/api/v1/service-items")
                         .header("Authorization", bearer("ward01")))
                 .andReturn().getResponse().getContentAsString());
-        long examTypeId = -1;
+        long serviceItemId = -1;
         for (var e : exams) {
             if (e.get("code").asText().startsWith("MRI")) {
-                examTypeId = e.get("id").asLong();
+                serviceItemId = e.get("id").asLong();
                 break;
             }
         }
 
-        mvc.perform(post("/api/v1/transfer-requests")
+        mvc.perform(post("/api/v1/work-orders")
                         .header("Authorization", bearer("ward01"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"encounterId":%d,"examTypeId":%d,"priority":"ROUTINE"}"""
-                                .formatted(encounterId, examTypeId)))
+                                {"encounterId":%d,"serviceItemId":%d,"priority":"ROUTINE"}"""
+                                .formatted(encounterId, serviceItemId)))
                 .andExpect(status().isCreated());
 
         String body = mvc.perform(get("/api/v1/notifications")

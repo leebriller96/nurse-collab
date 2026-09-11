@@ -2,11 +2,11 @@ export type DeptType = 'WARD' | 'EXAM' | 'OR' | 'ICU' | 'ER' | 'ADMIN';
 export type StaffRole = 'NURSE' | 'HEAD_NURSE' | 'ADMIN';
 export type Sex = 'M' | 'F';
 
-export type TransferStatus =
+export type OrderStatus =
   | 'REQUESTED' | 'ACCEPTED' | 'READY' | 'IN_TRANSIT'
   | 'IN_PROGRESS' | 'RETURNED' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED';
 
-export type TransferPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
+export type OrderPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
 export type AlertSeverity = 'INFO' | 'WARN' | 'CRITICAL';
 export type AlertType =
   | 'METAL_IMPLANT' | 'CONTRAST_ALLERGY' | 'DRUG_ALLERGY' | 'ISOLATION'
@@ -67,7 +67,7 @@ export interface PageResponse<T> {
   totalPages: number;
 }
 
-export interface ExamType {
+export interface ServiceItem {
   id: number;
   code: string;
   name: string;
@@ -77,11 +77,11 @@ export interface ExamType {
   requiredAlerts: AlertType[];
 }
 
-export interface TransferSummary {
+export interface OrderSummary {
   id: number;
   requestNo: string;
-  status: TransferStatus;
-  priority: TransferPriority;
+  status: OrderStatus;
+  priority: OrderPriority;
   patient: { patientNo: string; name: string; age: number; sex: Sex };
   roomNo: string;
   examName: string;
@@ -122,19 +122,19 @@ export interface EncounterFullView {
     id: number;
     requestNo: string;
     examName: string;
-    status: TransferStatus;
+    status: OrderStatus;
     scheduledAt: string | null;
   }[];
 }
 
-export interface TransferDetail {
+export interface OrderDetail {
   id: number;
   requestNo: string;
-  status: TransferStatus;
-  priority: TransferPriority;
+  status: OrderStatus;
+  priority: OrderPriority;
   encounter: { encounterId: number; roomNo: string; bedNo: string; isMobile: boolean };
   patient: { patientNo: string; name: string; age: number; sex: Sex };
-  examType: {
+  serviceItem: {
     id: number;
     code: string;
     name: string;
@@ -153,14 +153,14 @@ export interface TransferDetail {
   holdReason: string | null;
   alerts: AlertResponse[];
   checklistWarnings: ChecklistWarning[];
-  availableTransitions: TransferStatus[];
+  availableTransitions: OrderStatus[];
   version: number;
 }
 
-export interface TransferEvent {
+export interface OrderEvent {
   id: number;
-  fromStatus: TransferStatus | null;
-  toStatus: TransferStatus;
+  fromStatus: OrderStatus | null;
+  toStatus: OrderStatus;
   actor: { id: number; name: string; departmentName: string };
   occurredAt: string;
   reason: string | null;
@@ -175,9 +175,9 @@ export interface Message {
 
 export interface TransitionResponse {
   id: number;
-  status: TransferStatus;
+  status: OrderStatus;
   scheduledAt: string | null;
-  availableTransitions: TransferStatus[];
+  availableTransitions: OrderStatus[];
   version: number;
 }
 

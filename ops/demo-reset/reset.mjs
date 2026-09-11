@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs';
  *   - 시드에 행을 추가할 때마다 목록을 같이 고쳐야 하는데, 잊으면 조용히 어긋난다.
  *
  * 요청 데이터는 SQL 로 꽂지 않고 실제 API 로 만든다. 직접 꽂으면
- * transfer_event 와 audit_log 가 비어서 통계·이력 화면이 텅 빈 채로 나온다.
+ * work_order_event 와 audit_log 가 비어서 통계·이력 화면이 텅 빈 채로 나온다.
  *
  * 환경변수
  *   API_BASE         기본 http://localhost:8080
@@ -67,8 +67,8 @@ function wipe() {
   runSql(`
     truncate table
       audit_log, nursing_note, vital_sign, notification, request_message,
-      transfer_event, transfer_request, request_no_sequence,
-      patient_alert, encounter, exam_type, staff, patient, department
+      work_order_event, work_order, request_no_sequence,
+      patient_alert, encounter, service_item, staff, patient, department
     restart identity cascade;
   `);
   runFile(`${MIGRATION_DIR}/V3__seed_master_data.sql`);
@@ -105,13 +105,13 @@ async function call(who, method, path, body) {
 /** 상태를 한 칸씩 민다. 전이마다 누를 수 있는 쪽이 정해져 있어 행위자를 함께 받는다. */
 async function advance(requestId, steps) {
   for (const [who, toStatus] of steps) {
-    const current = await call(who, 'GET', `/transfer-requests/${requestId}`);
+    const current = await call(who, 'GET', `/work-orders/${requestId}`);
     const payload = { toStatus, version: current.version };
     if (toStatus === 'ACCEPTED') {
       // 접수에는 예정 시각이 반드시 있어야 한다
       payload.scheduledAt = new Date(Date.now() + 40 * 60000).toISOString();
     }
-    await call(who, 'POST', `/transfer-requests/${requestId}/transitions`, payload);
+    await call(who, 'POST', `/work-orders/${requestId}/transitions`, payload);
   }
 }
 
@@ -155,7 +155,7 @@ async function seed() {
     ward01: await call('ward01', 'GET', '/encounters'),
     ward02: await call('ward02', 'GET', '/encounters'),
   };
-  const exams = await call('ward01', 'GET', '/exam-types');
+  const exams = await call('ward01', 'GET', '/service-items');
 
   const encOf = (who, roomNo, bedNo) => {
     const list = encounters[who].content ?? encounters[who];
@@ -170,9 +170,9 @@ async function seed() {
   };
 
   for (const [requester, room, bed, examCode, priority, target] of PLAN) {
-    const created = await call(requester, 'POST', '/transfer-requests', {
+    const created = await call(requester, 'POST', '/work-orders', {
       encounterId: encOf(requester, room, bed),
-      examTypeId: examOf(examCode),
+      serviceItemId: examOf(examCode),
       priority,
     });
     await advance(created.id, pathTo(target, requester, performerOf(examCode)));
@@ -192,9 +192,9 @@ async function seed() {
 function backdate() {
   runSql(`
     with ordered as (
-      select id, row_number() over (order by id) - 1 as n from transfer_request
+      select id, row_number() over (order by id) - 1 as n from work_order
     )
-    update transfer_request r
+    update work_order r
        set requested_at = now() - interval '4 hour' + (o.n * interval '20 minute')
       from ordered o
      where o.id = r.id;
@@ -204,26 +204,26 @@ function backdate() {
     with ordered as (
       select e.id, e.request_id,
              row_number() over (partition by e.request_id order by e.id) as k
-        from transfer_event e
+        from work_order_event e
     )
-    update transfer_event e
+    update work_order_event e
        set occurred_at = r.requested_at
                        + interval '1 minute' * (6 + (r.id * 7) % 19)
                        + interval '1 minute' * ((o.k - 1) * (7 + (r.id * 3) % 7))
       from ordered o
-      join transfer_request r on r.id = o.request_id
+      join work_order r on r.id = o.order_id
      where o.id = e.id;
 
-    update transfer_request r
+    update work_order r
        set completed_at = last_event.at
       from (select request_id, max(occurred_at) as at
-              from transfer_event where to_status = 'COMPLETED' group by request_id) last_event
+              from work_order_event where to_status = 'COMPLETED' group by request_id) last_event
      where last_event.request_id = r.id;
 
-    update transfer_request r
+    update work_order r
        set scheduled_at = accepted.at + interval '30 minute'
       from (select request_id, min(occurred_at) as at
-              from transfer_event where to_status = 'ACCEPTED' group by request_id) accepted
+              from work_order_event where to_status = 'ACCEPTED' group by request_id) accepted
      where accepted.request_id = r.id;
   `);
   console.log('  시각 보정 완료');

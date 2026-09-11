@@ -12,10 +12,10 @@ Java 21 / Spring Boot 3.3 / PostgreSQL 16 / Redis
 
 ```sql
 -- V2__add_hold_from_status.sql
-ALTER TABLE transfer_request
+ALTER TABLE work_order
     ADD COLUMN hold_from_status VARCHAR(20);
 
-COMMENT ON COLUMN transfer_request.hold_from_status IS
+COMMENT ON COLUMN work_order.hold_from_status IS
 'ON_HOLD 진입 직전 상태. 보류 해제 시 이 상태로 복귀한다';
 ```
 
@@ -63,15 +63,15 @@ com.nursecollab
 │   ├── encounter/                   # 재원 + 파트별 뷰 조립
 │   ├── transfer/                    # ★ 이송 요청 (이 프로젝트의 심장)
 │   │   ├── entity/
-│   │   │   ├── TransferRequest.java
-│   │   │   ├── TransferEvent.java
-│   │   │   ├── TransferStatus.java      # 상태 + 전이 규칙
-│   │   │   ├── TransferPriority.java
+│   │   │   ├── WorkOrder.java
+│   │   │   ├── WorkOrderEvent.java
+│   │   │   ├── OrderStatus.java      # 상태 + 전이 규칙
+│   │   │   ├── OrderPriority.java
 │   │   │   └── ActorSide.java
 │   │   ├── repository/
 │   │   ├── service/
-│   │   │   ├── TransferRequestService.java
-│   │   │   └── TransferQueryService.java
+│   │   │   ├── WorkOrderService.java
+│   │   │   └── WorkOrderQueryService.java
 │   │   ├── controller/
 │   │   ├── dto/
 │   │   └── event/                       # 도메인 이벤트 (알림 발송 트리거)
@@ -107,7 +107,7 @@ com.nursecollab
 ### 2-1. ActorSide - 행위자가 어느 쪽인가
 
 ```java
-package com.nursecollab.domain.transfer.entity;
+package com.nursecollab.domain.workorder.entity;
 
 /**
  * 상태를 변경하려는 사람이 요청 파트(병동)인지 수행 파트(검사실)인지를 구분한다.
@@ -120,10 +120,10 @@ public enum ActorSide {
 }
 ```
 
-### 2-2. TransferStatus - 상태와 전이 규칙을 한 곳에
+### 2-2. OrderStatus - 상태와 전이 규칙을 한 곳에
 
 ```java
-package com.nursecollab.domain.transfer.entity;
+package com.nursecollab.domain.workorder.entity;
 
 import java.util.Arrays;
 import java.util.List;
@@ -137,7 +137,7 @@ import java.util.stream.Collectors;
  * 규칙이 서비스 코드 여기저기에 if 문으로 흩어지면
  * 상태를 하나 추가할 때 어디를 고쳐야 하는지 아무도 모르게 된다.
  */
-public enum TransferStatus {
+public enum OrderStatus {
 
     REQUESTED("요청됨"),
     ACCEPTED("접수됨"),
@@ -151,7 +151,7 @@ public enum TransferStatus {
 
     private final String label;
 
-    TransferStatus(String label) {
+    OrderStatus(String label) {
         this.label = label;
     }
 
@@ -174,8 +174,8 @@ public enum TransferStatus {
      * @param scheduleRequired 예정시각 입력이 필수인가
      */
     public record Rule(
-            TransferStatus from,
-            TransferStatus to,
+            OrderStatus from,
+            OrderStatus to,
             ActorSide actorSide,
             boolean reasonRequired,
             boolean scheduleRequired
@@ -184,7 +184,7 @@ public enum TransferStatus {
     /**
      * 전체 전이 규칙표.
      * ON_HOLD 에서 원래 상태로 복귀하는 것은 상태값이 동적이라 여기 넣지 않고
-     * TransferRequest.transitionTo() 가 저장된 직전 상태를 보고 따로 처리한다.
+     * WorkOrder.transitionTo() 가 저장된 직전 상태를 보고 따로 처리한다.
      */
     private static final List<Rule> RULES = List.of(
             // 요청됨 → 접수 / 보류 / 취소
@@ -217,7 +217,7 @@ public enum TransferStatus {
     );
 
     /** from → to 전이 규칙을 찾는다. 없으면 허용되지 않는 전이다. */
-    public static Rule findRule(TransferStatus from, TransferStatus to) {
+    public static Rule findRule(OrderStatus from, OrderStatus to) {
         return RULES.stream()
                 .filter(r -> r.from() == from && r.to() == to)
                 .findFirst()
@@ -228,7 +228,7 @@ public enum TransferStatus {
      * 특정 상태에서 특정 행위자가 누를 수 있는 상태 목록.
      * API 응답의 availableTransitions 가 이 메서드 결과다.
      */
-    public static Set<TransferStatus> availableFor(TransferStatus current, ActorSide side) {
+    public static Set<OrderStatus> availableFor(OrderStatus current, ActorSide side) {
         return RULES.stream()
                 .filter(r -> r.from() == current)
                 .filter(r -> r.actorSide() == ActorSide.BOTH || r.actorSide() == side)
@@ -236,7 +236,7 @@ public enum TransferStatus {
                 .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
     }
 
-    public static TransferStatus from(String value) {
+    public static OrderStatus from(String value) {
         return Arrays.stream(values())
                 .filter(s -> s.name().equalsIgnoreCase(value))
                 .findFirst()
@@ -245,10 +245,10 @@ public enum TransferStatus {
 }
 ```
 
-### 2-3. TransferRequest 엔티티
+### 2-3. WorkOrder 엔티티
 
 ```java
-package com.nursecollab.domain.transfer.entity;
+package com.nursecollab.domain.workorder.entity;
 
 import com.nursecollab.domain.department.entity.Department;
 import com.nursecollab.domain.encounter.entity.Encounter;
@@ -265,10 +265,10 @@ import java.time.OffsetDateTime;
 import java.util.Set;
 
 @Entity
-@Table(name = "transfer_request")
+@Table(name = "work_order")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class TransferRequest extends BaseTimeEntity {
+public class WorkOrder extends BaseTimeEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -281,7 +281,7 @@ public class TransferRequest extends BaseTimeEntity {
     private Encounter encounter;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    private ExamType examType;
+    private ServiceItem serviceItem;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "from_department_id")
@@ -293,15 +293,15 @@ public class TransferRequest extends BaseTimeEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private TransferStatus status = TransferStatus.REQUESTED;
+    private OrderStatus status = OrderStatus.REQUESTED;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
-    private TransferStatus holdFromStatus;  // 보류 직전 상태
+    private OrderStatus holdFromStatus;  // 보류 직전 상태
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
-    private TransferPriority priority = TransferPriority.ROUTINE;
+    private OrderPriority priority = OrderPriority.ROUTINE;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     private Staff requestedBy;
@@ -327,24 +327,24 @@ public class TransferRequest extends BaseTimeEntity {
     // ------------------------------------------------------------------
     // 생성
     // ------------------------------------------------------------------
-    public static TransferRequest create(String requestNo,
+    public static WorkOrder create(String requestNo,
                                          Encounter encounter,
-                                         ExamType examType,
+                                         ServiceItem serviceItem,
                                          Staff requester,
-                                         TransferPriority priority,
+                                         OrderPriority priority,
                                          OffsetDateTime desiredAt,
                                          String note) {
-        TransferRequest tr = new TransferRequest();
+        WorkOrder tr = new WorkOrder();
         tr.requestNo      = requestNo;
         tr.encounter      = encounter;
-        tr.examType       = examType;
+        tr.serviceItem       = serviceItem;
         tr.fromDepartment = requester.getDepartment();
-        tr.toDepartment   = examType.getDepartment();   // 검사 종류가 수행 파트를 결정
+        tr.toDepartment   = serviceItem.getDepartment();   // 검사 종류가 수행 파트를 결정
         tr.requestedBy    = requester;
         tr.priority       = priority;
         tr.desiredAt      = desiredAt;
         tr.note           = note;
-        tr.status         = TransferStatus.REQUESTED;
+        tr.status         = OrderStatus.REQUESTED;
         tr.requestedAt    = OffsetDateTime.now();
         return tr;
     }
@@ -364,16 +364,16 @@ public class TransferRequest extends BaseTimeEntity {
     }
 
     /** 현재 상태에서 이 직원이 누를 수 있는 버튼 목록 */
-    public Set<TransferStatus> availableTransitions(Staff staff) {
+    public Set<OrderStatus> availableTransitions(Staff staff) {
         // 관계없는 파트면 목록 자체를 볼 수 없다. 상태와 무관하게 먼저 막는다.
         ActorSide side = resolveActorSide(staff);
 
         if (status.isTerminal()) return Set.of();
-        if (status == TransferStatus.ON_HOLD) {
+        if (status == OrderStatus.ON_HOLD) {
             // 보류 상태에서는 "복귀" 와 "취소" 만 가능
-            return Set.of(holdFromStatus, TransferStatus.CANCELLED);
+            return Set.of(holdFromStatus, OrderStatus.CANCELLED);
         }
-        return TransferStatus.availableFor(status, side);
+        return OrderStatus.availableFor(status, side);
     }
 
     // ------------------------------------------------------------------
@@ -387,7 +387,7 @@ public class TransferRequest extends BaseTimeEntity {
      * @param reason      사유 (보류/취소 시 필수)
      * @param scheduledAt 예정시각 (접수 시 필수)
      */
-    public void transitionTo(TransferStatus to,
+    public void transitionTo(OrderStatus to,
                              ActorSide actorSide,
                              String reason,
                              OffsetDateTime scheduledAt) {
@@ -397,7 +397,7 @@ public class TransferRequest extends BaseTimeEntity {
         }
 
         // 보류 해제는 규칙표가 아니라 저장된 직전 상태로 판단한다
-        if (status == TransferStatus.ON_HOLD && to != TransferStatus.CANCELLED) {
+        if (status == OrderStatus.ON_HOLD && to != OrderStatus.CANCELLED) {
             if (to != holdFromStatus) {
                 throw new BusinessException(ErrorCode.INVALID_TRANSITION);
             }
@@ -407,7 +407,7 @@ public class TransferRequest extends BaseTimeEntity {
             return;
         }
 
-        TransferStatus.Rule rule = TransferStatus.findRule(status, to);
+        OrderStatus.Rule rule = OrderStatus.findRule(status, to);
         if (rule == null) {
             throw new BusinessException(ErrorCode.INVALID_TRANSITION);
         }
@@ -422,7 +422,7 @@ public class TransferRequest extends BaseTimeEntity {
         }
 
         // 보류로 들어갈 때는 돌아올 상태를 기억해 둔다
-        if (to == TransferStatus.ON_HOLD) {
+        if (to == OrderStatus.ON_HOLD) {
             this.holdFromStatus = this.status;
             this.holdReason = reason;
         }
@@ -441,10 +441,10 @@ public class TransferRequest extends BaseTimeEntity {
 }
 ```
 
-### 2-4. TransferEvent 엔티티
+### 2-4. WorkOrderEvent 엔티티
 
 ```java
-package com.nursecollab.domain.transfer.entity;
+package com.nursecollab.domain.workorder.entity;
 
 import com.nursecollab.domain.department.entity.Department;
 import com.nursecollab.domain.staff.entity.Staff;
@@ -460,10 +460,10 @@ import java.time.OffsetDateTime;
  * 대기시간 통계는 전부 이 테이블에서 계산된다.
  */
 @Entity
-@Table(name = "transfer_event")
+@Table(name = "work_order_event")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class TransferEvent {
+public class WorkOrderEvent {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -471,15 +471,15 @@ public class TransferEvent {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "request_id")
-    private TransferRequest request;
+    private WorkOrder request;
 
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
-    private TransferStatus fromStatus;   // 최초 생성 시 null
+    private OrderStatus fromStatus;   // 최초 생성 시 null
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private TransferStatus toStatus;
+    private OrderStatus toStatus;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     private Staff actor;
@@ -494,12 +494,12 @@ public class TransferEvent {
     @Column(nullable = false)
     private OffsetDateTime occurredAt;
 
-    public static TransferEvent of(TransferRequest request,
-                                   TransferStatus from,
-                                   TransferStatus to,
+    public static WorkOrderEvent of(WorkOrder request,
+                                   OrderStatus from,
+                                   OrderStatus to,
                                    Staff actor,
                                    String reason) {
-        TransferEvent e = new TransferEvent();
+        WorkOrderEvent e = new WorkOrderEvent();
         e.request    = request;
         e.fromStatus = from;
         e.toStatus   = to;
@@ -515,14 +515,14 @@ public class TransferEvent {
 ### 2-5. 서비스
 
 ```java
-package com.nursecollab.domain.transfer.service;
+package com.nursecollab.domain.workorder.service;
 
 import com.nursecollab.domain.staff.entity.Staff;
 import com.nursecollab.domain.staff.repository.StaffRepository;
-import com.nursecollab.domain.transfer.dto.*;
-import com.nursecollab.domain.transfer.entity.*;
-import com.nursecollab.domain.transfer.event.TransferStatusChangedEvent;
-import com.nursecollab.domain.transfer.repository.*;
+import com.nursecollab.domain.workorder.dto.*;
+import com.nursecollab.domain.workorder.entity.*;
+import com.nursecollab.domain.workorder.event.WorkOrderStatusChangedEvent;
+import com.nursecollab.domain.workorder.repository.*;
 import com.nursecollab.global.error.BusinessException;
 import com.nursecollab.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -532,10 +532,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
-public class TransferRequestService {
+public class WorkOrderService {
 
-    private final TransferRequestRepository requestRepository;
-    private final TransferEventRepository   eventRepository;
+    private final WorkOrderRepository requestRepository;
+    private final WorkOrderEventRepository   eventRepository;
     private final StaffRepository           staffRepository;
     private final RequestNoGenerator        requestNoGenerator;
     private final ApplicationEventPublisher eventPublisher;
@@ -552,7 +552,7 @@ public class TransferRequestService {
                                              TransitionRequest req,
                                              Long staffId) {
 
-        TransferRequest request = requestRepository.findById(requestId)
+        WorkOrder request = requestRepository.findById(requestId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.REQUEST_NOT_FOUND));
 
         Staff actor = staffRepository.findById(staffId)
@@ -565,19 +565,19 @@ public class TransferRequestService {
         }
 
         ActorSide side = request.resolveActorSide(actor);
-        TransferStatus fromStatus = request.getStatus();
-        TransferStatus toStatus   = TransferStatus.from(req.toStatus());
+        OrderStatus fromStatus = request.getStatus();
+        OrderStatus toStatus   = OrderStatus.from(req.toStatus());
 
         // 2. 검증과 상태 변경은 엔티티가 스스로 한다 (서비스에 if 문을 쌓지 않는다)
         request.transitionTo(toStatus, side, req.reason(), req.scheduledAt());
 
         // 3. 이력 적재
         eventRepository.save(
-                TransferEvent.of(request, fromStatus, toStatus, actor, req.reason()));
+                WorkOrderEvent.of(request, fromStatus, toStatus, actor, req.reason()));
 
         // 4. 알림은 커밋 이후에 나가도록 이벤트만 발행
         eventPublisher.publishEvent(
-                new TransferStatusChangedEvent(request.getId(), fromStatus, toStatus, actor.getId()));
+                new WorkOrderStatusChangedEvent(request.getId(), fromStatus, toStatus, actor.getId()));
 
         // @Version 은 flush 시점에 올라간다. 밀어내지 않으면 증가 전 버전이 응답에 실려
         // 클라이언트가 다음 요청에서 매번 409 를 맞는다.
@@ -588,10 +588,10 @@ public class TransferRequestService {
 
     /** 이송 요청 생성 */
     @Transactional
-    public TransferCreateResponse create(TransferCreateRequest req, Long staffId) {
+    public WorkOrderCreateResponse create(WorkOrderCreateRequest req, Long staffId) {
         // ... 재원/검사종류 조회 생략
-        // TransferRequest.create(...) 호출 후 저장
-        // 최초 이력(TransferEvent) 도 함께 적재한다: fromStatus = null, toStatus = REQUESTED
+        // WorkOrder.create(...) 호출 후 저장
+        // 최초 이력(WorkOrderEvent) 도 함께 적재한다: fromStatus = null, toStatus = REQUESTED
         return null; // 실제 구현 시 채움
     }
 }
@@ -600,7 +600,7 @@ public class TransferRequestService {
 ### 2-6. 알림 발송 (커밋 이후)
 
 ```java
-package com.nursecollab.domain.transfer.event;
+package com.nursecollab.domain.workorder.event;
 
 import com.nursecollab.infra.realtime.RealtimeNotifier;
 import lombok.RequiredArgsConstructor;
@@ -610,7 +610,7 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 @Component
 @RequiredArgsConstructor
-public class TransferEventListener {
+public class WorkOrderEventListener {
 
     private final RealtimeNotifier notifier;
 
@@ -620,7 +620,7 @@ public class TransferEventListener {
      * 즉 "DB 에는 안 바뀌었는데 알림만 날아가는" 상황이 생기지 않는다.
      */
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
-    public void onStatusChanged(TransferStatusChangedEvent event) {
+    public void onStatusChanged(WorkOrderStatusChangedEvent event) {
         notifier.broadcastStatusChanged(event);
     }
 }
@@ -629,7 +629,7 @@ public class TransferEventListener {
 ```java
 package com.nursecollab.infra.realtime;
 
-import com.nursecollab.domain.transfer.event.TransferStatusChangedEvent;
+import com.nursecollab.domain.workorder.event.WorkOrderStatusChangedEvent;
 import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
@@ -641,7 +641,7 @@ public class RealtimeNotifier {
     private final SimpMessagingTemplate messagingTemplate;
 
     /** 요청 파트와 수행 파트 양쪽 채널로 동시에 쏜다 */
-    public void broadcastStatusChanged(TransferStatusChangedEvent event) {
+    public void broadcastStatusChanged(WorkOrderStatusChangedEvent event) {
         // 실제 구현에서는 requestId 로 상세를 조회해 페이로드를 만든다
         // messagingTemplate.convertAndSend("/topic/department/" + fromDeptId, payload);
         // messagingTemplate.convertAndSend("/topic/department/" + toDeptId,   payload);
@@ -652,10 +652,10 @@ public class RealtimeNotifier {
 ### 2-7. 컨트롤러
 
 ```java
-package com.nursecollab.domain.transfer.controller;
+package com.nursecollab.domain.workorder.controller;
 
-import com.nursecollab.domain.transfer.dto.*;
-import com.nursecollab.domain.transfer.service.TransferRequestService;
+import com.nursecollab.domain.workorder.dto.*;
+import com.nursecollab.domain.workorder.service.WorkOrderService;
 import com.nursecollab.global.security.LoginStaff;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -666,22 +666,22 @@ import org.springframework.web.bind.annotation.*;
 import java.net.URI;
 
 @RestController
-@RequestMapping("/api/v1/transfer-requests")
+@RequestMapping("/api/v1/work-orders")
 @RequiredArgsConstructor
-public class TransferRequestController {
+public class WorkOrderController {
 
-    private final TransferRequestService transferRequestService;
+    private final WorkOrderService transferRequestService;
 
     /** 이송 요청 생성 */
     @PostMapping
-    public ResponseEntity<TransferCreateResponse> create(
-            @Valid @RequestBody TransferCreateRequest request,
+    public ResponseEntity<WorkOrderCreateResponse> create(
+            @Valid @RequestBody WorkOrderCreateRequest request,
             @AuthenticationPrincipal LoginStaff loginStaff) {
 
-        TransferCreateResponse response =
+        WorkOrderCreateResponse response =
                 transferRequestService.create(request, loginStaff.staffId());
         return ResponseEntity
-                .created(URI.create("/api/v1/transfer-requests/" + response.id()))
+                .created(URI.create("/api/v1/work-orders/" + response.id()))
                 .body(response);
     }
 
@@ -701,7 +701,7 @@ public class TransferRequestController {
 ### 2-8. DTO
 
 ```java
-package com.nursecollab.domain.transfer.dto;
+package com.nursecollab.domain.workorder.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -753,15 +753,15 @@ public enum ErrorCode {
     // 재원 / 검사
     ENCOUNTER_NOT_FOUND("ENC-000", HttpStatus.NOT_FOUND, "재원 정보를 찾을 수 없습니다."),
     DISCHARGED_ENCOUNTER("ENC-001", HttpStatus.UNPROCESSABLE_ENTITY, "퇴원한 환자에 대해서는 요청할 수 없습니다."),
-    EXAM_TYPE_NOT_FOUND("EXM-001", HttpStatus.NOT_FOUND, "검사 종류를 찾을 수 없습니다."),
+    SERVICE_ITEM_NOT_FOUND("SVC-001", HttpStatus.NOT_FOUND, "업무 항목을 찾을 수 없습니다."),
 
-    // 이송 요청
-    REQUEST_NOT_FOUND ("TR-000", HttpStatus.NOT_FOUND,  "요청을 찾을 수 없습니다."),
-    INVALID_TRANSITION("TR-001", HttpStatus.CONFLICT,   "현재 상태에서는 변경할 수 없습니다. 화면을 새로고침해 주세요."),
-    VERSION_CONFLICT  ("TR-002", HttpStatus.CONFLICT,   "다른 사용자가 먼저 처리했습니다. 화면을 새로고침해 주세요."),
-    REASON_REQUIRED   ("TR-003", HttpStatus.BAD_REQUEST,"보류 또는 취소 시 사유는 필수입니다."),
-    ALREADY_FINISHED  ("TR-004", HttpStatus.CONFLICT,   "이미 종료된 요청입니다."),
-    SCHEDULE_REQUIRED ("TR-005", HttpStatus.BAD_REQUEST,"접수 시 예정 시각은 필수입니다."),
+    // 업무 요청
+    REQUEST_NOT_FOUND ("ORD-000", HttpStatus.NOT_FOUND,  "요청을 찾을 수 없습니다."),
+    INVALID_TRANSITION("ORD-001", HttpStatus.CONFLICT,   "현재 상태에서는 변경할 수 없습니다. 화면을 새로고침해 주세요."),
+    VERSION_CONFLICT  ("ORD-002", HttpStatus.CONFLICT,   "다른 사용자가 먼저 처리했습니다. 화면을 새로고침해 주세요."),
+    REASON_REQUIRED   ("ORD-003", HttpStatus.BAD_REQUEST,"보류 또는 취소 시 사유는 필수입니다."),
+    ALREADY_FINISHED  ("ORD-004", HttpStatus.CONFLICT,   "이미 종료된 요청입니다."),
+    SCHEDULE_REQUIRED ("ORD-005", HttpStatus.BAD_REQUEST,"접수 시 예정 시각은 필수입니다."),
 
     // 간호기록
     NOTE_NOT_FOUND("NN-000", HttpStatus.NOT_FOUND, "간호기록을 찾을 수 없습니다."),
@@ -855,11 +855,11 @@ public class GlobalExceptionHandler {
 포트폴리오에서 "테스트 짰다"를 증명하기 가장 좋은 지점이다.
 
 ```java
-class TransferStatusTest {
+class OrderStatusTest {
 
     @Test
     void 검사실은_요청됨_상태를_접수할_수_있다() {
-        var rule = TransferStatus.findRule(TransferStatus.REQUESTED, TransferStatus.ACCEPTED);
+        var rule = OrderStatus.findRule(OrderStatus.REQUESTED, OrderStatus.ACCEPTED);
 
         assertThat(rule).isNotNull();
         assertThat(rule.actorSide()).isEqualTo(ActorSide.PERFORMER);
@@ -868,19 +868,19 @@ class TransferStatusTest {
 
     @Test
     void 요청됨에서_바로_검사중으로는_갈_수_없다() {
-        assertThat(TransferStatus.findRule(TransferStatus.REQUESTED, TransferStatus.IN_PROGRESS))
+        assertThat(OrderStatus.findRule(OrderStatus.REQUESTED, OrderStatus.IN_PROGRESS))
                 .isNull();
     }
 
     @Test
     void 병동은_준비완료를_이송중으로만_바꿀_수_있다() {
-        var available = TransferStatus.availableFor(TransferStatus.READY, ActorSide.REQUESTER);
+        var available = OrderStatus.availableFor(OrderStatus.READY, ActorSide.REQUESTER);
 
         assertThat(available)
                 .containsExactlyInAnyOrder(
-                        TransferStatus.IN_TRANSIT,
-                        TransferStatus.ON_HOLD,
-                        TransferStatus.CANCELLED);
+                        OrderStatus.IN_TRANSIT,
+                        OrderStatus.ON_HOLD,
+                        OrderStatus.CANCELLED);
     }
 }
 ```
@@ -891,7 +891,7 @@ H2 를 쓰면 JSONB, 파티셔닝 같은 PostgreSQL 전용 문법에서 깨진�
 ```java
 @SpringBootTest
 @Testcontainers
-class TransferRequestServiceTest {
+class WorkOrderServiceTest {
 
     @Container
     static PostgreSQLContainer<?> postgres =

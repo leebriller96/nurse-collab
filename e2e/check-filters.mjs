@@ -32,7 +32,7 @@ async function login(loginId) {
 try {
   // ── 지난 요청: 조건을 맞추고 한 건을 열어본 뒤 돌아온다
   await login('mri01');
-  await page.goto(`${APP}/exam/history`);
+  await page.goto(`${APP}/service/history`);
   await page.waitForLoadState('networkidle');
 
   const dates = page.locator('input[type="date"]');
@@ -48,7 +48,7 @@ try {
     record(false, '되돌아왔을 때 조건이 살아 있다', '검색 결과가 없어 확인 불가');
   } else {
     await rows.first().click();
-    await page.waitForURL(/\/exam\/requests\/\d+/, { timeout: 10000 });
+    await page.waitForURL(/\/service\/requests\/\d+/, { timeout: 10000 });
     await page.goBack();
     await page.waitForLoadState('networkidle');
 
@@ -62,10 +62,10 @@ try {
   }
 
   // ── 조건을 여러 번 고쳐도 뒤로가기 한 번에 목록을 빠져나간다
-  await page.goto(`${APP}/exam/queue`);
+  await page.goto(`${APP}/service/queue`);
   await page.waitForLoadState('networkidle');
   await page.getByRole('link', { name: '지난 요청' }).click();
-  await page.waitForURL(/\/exam\/history/);
+  await page.waitForURL(/\/service\/history/);
   await page.waitForLoadState('networkidle');
 
   await dates.first().fill('2026-09-02');
@@ -78,13 +78,13 @@ try {
   await page.goBack();
   await page.waitForLoadState('networkidle');
   record(
-    /\/exam\/queue/.test(page.url()),
+    /\/service\/queue/.test(page.url()),
     '조건을 세 번 고쳐도 뒤로가기 한 번이면 나간다',
     new URL(page.url()).pathname,
   );
 
   // ── 주소를 그대로 열면 같은 조건으로 뜬다 (링크로 넘길 수 있다)
-  await page.goto(`${APP}/exam/history?from=2026-09-05&to=2026-09-09&q=%EA%B9%80`);
+  await page.goto(`${APP}/service/history?from=2026-09-05&to=2026-09-09&q=%EA%B9%80`);
   await page.waitForLoadState('networkidle');
   const shared = await dates.first().inputValue();
   const sharedKeyword = await page.getByPlaceholder('환자명 또는 요청번호').inputValue();

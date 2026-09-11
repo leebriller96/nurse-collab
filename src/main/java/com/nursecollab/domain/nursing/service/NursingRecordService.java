@@ -147,7 +147,7 @@ public class NursingRecordService {
 
     /**
      * 간호기록은 그 환자가 있는 병동의 것이다.
-     * 이송 요청으로 잠깐 관계가 생긴 검사실은 여기까지 볼 이유가 없다.
+     * 업무 요청으로 잠깐 관계가 생긴 수행 파트는 여기까지 볼 이유가 없다.
      */
     private Encounter wardEncounter(Long encounterId, LoginStaff loginStaff) {
         Encounter encounter = encounterRepository.findByIdWithPatientAndDepartment(encounterId)
