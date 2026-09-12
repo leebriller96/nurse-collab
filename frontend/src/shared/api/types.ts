@@ -1,10 +1,37 @@
-export type DeptType = 'WARD' | 'EXAM' | 'OR' | 'ICU' | 'ER' | 'ADMIN';
+export type DeptType =
+  | 'WARD' | 'EXAM' | 'OR' | 'ICU' | 'ER'
+  | 'LAB' | 'PHARMACY' | 'BIOMED'
+  | 'ADMIN';
 export type StaffRole = 'NURSE' | 'HEAD_NURSE' | 'ADMIN';
 export type Sex = 'M' | 'F';
 
+export type OrderType = 'TRANSFER' | 'SPECIMEN' | 'PHARMACY' | 'EQUIPMENT';
+
 export type OrderStatus =
-  | 'REQUESTED' | 'ACCEPTED' | 'READY' | 'IN_TRANSIT'
-  | 'IN_PROGRESS' | 'RETURNED' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED';
+  // 공통
+  | 'REQUESTED' | 'ACCEPTED' | 'IN_PROGRESS' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED'
+  // 이송
+  | 'READY' | 'IN_TRANSIT' | 'RETURNED'
+  // 검체
+  | 'COLLECTED' | 'RESULTED'
+  // 약제
+  | 'DISPENSED' | 'DELIVERED'
+  // 의공
+  | 'AWAITING_PARTS';
+
+/**
+ * 지금 누를 수 있는 버튼 하나. 서버가 만들어 준다.
+ *
+ * 이름도 필수 입력 여부도 업무 종류마다 다르다. 화면이 그 표를 따로 들면
+ * 종류를 더할 때 서버와 화면 두 곳을 고쳐야 하고 한쪽만 고쳐지는 날이 온다.
+ */
+export interface TransitionOption {
+  status: OrderStatus;
+  label: string;
+  actionLabel: string;
+  reasonRequired: boolean;
+  scheduleRequired: boolean;
+}
 
 export type OrderPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
 export type AlertSeverity = 'INFO' | 'WARN' | 'CRITICAL';
@@ -71,6 +98,10 @@ export interface ServiceItem {
   id: number;
   code: string;
   name: string;
+  orderType: OrderType;
+  orderTypeLabel: string;
+  /** 거짓이면 대상 환자를 고르지 않는다 (장비 수리) */
+  patientRequired: boolean;
   department: { id: number; name: string };
   defaultDuration: number;
   prepInstruction: string | null;
@@ -80,11 +111,15 @@ export interface ServiceItem {
 export interface OrderSummary {
   id: number;
   requestNo: string;
+  orderType: OrderType;
   status: OrderStatus;
+  /** 이 종류에서 이 상태를 부르는 이름 (검사중 / 조제중 / 수리중) */
+  statusLabel: string;
   priority: OrderPriority;
-  patient: { patientNo: string; name: string; age: number; sex: Sex };
-  roomNo: string;
-  examName: string;
+  /** 환자가 없는 업무에서는 비어 있다 */
+  patient: { patientNo: string; name: string; age: number; sex: Sex } | null;
+  roomNo: string | null;
+  itemName: string;
   counterpartDepartment: DepartmentSummary;
   requestedAt: string;
   scheduledAt: string | null;
@@ -121,7 +156,7 @@ export interface EncounterFullView {
   activeRequests: {
     id: number;
     requestNo: string;
-    examName: string;
+    itemName: string;
     status: OrderStatus;
     scheduledAt: string | null;
   }[];
@@ -130,10 +165,14 @@ export interface EncounterFullView {
 export interface OrderDetail {
   id: number;
   requestNo: string;
+  orderType: OrderType;
+  orderTypeLabel: string;
   status: OrderStatus;
+  statusLabel: string;
   priority: OrderPriority;
-  encounter: { encounterId: number; roomNo: string; bedNo: string; isMobile: boolean };
-  patient: { patientNo: string; name: string; age: number; sex: Sex };
+  /** 환자가 없는 업무에서는 encounter 와 patient 가 모두 없다 */
+  encounter: { encounterId: number; roomNo: string; bedNo: string; isMobile: boolean } | null;
+  patient: { patientNo: string; name: string; age: number; sex: Sex } | null;
   serviceItem: {
     id: number;
     code: string;
@@ -153,7 +192,7 @@ export interface OrderDetail {
   holdReason: string | null;
   alerts: AlertResponse[];
   checklistWarnings: ChecklistWarning[];
-  availableTransitions: OrderStatus[];
+  availableTransitions: TransitionOption[];
   version: number;
 }
 
@@ -177,7 +216,7 @@ export interface TransitionResponse {
   id: number;
   status: OrderStatus;
   scheduledAt: string | null;
-  availableTransitions: OrderStatus[];
+  availableTransitions: TransitionOption[];
   version: number;
 }
 
@@ -222,7 +261,7 @@ export interface AuditLogEntry {
   occurredAt: string;
 }
 
-export type NotiType = 'TRANSFER_REQUESTED' | 'STATUS_CHANGED' | 'MESSAGE';
+export type NotiType = 'ORDER_CREATED' | 'STATUS_CHANGED' | 'MESSAGE';
 
 export interface NotificationItem {
   id: number;

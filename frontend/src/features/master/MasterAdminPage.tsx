@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, messageOf } from '@/shared/api/client';
 import type {
-  AlertType, DepartmentSummary, DeptType, ServiceItem, StaffRole,
+  AlertType, DepartmentSummary, DeptType, OrderType, ServiceItem, StaffRole,
 } from '@/shared/api/types';
 import { useToast } from '@/shared/ui/toast';
 
@@ -23,7 +23,13 @@ interface StaffRow {
 }
 
 const DEPT_TYPE_LABEL: Record<DeptType, string> = {
-  WARD: '병동', EXAM: '검사실', OR: '수술실', ICU: '중환자실', ER: '응급실', ADMIN: '관리부서',
+  WARD: '병동', EXAM: '검사실', OR: '수술실', ICU: '중환자실', ER: '응급실',
+  LAB: '진단검사의학과', PHARMACY: '약제부', BIOMED: '의공학팀',
+  ADMIN: '관리부서',
+};
+
+const ORDER_TYPE_LABEL: Record<OrderType, string> = {
+  TRANSFER: '이송', SPECIMEN: '검체', PHARMACY: '약제', EQUIPMENT: '의공',
 };
 
 const ROLE_LABEL: Record<StaffRole, string> = {
@@ -38,7 +44,7 @@ const ALERT_LABEL: Record<AlertType, string> = {
 const TABS = [
   { key: 'departments', label: '부서' },
   { key: 'staff', label: '직원' },
-  { key: 'service-items', label: '검사 종류' },
+  { key: 'service-items', label: '업무 항목' },
 ] as const;
 
 type TabKey = (typeof TABS)[number]['key'];
@@ -48,7 +54,7 @@ const field = 'w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outli
 /**
  * A-02~04 마스터 관리.
  *
- * 어느 것도 지우지 않는다. 부서나 검사 종류를 삭제하면 그것을 참조하던
+ * 어느 것도 지우지 않는다. 부서나 업무 항목을 삭제하면 그것을 참조하던
  * 지난 요청의 이력을 읽을 수 없게 된다. 기록은 남기고 새로 고르지만 못하게 한다.
  */
 export default function MasterAdminPage() {
@@ -158,17 +164,20 @@ export default function MasterAdminPage() {
 
       {tab === 'service-items' && (
         <Section
-          title="검사 종류"
+          title="업무 항목"
           rows={examTypes.data ?? []}
-          columns={['코드', '이름', '검사실', '소요', '확인 항목']}
+          columns={['코드', '이름', '종류', '수행 파트', '소요', '확인 항목']}
           renderRow={(e: ServiceItem) => [
-            e.code, e.name, e.department.name, `${e.defaultDuration}분`,
+            e.code, e.name, e.orderTypeLabel, e.department.name, `${e.defaultDuration}분`,
             e.requiredAlerts.map((a) => ALERT_LABEL[a]).join(', ') || '없음',
           ]}
           onDeactivate={(e: ServiceItem) => deactivate.mutate(`/service-items/${e.id}/deactivate`)}
           form={
             <ServiceItemForm
-              departments={(departments.data ?? []).filter((d) => d.deptType === 'EXAM')}
+              // 요청을 받는 쪽이면 어디든 업무 항목을 가질 수 있다.
+              // 수행 파트를 하나씩 나열하면 부서 유형을 늘릴 때마다 여기를 고쳐야 한다.
+              departments={(departments.data ?? [])
+                .filter((d) => d.deptType !== 'WARD' && d.deptType !== 'ADMIN')}
               onSubmit={(body) => create.mutate({ path: '/service-items', body })}
             />
           }
@@ -302,7 +311,10 @@ function ServiceItemForm({ departments, onSubmit }: {
   departments: DepartmentRow[];
   onSubmit: (body: unknown) => void;
 }) {
-  const empty = { code: '', name: '', departmentId: '', defaultDuration: '30', prepInstruction: '' };
+  const empty = {
+    code: '', name: '', orderType: 'TRANSFER', departmentId: '',
+    defaultDuration: '30', prepInstruction: '',
+  };
   const [form, setForm] = useState(empty);
   const [alerts, setAlerts] = useState<AlertType[]>([]);
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
@@ -321,11 +333,20 @@ function ServiceItemForm({ departments, onSubmit }: {
         setAlerts([]);
       }}
     >
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-6 gap-2">
         <input className={field} placeholder="코드" value={form.code} onChange={(e) => set('code', e.target.value)} />
-        <input className={field} placeholder="검사명" value={form.name} onChange={(e) => set('name', e.target.value)} />
+        <input className={field} placeholder="업무명" value={form.name} onChange={(e) => set('name', e.target.value)} />
+        {/*
+          종류는 만들 때만 고른다. 나중에 바꾸면 이미 진행 중인 요청들이
+          자기 상태에서 갈 곳이 없어진다. 서버도 수정에서는 이 값을 무시한다.
+        */}
+        <select className={field} value={form.orderType} onChange={(e) => set('orderType', e.target.value)}>
+          {(Object.keys(ORDER_TYPE_LABEL) as OrderType[]).map((t) => (
+            <option key={t} value={t}>{ORDER_TYPE_LABEL[t]}</option>
+          ))}
+        </select>
         <select className={field} value={form.departmentId} onChange={(e) => set('departmentId', e.target.value)}>
-          <option value="">검사실 선택</option>
+          <option value="">수행 파트 선택</option>
           {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
         </select>
         <input className={field} inputMode="numeric" placeholder="소요(분)" value={form.defaultDuration} onChange={(e) => set('defaultDuration', e.target.value)} />
@@ -334,7 +355,7 @@ function ServiceItemForm({ departments, onSubmit }: {
 
       <div className="mt-3">
         <p className="mb-1.5 text-xs text-slate-500">
-          검사 전 확인 항목 — 여기서 고른 것이 검사실 화면의 경고가 됩니다.
+          업무 전 확인 항목 — 여기서 고른 것이 수행 파트 화면의 경고가 됩니다.
         </p>
         <div className="flex flex-wrap gap-1.5">
           {(Object.keys(ALERT_LABEL) as AlertType[]).map((a) => (

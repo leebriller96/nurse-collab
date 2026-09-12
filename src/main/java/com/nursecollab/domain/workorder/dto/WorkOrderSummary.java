@@ -3,8 +3,9 @@ package com.nursecollab.domain.workorder.dto;
 import com.nursecollab.domain.department.dto.DepartmentSummary;
 import com.nursecollab.domain.patient.entity.Sex;
 import com.nursecollab.domain.workorder.entity.OrderPriority;
-import com.nursecollab.domain.workorder.entity.WorkOrder;
 import com.nursecollab.domain.workorder.entity.OrderStatus;
+import com.nursecollab.domain.workorder.entity.OrderType;
+import com.nursecollab.domain.workorder.entity.WorkOrder;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -13,11 +14,19 @@ import java.time.OffsetDateTime;
 public record WorkOrderSummary(
         Long id,
         String requestNo,
+        OrderType orderType,
         OrderStatus status,
+        /**
+         * 이 종류에서 이 상태를 부르는 이름.
+         * 같은 IN_PROGRESS 라도 검사실은 "검사중", 약제부는 "조제중" 이다.
+         * 화면이 다시 계산하게 하면 규칙이 서버와 화면 두 군데로 갈라진다.
+         */
+        String statusLabel,
         OrderPriority priority,
+        /** 장비 수리처럼 환자가 없는 업무에서는 비어 있다. */
         PatientInfo patient,
         String roomNo,
-        String examName,
+        String itemName,
         DepartmentSummary counterpartDepartment,
         OffsetDateTime requestedAt,
         OffsetDateTime scheduledAt,
@@ -33,17 +42,24 @@ public record WorkOrderSummary(
      */
     public static WorkOrderSummary of(WorkOrder request, boolean inbound, int criticalAlertCount) {
         var encounter = request.getEncounter();
-        var patient = encounter.getPatient();
         var counterpart = inbound ? request.getFromDepartment() : request.getToDepartment();
+
+        PatientInfo patientInfo = null;
+        if (encounter != null) {
+            var patient = encounter.getPatient();
+            patientInfo = new PatientInfo(patient.getPatientNo(), patient.getName(),
+                    patient.age(), patient.getSex());
+        }
 
         return new WorkOrderSummary(
                 request.getId(),
                 request.getRequestNo(),
+                request.getOrderType(),
                 request.getStatus(),
+                request.getOrderType().labelOf(request.getStatus()),
                 request.getPriority(),
-                new PatientInfo(patient.getPatientNo(), patient.getName(),
-                        patient.age(), patient.getSex()),
-                encounter.getRoomNo(),
+                patientInfo,
+                encounter == null ? null : encounter.getRoomNo(),
                 request.getServiceItem().getName(),
                 DepartmentSummary.from(counterpart),
                 request.getRequestedAt(),

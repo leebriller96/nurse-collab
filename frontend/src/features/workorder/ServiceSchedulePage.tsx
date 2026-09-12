@@ -115,8 +115,10 @@ export default function ServiceSchedulePage() {
                 onClick={() => navigate(`/service/requests/${r.id}`)}
                 className="rounded-lg bg-white px-3 py-2 text-left text-sm shadow-sm ring-1 ring-amber-200"
               >
-                <span className="font-medium text-slate-900">{r.patient.name}</span>
-                <span className="ml-1.5 text-slate-500">{r.examName}</span>
+                <span className="font-medium text-slate-900">
+                  {r.patient?.name ?? '대상 환자 없음'}
+                </span>
+                <span className="ml-1.5 text-slate-500">{r.itemName}</span>
                 <span className="ml-1.5 text-xs text-slate-400">{r.waitingMinutes}분 대기</span>
               </button>
             ))}
@@ -165,9 +167,11 @@ export default function ServiceSchedulePage() {
                   <span className="shrink-0 font-semibold tabular-nums text-slate-900">
                     {hhmm(r.scheduledAt!)}
                   </span>
-                  <span className="truncate font-medium text-slate-900">{r.patient.name}</span>
-                  <span className="truncate text-slate-500">{r.examName}</span>
-                  <span className="shrink-0 text-xs text-slate-400">{r.roomNo}호</span>
+                  <span className="truncate font-medium text-slate-900">
+                    {r.patient?.name ?? '대상 환자 없음'}
+                  </span>
+                  <span className="truncate text-slate-500">{r.itemName}</span>
+                  {r.roomNo && <span className="shrink-0 text-xs text-slate-400">{r.roomNo}호</span>}
                   {r.criticalAlertCount > 0 && (
                     <span className="shrink-0 rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700">
                       !주의

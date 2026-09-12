@@ -8,6 +8,7 @@ import { PriorityBadge, StatusBadge } from '@/shared/ui/badges';
 import LoadFailed from '@/shared/ui/LoadFailed';
 import { useUrlParam } from '@/shared/hooks/useUrlParam';
 import { TableSkeleton } from '@/shared/ui/Skeleton';
+import OrderSubject from '@/features/workorder/OrderSubject';
 
 const FINISHED: OrderStatus[] = ['COMPLETED', 'CANCELLED'];
 
@@ -137,18 +138,14 @@ export default function OrderHistoryPage() {
                     </td>
                     <td className="px-3 py-2.5 font-mono text-xs text-slate-600">{row.requestNo}</td>
                     <td className="px-3 py-2.5">
-                      <span className="font-medium text-slate-900">{row.patient.name}</span>
-                      <span className="ml-1.5 text-slate-500">
-                        {row.patient.sex}/{row.patient.age}
-                      </span>
-                      <span className="ml-1.5 text-slate-400">{row.roomNo}호</span>
+                      <OrderSubject row={row} />
                     </td>
-                    <td className="px-3 py-2.5 text-slate-700">{row.examName}</td>
+                    <td className="px-3 py-2.5 text-slate-700">{row.itemName}</td>
                     <td className="px-3 py-2.5 text-slate-700">{row.counterpartDepartment.name}</td>
                     <td className="px-3 py-2.5 tabular-nums text-slate-700">{row.waitingMinutes}분</td>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-1.5">
-                        <StatusBadge status={row.status} />
+                        <StatusBadge status={row.status} label={row.statusLabel} />
                         {row.priority !== 'ROUTINE' && <PriorityBadge priority={row.priority} />}
                       </div>
                     </td>

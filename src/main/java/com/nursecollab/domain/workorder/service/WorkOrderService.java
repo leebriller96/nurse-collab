@@ -50,15 +50,18 @@ public class WorkOrderService {
         Staff requester = staffRepository.findByIdWithDepartment(staffId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.STAFF_NOT_FOUND));
 
-        Encounter encounter = encounterRepository.findByIdWithPatientAndDepartment(req.encounterId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.ENCOUNTER_NOT_FOUND));
-
         ServiceItem serviceItem = serviceItemRepository.findByIdWithDepartment(req.serviceItemId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.SERVICE_ITEM_NOT_FOUND));
 
-        // 퇴원 여부와 병동 일치 검증은 엔티티가 한다
+        // 장비 수리처럼 환자가 없는 업무가 있다. 비었는지 아닌지의 판정은 엔티티가 한다.
+        // 여기서 종류를 다시 보고 분기하면 규칙이 두 군데로 갈라진다.
+        Encounter encounter = req.encounterId() == null ? null
+                : encounterRepository.findByIdWithPatientAndDepartment(req.encounterId())
+                        .orElseThrow(() -> new BusinessException(ErrorCode.ENCOUNTER_NOT_FOUND));
+
+        // 퇴원 여부와 병동 일치 검증도 엔티티가 한다
         WorkOrder request = WorkOrder.create(
-                requestNoGenerator.generate(LocalDate.now()),
+                requestNoGenerator.generate(serviceItem.getOrderType(), LocalDate.now()),
                 encounter, serviceItem, requester,
                 req.priority(), req.desiredAt(), req.note());
 

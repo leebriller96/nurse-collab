@@ -17,7 +17,7 @@ public record TransitionResponse(
         Long id,
         OrderStatus status,
         OffsetDateTime scheduledAt,
-        List<OrderStatus> availableTransitions,
+        List<TransitionOption> availableTransitions,
         Long version
 ) {
     public static TransitionResponse of(WorkOrder request, Staff actor) {
@@ -25,7 +25,7 @@ public record TransitionResponse(
                 request.getId(),
                 request.getStatus(),
                 request.getScheduledAt(),
-                List.copyOf(request.availableTransitions(actor)),
+                TransitionOption.listOf(request, actor),
                 request.getVersion());
     }
 }

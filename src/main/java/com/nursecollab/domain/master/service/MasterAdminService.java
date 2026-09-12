@@ -131,7 +131,7 @@ public class MasterAdminService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.MASTER_NOT_FOUND));
 
         ServiceItem saved = serviceItemRepository.save(ServiceItem.create(
-                req.code(), req.name(), department, req.defaultDuration(),
+                req.code(), req.name(), req.orderType(), department, req.defaultDuration(),
                 req.prepInstruction(), req.requiredAlerts()));
         return ServiceItemResponse.from(saved);
     }

@@ -4,6 +4,8 @@ import com.nursecollab.domain.department.entity.Department;
 import com.nursecollab.domain.patient.entity.AlertType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -39,6 +41,15 @@ public class ServiceItem {
     @Column(nullable = false, length = 100)
     private String name;
 
+    /**
+     * 이 항목이 타는 흐름.
+     * 요청을 만들 때 이 값이 요청으로 복사된다. 항목의 종류를 나중에 바꿔도
+     * 이미 진행 중인 요청의 흐름은 바뀌지 않아야 하기 때문이다.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "order_type", nullable = false, length = 20)
+    private OrderType orderType;
+
     /** 이 업무를 수행하는 파트. 업무 요청의 수행 파트가 여기서 결정된다. */
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "department_id")
@@ -56,10 +67,12 @@ public class ServiceItem {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
-    public static ServiceItem create(String code, String name, Department department,
+    public static ServiceItem create(String code, String name, OrderType orderType,
+                                  Department department,
                                   int defaultDuration, String prepInstruction,
                                   List<AlertType> requiredAlerts) {
         ServiceItem serviceItem = new ServiceItem();
+        serviceItem.orderType = orderType;
         serviceItem.code = code;
         serviceItem.name = name;
         serviceItem.department = department;
@@ -70,6 +83,10 @@ public class ServiceItem {
         return serviceItem;
     }
 
+    /**
+     * 종류는 바꾸지 않는다. 지난 요청들이 이 항목을 참조한 채 각자의 흐름 위에 있어서,
+     * 종류를 바꾸면 그 요청들이 자기 상태에서 갈 곳이 없어진다.
+     */
     public void update(String code, String name, Department department, int defaultDuration,
                        String prepInstruction, List<AlertType> requiredAlerts) {
         this.code = code;

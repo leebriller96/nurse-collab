@@ -6,8 +6,9 @@ import com.nursecollab.domain.patient.dto.ChecklistWarning;
 import com.nursecollab.domain.patient.entity.Sex;
 import com.nursecollab.domain.staff.entity.Staff;
 import com.nursecollab.domain.workorder.entity.OrderPriority;
-import com.nursecollab.domain.workorder.entity.WorkOrder;
 import com.nursecollab.domain.workorder.entity.OrderStatus;
+import com.nursecollab.domain.workorder.entity.OrderType;
+import com.nursecollab.domain.workorder.entity.WorkOrder;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -16,8 +17,13 @@ import java.util.List;
 public record WorkOrderDetailResponse(
         Long id,
         String requestNo,
+        OrderType orderType,
+        String orderTypeLabel,
         OrderStatus status,
+        /** 이 종류에서 이 상태를 부르는 이름 (검사중 / 조제중 / 수리중) */
+        String statusLabel,
         OrderPriority priority,
+        /** 환자가 없는 업무에서는 encounter 와 patient 가 모두 비어 있다. */
         EncounterInfo encounter,
         PatientInfo patient,
         ServiceItemInfo serviceItem,
@@ -33,7 +39,7 @@ public record WorkOrderDetailResponse(
         String holdReason,
         List<AlertResponse> alerts,
         List<ChecklistWarning> checklistWarnings,
-        List<OrderStatus> availableTransitions,
+        List<TransitionOption> availableTransitions,
         Long version
 ) {
     public record EncounterInfo(Long encounterId, String roomNo, String bedNo, boolean isMobile) {}
@@ -50,18 +56,31 @@ public record WorkOrderDetailResponse(
                                             List<AlertResponse> alerts,
                                             List<ChecklistWarning> checklistWarnings) {
         var encounter = request.getEncounter();
-        var patient = encounter.getPatient();
         var serviceItem = request.getServiceItem();
+        var type = request.getOrderType();
+
+        EncounterInfo encounterInfo = null;
+        PatientInfo patientInfo = null;
+        if (encounter != null) {
+            var patient = encounter.getPatient();
+            encounterInfo = new EncounterInfo(encounter.getId(), encounter.getRoomNo(),
+                    encounter.getBedNo(), encounter.isMobile());
+            patientInfo = new PatientInfo(patient.getPatientNo(), patient.getName(),
+                    patient.age(), patient.getSex());
+        }
+
+        List<TransitionOption> transitions = TransitionOption.listOf(request, viewer);
 
         return new WorkOrderDetailResponse(
                 request.getId(),
                 request.getRequestNo(),
+                type,
+                type.getLabel(),
                 request.getStatus(),
+                type.labelOf(request.getStatus()),
                 request.getPriority(),
-                new EncounterInfo(encounter.getId(), encounter.getRoomNo(),
-                        encounter.getBedNo(), encounter.isMobile()),
-                new PatientInfo(patient.getPatientNo(), patient.getName(),
-                        patient.age(), patient.getSex()),
+                encounterInfo,
+                patientInfo,
                 new ServiceItemInfo(serviceItem.getId(), serviceItem.getCode(), serviceItem.getName(),
                         serviceItem.getDefaultDuration(), serviceItem.getPrepInstruction()),
                 DepartmentSummary.from(request.getFromDepartment()),
@@ -76,7 +95,7 @@ public record WorkOrderDetailResponse(
                 request.getHoldReason(),
                 alerts,
                 checklistWarnings,
-                List.copyOf(request.availableTransitions(viewer)),
+                transitions,
                 request.getVersion());
     }
 }

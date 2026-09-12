@@ -39,7 +39,12 @@ public class WorkOrder extends BaseTimeEntity {
     @Column(name = "request_no", nullable = false, unique = true, length = 30)
     private String requestNo;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "order_type", nullable = false, length = 20)
+    private OrderType orderType;
+
+    /** 환자가 없는 업무(장비 수리)에서는 비어 있다. */
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "encounter_id")
     private Encounter encounter;
 
@@ -114,16 +119,29 @@ public class WorkOrder extends BaseTimeEntity {
                                          OffsetDateTime desiredAt,
                                          String note) {
 
-        if (!encounter.isAdmitted()) {
-            throw new BusinessException(ErrorCode.DISCHARGED_ENCOUNTER);
-        }
-        // 자기 병동에 없는 환자로는 요청을 만들 수 없다.
-        // 소속만 보고 판단하지 않고 "이 환자가 우리 병동에 있는가" 라는 관계로 본다.
-        if (!encounter.getDepartment().getId().equals(requester.getDepartment().getId())) {
-            throw new BusinessException(ErrorCode.NOT_RELATED_DEPARTMENT);
+        OrderType type = serviceItem.getOrderType();
+
+        if (type.isPatientRequired()) {
+            if (encounter == null) {
+                throw new BusinessException(ErrorCode.PATIENT_REQUIRED);
+            }
+            if (!encounter.isAdmitted()) {
+                throw new BusinessException(ErrorCode.DISCHARGED_ENCOUNTER);
+            }
+            // 자기 병동에 없는 환자로는 요청을 만들 수 없다.
+            // 소속만 보고 판단하지 않고 "이 환자가 우리 병동에 있는가" 라는 관계로 본다.
+            if (!encounter.getDepartment().getId().equals(requester.getDepartment().getId())) {
+                throw new BusinessException(ErrorCode.NOT_RELATED_DEPARTMENT);
+            }
+        } else if (encounter != null) {
+            // 환자를 붙이면 안 된다. 환자 정보 접근은 "진행 중인 요청이 걸려 있는가" 로
+            // 판정하므로, 장비 수리에 환자를 매달면 의공학팀이 그 환자의 활력징후와
+            // 간호기록까지 열 수 있게 된다. 수액펌프를 고치는 데 필요한 권한이 아니다.
+            throw new BusinessException(ErrorCode.PATIENT_NOT_ALLOWED);
         }
 
         WorkOrder tr = new WorkOrder();
+        tr.orderType      = type;
         tr.requestNo      = requestNo;
         tr.encounter      = encounter;
         tr.serviceItem       = serviceItem;
@@ -165,7 +183,7 @@ public class WorkOrder extends BaseTimeEntity {
             // 보류 상태에서는 "직전 상태로 복귀" 와 "취소" 만 가능하다
             return new LinkedHashSet<>(Set.of(holdFromStatus, OrderStatus.CANCELLED));
         }
-        return OrderStatus.availableFor(status, side);
+        return orderType.availableFor(status, side);
     }
 
     // ------------------------------------------------------------------
@@ -200,7 +218,7 @@ public class WorkOrder extends BaseTimeEntity {
             return;
         }
 
-        OrderStatus.Rule rule = OrderStatus.findRule(status, to);
+        OrderType.Rule rule = orderType.findRule(status, to);
         if (rule == null) {
             throw new BusinessException(ErrorCode.INVALID_TRANSITION);
         }

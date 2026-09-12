@@ -2,7 +2,9 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { api, messageOf } from '@/shared/api/client';
-import type { EncounterFullView, ServiceItem, OrderPriority } from '@/shared/api/types';
+import type {
+  EncounterFullView, OrderPriority, OrderType, ServiceItem,
+} from '@/shared/api/types';
 import { AlertBadge } from '@/shared/ui/badges';
 
 const PRIORITIES: { value: OrderPriority; label: string; style: string }[] = [
@@ -12,9 +14,12 @@ const PRIORITIES: { value: OrderPriority; label: string; style: string }[] = [
 ];
 
 /**
- * W-03 이송 요청 등록.
- * 검사 선택 → 우선순위 → 등록. 3탭 안에 끝나야 한다.
+ * W-03 업무 요청 등록.
+ * 종류 → 항목 → 우선순위 → 등록. 몇 번 안에 끝나야 한다.
  * 희망시각과 메모는 접어 두고, 필요한 사람만 펼치게 한다.
+ *
+ * 종류 탭은 서버가 내려준 항목에서 뽑는다. 목록을 손으로 적어 두면
+ * 새 종류를 쓰기 시작한 날 그 탭만 없어서 아무도 요청을 못 넣는다.
  */
 export default function OrderCreatePage() {
   const [params] = useSearchParams();
@@ -22,6 +27,7 @@ export default function OrderCreatePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
+  const [orderType, setOrderType] = useState<OrderType | null>(null);
   const [serviceItemId, setServiceItemId] = useState<number | null>(null);
   const [priority, setPriority] = useState<OrderPriority>('ROUTINE');
   const [note, setNote] = useState('');
@@ -42,6 +48,21 @@ export default function OrderCreatePage() {
 
   const selected = examTypes?.find((e) => e.id === serviceItemId);
 
+  // 있는 종류만 탭으로 띄운다. 항목이 하나도 없는 종류를 보여 주면 빈 목록만 나온다.
+  const types: OrderType[] = [];
+  for (const item of examTypes ?? []) {
+    if (!types.includes(item.orderType)) types.push(item.orderType);
+  }
+  const activeType = orderType ?? types[0] ?? null;
+  const visibleItems = (examTypes ?? []).filter((e) => e.orderType === activeType);
+  const typeLabelOf = (t: OrderType) =>
+    (examTypes ?? []).find((e) => e.orderType === t)?.orderTypeLabel ?? t;
+
+  // 환자가 필요한 업무인데 어느 환자인지 모르면 보낼 수 없다.
+  // 병동 보드에서 환자를 고르고 들어와야 encounterId 가 붙는다.
+  const needsPatient = selected?.patientRequired ?? false;
+  const missingPatient = needsPatient && !encounter;
+
   // 고른 검사의 필수 확인 항목과 이 환자의 주의사항이 겹치면 등록 전에 알려준다
   const warnings =
     selected && encounter
@@ -51,7 +72,9 @@ export default function OrderCreatePage() {
   const create = useMutation({
     mutationFn: async () => {
       const { data } = await api.post<{ id: number }>('/work-orders', {
-        encounterId,
+        // 환자를 붙일 수 없는 업무에 붙이면 서버가 ORD-007 로 막는다.
+        // 환자를 고르고 들어왔다가 장비 수리로 바꾸는 일이 실제로 생긴다.
+        encounterId: needsPatient ? encounterId : null,
         serviceItemId,
         priority,
         note: note.trim() || null,
@@ -72,10 +95,11 @@ export default function OrderCreatePage() {
         <button type="button" onClick={() => navigate(-1)} className="text-slate-500">
           ←
         </button>
-        <h1 className="text-lg font-bold text-slate-900">이송 요청</h1>
+        <h1 className="text-lg font-bold text-slate-900">업무 요청</h1>
       </header>
 
-      {encounter && (
+      {/* 환자가 필요 없는 업무를 고르면 환자 카드를 접는다. 요청과 상관없는 정보다. */}
+      {encounter && (activeType === null || needsPatient || serviceItemId === null) && (
         <section className="mx-3 rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200">
           <div className="flex items-baseline gap-2">
             <span className="font-bold text-slate-900">
@@ -97,10 +121,31 @@ export default function OrderCreatePage() {
         </section>
       )}
 
+      {types.length > 1 && (
+        <section className="mt-4 px-3">
+          <div className="flex gap-1.5 overflow-x-auto">
+            {types.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => { setOrderType(t); setServiceItemId(null); }}
+                className={`shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold ring-1 ${
+                  activeType === t
+                    ? 'bg-slate-900 text-white ring-transparent'
+                    : 'bg-white text-slate-600 ring-slate-200'
+                }`}
+              >
+                {typeLabelOf(t)}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="mt-4 px-3">
-        <h2 className="mb-2 px-1 text-sm font-medium text-slate-600">검사 선택</h2>
+        <h2 className="mb-2 px-1 text-sm font-medium text-slate-600">업무 선택</h2>
         <div className="space-y-2">
-          {examTypes?.map((exam) => (
+          {visibleItems.map((exam) => (
             <button
               key={exam.id}
               type="button"
@@ -125,7 +170,7 @@ export default function OrderCreatePage() {
 
       {warnings.length > 0 && (
         <section className="mx-3 mt-4 rounded-xl bg-red-50 p-3.5 ring-1 ring-red-200">
-          <p className="text-sm font-semibold text-red-800">이 검사 전에 확인이 필요합니다</p>
+          <p className="text-sm font-semibold text-red-800">이 업무 전에 확인이 필요합니다</p>
           <ul className="mt-1.5 space-y-1">
             {warnings.map((w) => (
               <li key={w.id} className="text-sm text-red-700">
@@ -134,7 +179,7 @@ export default function OrderCreatePage() {
             ))}
           </ul>
           <p className="mt-2 text-xs text-red-600">
-            요청은 그대로 보낼 수 있습니다. 검사실에서도 같은 안내를 봅니다.
+            요청은 그대로 보낼 수 있습니다. 수행 파트에서도 같은 안내를 봅니다.
           </p>
         </section>
       )}
@@ -186,9 +231,14 @@ export default function OrderCreatePage() {
       )}
 
       <div className="fixed inset-x-0 bottom-[var(--app-bottom-bar,0px)] z-10 mx-auto max-w-md border-t border-slate-200 bg-white p-3">
+        {missingPatient && (
+          <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            이 업무는 대상 환자가 필요합니다. 병동 보드에서 환자를 먼저 골라 주세요.
+          </p>
+        )}
         <button
           type="button"
-          disabled={!serviceItemId || create.isPending}
+          disabled={!serviceItemId || missingPatient || create.isPending}
           onClick={() => create.mutate()}
           className="w-full rounded-xl bg-sky-600 py-3.5 text-base font-bold text-white disabled:bg-slate-300"
         >

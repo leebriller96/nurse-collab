@@ -26,7 +26,7 @@ public record EncounterFullView(
     /** 주의사항은 환자에 붙으므로 붙이려면 환자 식별자가 필요하다 */
     public record PatientInfo(Long id, String patientNo, String name, LocalDate birthDate, int age, Sex sex) {}
 
-    public record ActiveRequest(Long id, String requestNo, String examName, String status,
+    public record ActiveRequest(Long id, String requestNo, String itemName, String status,
                                 OffsetDateTime scheduledAt) {}
 
     public static EncounterFullView of(Encounter encounter,

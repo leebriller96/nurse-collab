@@ -37,6 +37,8 @@ public enum ErrorCode {
     REASON_REQUIRED("ORD-003", HttpStatus.BAD_REQUEST, "보류 또는 취소 시 사유는 필수입니다."),
     ALREADY_FINISHED("ORD-004", HttpStatus.CONFLICT, "이미 종료된 요청입니다."),
     SCHEDULE_REQUIRED("ORD-005", HttpStatus.BAD_REQUEST, "접수 시 예정 시각은 필수입니다."),
+    PATIENT_REQUIRED("ORD-006", HttpStatus.BAD_REQUEST, "이 업무는 대상 환자가 필요합니다."),
+    PATIENT_NOT_ALLOWED("ORD-007", HttpStatus.BAD_REQUEST, "이 업무에는 대상 환자를 지정할 수 없습니다."),
 
     // 간호기록
     NOTE_NOT_FOUND("NN-000", HttpStatus.NOT_FOUND, "간호기록을 찾을 수 없습니다."),

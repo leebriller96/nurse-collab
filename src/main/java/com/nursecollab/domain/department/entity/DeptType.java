@@ -1,6 +1,9 @@
 package com.nursecollab.domain.department.entity;
 
-/** 파트 유형. 프론트가 병동 화면과 검사실 화면을 분기하는 기준이 된다. */
+/**
+ * 파트 유형. 프론트가 요청하는 쪽 화면과 수행하는 쪽 화면을 가르는 기준이 된다.
+ * 병동만 요청하는 쪽이고, ADMIN 을 뺀 나머지는 전부 수행하는 쪽이다.
+ */
 public enum DeptType {
 
     WARD("병동"),
@@ -8,6 +11,11 @@ public enum DeptType {
     OR("수술실"),
     ICU("중환자실"),
     ER("응급실"),
+
+    // 이송 말고 다른 업무를 받는 파트들
+    LAB("진단검사의학과"),
+    PHARMACY("약제부"),
+    BIOMED("의공학팀"),
 
     /**
      * 진료 파트가 아닌 관리 부서.

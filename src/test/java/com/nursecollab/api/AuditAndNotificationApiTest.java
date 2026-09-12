@@ -106,16 +106,21 @@ class AuditAndNotificationApiTest extends IntegrationTest {
 
     @Test
     void 알림은_받는_사람에게만_간다() throws Exception {
-        long before = unreadCountOf("ct01");
+        // 절대 개수가 아니라 이 요청으로 늘어난 만큼을 본다.
+        // 다른 테스트가 같은 계정에 알림을 남길 수 있어서, 0 을 기대하면
+        // 이 테스트의 성패가 실행 순서에 달리게 된다.
+        long ctBefore = unreadCountOf("ct01");
+        long wardBefore = unreadCountOf("ward01");
+        long mriBefore = unreadCountOf("mri01");
 
         // MRI 로 보낸 요청이므로 MRI실만 받아야 한다
         createRequestAndFindNotification();
 
-        assertThat(unreadCountOf("mri01")).isPositive();
+        assertThat(unreadCountOf("mri01")).isGreaterThan(mriBefore);
         // CT실은 이 요청과 아무 관계가 없다
-        assertThat(unreadCountOf("ct01")).isEqualTo(before);
+        assertThat(unreadCountOf("ct01")).isEqualTo(ctBefore);
         // 행위자 본인에게는 자기가 한 일을 알리지 않는다
-        assertThat(unreadCountOf("ward01")).isZero();
+        assertThat(unreadCountOf("ward01")).isEqualTo(wardBefore);
     }
 
     @Test

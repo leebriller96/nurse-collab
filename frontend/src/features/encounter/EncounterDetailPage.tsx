@@ -232,7 +232,7 @@ export default function EncounterDetailPage() {
               <li key={r.id}>
                 <Link to={`/ward/requests/${r.id}`} className="flex items-center gap-2 text-sm">
                   <StatusBadge status={r.status} />
-                  <span className="text-slate-800">{r.examName}</span>
+                  <span className="text-slate-800">{r.itemName}</span>
                   <span className="ml-auto font-mono text-xs text-slate-400">{r.requestNo}</span>
                 </Link>
               </li>

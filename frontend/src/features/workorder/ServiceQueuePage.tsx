@@ -6,6 +6,7 @@ import { PriorityBadge, StatusBadge } from '@/shared/ui/badges';
 import { useAuth } from '@/shared/hooks/useAuth';
 import LoadFailed from '@/shared/ui/LoadFailed';
 import { TableSkeleton } from '@/shared/ui/Skeleton';
+import OrderSubject from '@/features/workorder/OrderSubject';
 
 /** 대기가 길어질수록 행이 진해진다. 숫자만으로는 눈에 들어오지 않기 때문이다. */
 function waitingStyle(minutes: number) {
@@ -81,21 +82,17 @@ export default function ServiceQueuePage() {
                 <td className="px-3 py-3 font-mono text-xs text-slate-600">{row.requestNo}</td>
                 <td className="px-3 py-3 text-slate-700">{row.counterpartDepartment.name}</td>
                 <td className="px-3 py-3">
-                  <span className="font-medium text-slate-900">{row.patient.name}</span>
-                  <span className="ml-1.5 text-slate-500">
-                    {row.patient.sex}/{row.patient.age}
-                  </span>
-                  <span className="ml-1.5 text-slate-400">{row.roomNo}호</span>
+                  <OrderSubject row={row} />
                   {row.criticalAlertCount > 0 && (
                     <span className="ml-1.5 rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700">
                       !주의 {row.criticalAlertCount}
                     </span>
                   )}
                 </td>
-                <td className="px-3 py-3 text-slate-700">{row.examName}</td>
+                <td className="px-3 py-3 text-slate-700">{row.itemName}</td>
                 <td className="px-3 py-3 tabular-nums text-slate-700">{row.waitingMinutes}분</td>
                 <td className="px-3 py-3">
-                  <StatusBadge status={row.status} />
+                  <StatusBadge status={row.status} label={row.statusLabel} />
                 </td>
               </tr>
             ))}

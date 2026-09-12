@@ -41,18 +41,24 @@ export default function WardRequestsPage() {
             >
               <div className="flex items-center gap-2">
                 <PriorityBadge priority={r.priority} />
-                <StatusBadge status={r.status} />
+                <StatusBadge status={r.status} label={r.statusLabel} />
                 <span className="ml-auto text-xs text-slate-400">{r.waitingMinutes}분 경과</span>
               </div>
               <div className="mt-2 flex items-baseline gap-2">
-                <span className="font-bold text-slate-900">{r.roomNo}</span>
-                <span className="font-semibold text-slate-800">{r.patient.name}</span>
-                <span className="text-sm text-slate-500">
-                  {r.patient.sex}/{r.patient.age}
-                </span>
+                {r.patient ? (
+                  <>
+                    <span className="font-bold text-slate-900">{r.roomNo}</span>
+                    <span className="font-semibold text-slate-800">{r.patient.name}</span>
+                    <span className="text-sm text-slate-500">
+                      {r.patient.sex}/{r.patient.age}
+                    </span>
+                  </>
+                ) : (
+                  <span className="font-semibold text-slate-600">대상 환자 없음</span>
+                )}
               </div>
               <p className="mt-0.5 text-sm text-slate-600">
-                {r.examName} · {r.counterpartDepartment.name}
+                {r.itemName} · {r.counterpartDepartment.name}
               </p>
             </Link>
           </li>

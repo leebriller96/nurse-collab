@@ -11,7 +11,11 @@ import java.time.OffsetDateTime;
  * 수행 파트(toDepartmentId)를 받지 않는 이유는 업무 항목이 그것을 결정하기 때문이다.
  */
 public record WorkOrderCreateRequest(
-        @NotNull(message = "재원 정보는 필수입니다.")
+        /**
+         * 대상 재원 건. 장비 수리처럼 환자가 없는 업무에서는 비운다.
+         * 필수 여부를 여기서 정하지 않는 이유는 업무 종류가 그것을 정하기 때문이다.
+         * 검증은 엔티티가 하고, 비어야 할 자리에 값이 오면 ORD-007 로 막는다.
+         */
         Long encounterId,
 
         @NotNull(message = "업무 항목은 필수입니다.")

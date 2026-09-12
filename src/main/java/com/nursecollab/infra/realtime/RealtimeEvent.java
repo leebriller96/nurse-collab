@@ -25,15 +25,15 @@ public record RealtimeEvent(
         OrderPriority priority,
         String patientName,
         String roomNo,
-        String examName,
+        String itemName,
         Long actorId,
         String actorName,
         String actorDepartmentName,
         OffsetDateTime occurredAt
 ) {
     public enum EventType {
-        TRANSFER_CREATED,
-        TRANSFER_STATUS_CHANGED,
+        ORDER_CREATED,
+        ORDER_STATUS_CHANGED,
         MESSAGE_CREATED
     }
 }

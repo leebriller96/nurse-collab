@@ -30,8 +30,8 @@ public interface WorkOrderRepository extends JpaRepository<WorkOrder, Long> {
             join fetch r.toDepartment
             join fetch r.serviceItem
             join fetch r.requestedBy
-            join fetch r.encounter e
-            join fetch e.patient
+            left join fetch r.encounter e
+            left join fetch e.patient
             where r.id = :id
             """)
     Optional<WorkOrder> findDetailById(Long id);
@@ -82,8 +82,8 @@ public interface WorkOrderRepository extends JpaRepository<WorkOrder, Long> {
             join fetch r.serviceItem
             join fetch r.fromDepartment
             join fetch r.toDepartment
-            join fetch r.encounter e
-            join fetch e.patient p
+            left join fetch r.encounter e
+            left join fetch e.patient p
             where ((:inbound = true and r.toDepartment.id = :departmentId)
                 or (:inbound = false and r.fromDepartment.id = :departmentId))
               and r.status in :statuses
@@ -94,8 +94,8 @@ public interface WorkOrderRepository extends JpaRepository<WorkOrder, Long> {
             """,
             countQuery = """
             select count(r) from WorkOrder r
-            join r.encounter e
-            join e.patient p
+            left join r.encounter e
+            left join e.patient p
             where ((:inbound = true and r.toDepartment.id = :departmentId)
                 or (:inbound = false and r.fromDepartment.id = :departmentId))
               and r.status in :statuses

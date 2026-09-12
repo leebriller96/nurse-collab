@@ -7,9 +7,13 @@ import { useToast, type ToastTone } from '@/shared/ui/toast';
 
 function describe(event: RealtimeEvent): { title: string; body: string; tone: ToastTone } {
   const who = `${event.actorDepartmentName} ${event.actorName}`;
-  const patient = `${event.roomNo}호 ${event.patientName} · ${event.examName}`;
+  // 장비 수리처럼 환자가 없는 업무가 있다. 그때 "null호 null" 이 뜨면
+  // 알림을 믿을 수 없게 된다. 앞을 통째로 접고 업무명만 남긴다.
+  const patient = event.patientName
+    ? `${event.roomNo}호 ${event.patientName} · ${event.itemName}`
+    : event.itemName;
 
-  if (event.eventType === 'TRANSFER_CREATED') {
+  if (event.eventType === 'ORDER_CREATED') {
     return {
       title: `새 요청 (${priorityLabel(event.priority)})`,
       body: `${patient} — ${who}`,

@@ -47,7 +47,7 @@ class WorkOrderTest {
                 OffsetDateTime.now().minusDays(4), "뇌경색", false);
         ReflectionTestUtils.setField(encounter, "id", 501L);
 
-        brainMri = ServiceItem.create("MRI_BRAIN", "뇌 MRI", mri, 40,
+        brainMri = ServiceItem.create("MRI_BRAIN", "뇌 MRI", OrderType.TRANSFER, mri, 40,
                 "검사 4시간 전부터 금식", List.of(AlertType.METAL_IMPLANT));
     }
 

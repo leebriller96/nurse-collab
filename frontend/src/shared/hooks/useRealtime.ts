@@ -5,15 +5,16 @@ import { tokenStore } from '@/shared/api/client';
 import type { OrderPriority, OrderStatus } from '@/shared/api/types';
 
 export interface RealtimeEvent {
-  eventType: 'TRANSFER_CREATED' | 'TRANSFER_STATUS_CHANGED' | 'MESSAGE_CREATED';
+  eventType: 'ORDER_CREATED' | 'ORDER_STATUS_CHANGED' | 'MESSAGE_CREATED';
   requestId: number;
   requestNo: string;
   fromStatus: OrderStatus | null;
   toStatus: OrderStatus | null;
   priority: OrderPriority;
-  patientName: string;
-  roomNo: string;
-  examName: string;
+  /** 환자가 없는 업무에서는 비어 온다 */
+  patientName: string | null;
+  roomNo: string | null;
+  itemName: string;
   actorId: number;
   actorName: string;
   actorDepartmentName: string;

@@ -46,14 +46,14 @@ public class WorkOrderEventListener {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onCreated(WorkOrderCreatedEvent event) {
         publish(event.requestId(), event.actorId(),
-                RealtimeEvent.EventType.TRANSFER_CREATED, null, OrderStatus.REQUESTED);
+                RealtimeEvent.EventType.ORDER_CREATED, null, OrderStatus.REQUESTED);
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void onStatusChanged(WorkOrderStatusChangedEvent event) {
         publish(event.requestId(), event.actorId(),
-                RealtimeEvent.EventType.TRANSFER_STATUS_CHANGED,
+                RealtimeEvent.EventType.ORDER_STATUS_CHANGED,
                 event.fromStatus(), event.toStatus());
     }
 
@@ -84,8 +84,11 @@ public class WorkOrderEventListener {
                             fromStatus,
                             toStatus,
                             request.getPriority(),
-                            request.getEncounter().getPatient().getName(),
-                            request.getEncounter().getRoomNo(),
+                            // 환자가 없는 업무에서는 비어서 나간다. 화면이 그 자리를 접는다.
+                            request.getEncounter() == null ? null
+                                    : request.getEncounter().getPatient().getName(),
+                            request.getEncounter() == null ? null
+                                    : request.getEncounter().getRoomNo(),
                             request.getServiceItem().getName(),
                             actor.getId(),
                             actor.getName(),
@@ -104,8 +107,8 @@ public class WorkOrderEventListener {
 
     private NotiType notiTypeOf(RealtimeEvent.EventType type) {
         return switch (type) {
-            case TRANSFER_CREATED -> NotiType.ORDER_CREATED;
-            case TRANSFER_STATUS_CHANGED -> NotiType.STATUS_CHANGED;
+            case ORDER_CREATED -> NotiType.ORDER_CREATED;
+            case ORDER_STATUS_CHANGED -> NotiType.STATUS_CHANGED;
             case MESSAGE_CREATED -> NotiType.MESSAGE;
         };
     }
@@ -114,9 +117,9 @@ public class WorkOrderEventListener {
     private String titleOf(RealtimeEvent.EventType type, OrderStatus toStatus, Staff actor) {
         String who = actor.getDepartment().getName();
         return switch (type) {
-            case TRANSFER_CREATED -> who + "에서 새 요청을 보냈습니다";
+            case ORDER_CREATED -> who + "에서 새 요청을 보냈습니다";
             case MESSAGE_CREATED -> who + " " + actor.getName() + "님이 메시지를 남겼습니다";
-            case TRANSFER_STATUS_CHANGED -> who + "에서 " + toStatus.getLabel() + " 처리했습니다";
+            case ORDER_STATUS_CHANGED -> who + "에서 " + toStatus.getLabel() + " 처리했습니다";
         };
     }
 }

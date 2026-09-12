@@ -31,6 +31,7 @@ import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -85,9 +86,12 @@ public class WorkOrderQueryService {
                     page.getTotalElements(), page.getTotalPages());
         }
 
+        // 환자가 없는 업무는 주의사항을 셀 대상이 아니다
         Map<Long, Long> criticalCountByPatient = alertRepository
                 .findActiveByPatientIds(requests.stream()
-                        .map(r -> r.getEncounter().getPatient().getId()).distinct().toList())
+                        .map(WorkOrder::getEncounter)
+                        .filter(Objects::nonNull)
+                        .map(e -> e.getPatient().getId()).distinct().toList())
                 .stream()
                 .filter(PatientAlert::isCritical)
                 .collect(Collectors.groupingBy(a -> a.getPatient().getId(), Collectors.counting()));
@@ -95,8 +99,10 @@ public class WorkOrderQueryService {
         return PageResponse.of(page.map(request -> WorkOrderSummary.of(
                 request,
                 direction.isInbound(),
-                criticalCountByPatient
-                        .getOrDefault(request.getEncounter().getPatient().getId(), 0L).intValue())));
+                request.getEncounter() == null ? 0
+                        : criticalCountByPatient
+                                .getOrDefault(request.getEncounter().getPatient().getId(), 0L)
+                                .intValue())));
     }
 
     public WorkOrderDetailResponse findDetail(Long requestId, LoginStaff loginStaff) {
@@ -109,8 +115,9 @@ public class WorkOrderQueryService {
         // 관계없는 파트면 여기서 막힌다
         request.resolveActorSide(viewer);
 
-        List<PatientAlert> alerts = alertRepository
-                .findActiveByPatientId(request.getEncounter().getPatient().getId());
+        List<PatientAlert> alerts = request.getEncounter() == null
+                ? List.of()
+                : alertRepository.findActiveByPatientId(request.getEncounter().getPatient().getId());
 
         return WorkOrderDetailResponse.of(request, viewer,
                 alerts.stream().map(AlertResponse::from).toList(),

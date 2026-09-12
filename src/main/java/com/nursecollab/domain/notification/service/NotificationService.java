@@ -50,12 +50,20 @@ public class NotificationService {
         }
     }
 
-    /** 302호 김OO / 뇌 MRI / 15:30 예정 */
+    /**
+     * 302호 김OO / 뇌 MRI / 15:30 예정
+     * 환자가 없는 업무(장비 수리)는 앞의 병실·이름 없이 업무명만 남는다.
+     */
     public String describe(WorkOrder request) {
-        StringBuilder sb = new StringBuilder()
-                .append(request.getEncounter().getRoomNo()).append("호 ")
-                .append(request.getEncounter().getPatient().getName())
-                .append(" / ").append(request.getServiceItem().getName());
+        StringBuilder sb = new StringBuilder();
+
+        var encounter = request.getEncounter();
+        if (encounter != null) {
+            sb.append(encounter.getRoomNo()).append("호 ")
+              .append(encounter.getPatient().getName())
+              .append(" / ");
+        }
+        sb.append(request.getServiceItem().getName());
 
         if (request.getScheduledAt() != null) {
             sb.append(" / ").append(request.getScheduledAt().format(TIME)).append(" 예정");

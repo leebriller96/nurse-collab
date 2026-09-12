@@ -120,130 +120,88 @@ public enum ActorSide {
 }
 ```
 
-### 2-2. OrderStatus - 상태와 전이 규칙을 한 곳에
+### 2-2. OrderStatus / OrderType - 상태는 한 곳, 전이 규칙은 종류가 가진다
+
+상태 목록은 `OrderStatus` 에 모아 둔다. DB 에 문자열 한 컬럼으로 저장되고
+감사 로그와 통계가 그 값을 그대로 읽기 때문에, 종류별로 같은 이름을 따로 두면
+`IN_PROGRESS` 가 어느 enum 의 것인지 알 수 없어진다.
+
+**어디서 어디로 갈 수 있는가는 `OrderType` 이 가진다.** 종류마다 흐름이 다르다.
+
+| 종류 | 접두사 | 환자 | 흐름 |
+|---|---|---|---|
+| `TRANSFER` 이송 | `TR` | 필요 | 요청 → 접수 → 준비완료 → 이송중 → 검사중 → 복귀중 → 완료 |
+| `SPECIMEN` 검체 | `SP` | 필요 | 요청 → 접수 → 채취완료 → 검사중 → 결과등록 → 완료 |
+| `PHARMACY` 약제 | `PH` | 필요 | 요청 → 접수 → 조제중 → 조제완료 → 불출완료 → 완료 |
+| `EQUIPMENT` 의공 | `EQ` | **없음** | 요청 → 접수 → 수리중 → (부품대기) → 완료 |
+
+`ON_HOLD` 와 `CANCELLED` 는 모든 종류가 함께 쓴다.
 
 ```java
-package com.nursecollab.domain.workorder.entity;
+public enum OrderType {
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
+    TRANSFER("이송", "TR", true),
+    SPECIMEN("검체", "SP", true),
+    PHARMACY("약제", "PH", true),
+    EQUIPMENT("의공", "EQ", false);   // 환자가 없는 유일한 종류
 
-/**
- * 이송 요청의 상태.
- *
- * 전이 규칙을 이 enum 안에 모아두는 이유:
- * 규칙이 서비스 코드 여기저기에 if 문으로 흩어지면
- * 상태를 하나 추가할 때 어디를 고쳐야 하는지 아무도 모르게 된다.
- */
-public enum OrderStatus {
+    public record Rule(OrderStatus from, OrderStatus to, ActorSide actorSide,
+                       boolean reasonRequired, boolean scheduleRequired) {}
 
-    REQUESTED("요청됨"),
-    ACCEPTED("접수됨"),
-    READY("준비완료"),
-    IN_TRANSIT("이송중"),
-    IN_PROGRESS("검사중"),
-    RETURNED("복귀중"),
-    COMPLETED("완료"),
-    ON_HOLD("보류"),
-    CANCELLED("취소");
+    private static final Map<OrderType, List<Rule>> RULES = new EnumMap<>(OrderType.class);
+    private static final Map<OrderType, Map<OrderStatus, String>> LABELS =
+            new EnumMap<>(OrderType.class);
 
-    private final String label;
+    static {
+        RULES.put(TRANSFER, List.of(
+                new Rule(REQUESTED,   ACCEPTED,    PERFORMER, false, true),
+                ...
+                new Rule(RETURNED,    COMPLETED,   REQUESTER, false, false),
+                new Rule(ON_HOLD,     CANCELLED,   BOTH,      true,  false)
+        ));
+        LABELS.put(TRANSFER, Map.of(IN_PROGRESS, "검사중"));
 
-    OrderStatus(String label) {
-        this.label = label;
+        RULES.put(EQUIPMENT, List.of(
+                ...
+                // 어떤 부품을 기다리는지 적지 않으면 언제 끝날지 아무도 모른다
+                new Rule(IN_PROGRESS,    AWAITING_PARTS, PERFORMER, true,  false),
+                new Rule(AWAITING_PARTS, IN_PROGRESS,    PERFORMER, false, false),
+                // 고친 사람이 끝냈다고 말한다. 병동의 확인을 기다리지 않는 유일한 종류다
+                new Rule(IN_PROGRESS,    COMPLETED,      PERFORMER, false, false)
+        ));
+        LABELS.put(EQUIPMENT, Map.of(IN_PROGRESS, "수리중"));
     }
 
-    public String getLabel() {
-        return label;
-    }
-
-    /** 더 이상 상태가 바뀌지 않는 종료 상태인가 */
-    public boolean isTerminal() {
-        return this == COMPLETED || this == CANCELLED;
-    }
-
-    /**
-     * 하나의 전이 규칙.
-     *
-     * @param from            시작 상태
-     * @param to              도착 상태
-     * @param actorSide       이 전이를 누를 수 있는 쪽
-     * @param reasonRequired  사유 입력이 필수인가
-     * @param scheduleRequired 예정시각 입력이 필수인가
-     */
-    public record Rule(
-            OrderStatus from,
-            OrderStatus to,
-            ActorSide actorSide,
-            boolean reasonRequired,
-            boolean scheduleRequired
-    ) {}
-
-    /**
-     * 전체 전이 규칙표.
-     * ON_HOLD 에서 원래 상태로 복귀하는 것은 상태값이 동적이라 여기 넣지 않고
-     * WorkOrder.transitionTo() 가 저장된 직전 상태를 보고 따로 처리한다.
-     */
-    private static final List<Rule> RULES = List.of(
-            // 요청됨 → 접수 / 보류 / 취소
-            new Rule(REQUESTED,   ACCEPTED,    ActorSide.PERFORMER, false, true),
-            new Rule(REQUESTED,   ON_HOLD,     ActorSide.PERFORMER, true,  false),
-            new Rule(REQUESTED,   CANCELLED,   ActorSide.BOTH,      true,  false),
-
-            // 접수됨 → 준비완료 / 보류 / 취소
-            new Rule(ACCEPTED,    READY,       ActorSide.PERFORMER, false, false),
-            new Rule(ACCEPTED,    ON_HOLD,     ActorSide.PERFORMER, true,  false),
-            new Rule(ACCEPTED,    CANCELLED,   ActorSide.BOTH,      true,  false),
-
-            // 준비완료 → 이송중 / 보류 / 취소
-            new Rule(READY,       IN_TRANSIT,  ActorSide.REQUESTER, false, false),
-            new Rule(READY,       ON_HOLD,     ActorSide.BOTH,      true,  false),
-            new Rule(READY,       CANCELLED,   ActorSide.BOTH,      true,  false),
-
-            // 이송중 → 검사중 / 보류
-            new Rule(IN_TRANSIT,  IN_PROGRESS, ActorSide.PERFORMER, false, false),
-            new Rule(IN_TRANSIT,  ON_HOLD,     ActorSide.BOTH,      true,  false),
-
-            // 검사중 → 복귀중
-            new Rule(IN_PROGRESS, RETURNED,    ActorSide.PERFORMER, false, false),
-
-            // 복귀중 → 완료
-            new Rule(RETURNED,    COMPLETED,   ActorSide.REQUESTER, false, false),
-
-            // 보류 → 취소 (복귀는 직전 상태로 돌아가므로 규칙표에 없다)
-            new Rule(ON_HOLD,     CANCELLED,   ActorSide.BOTH,      true,  false)
-    );
-
-    /** from → to 전이 규칙을 찾는다. 없으면 허용되지 않는 전이다. */
-    public static Rule findRule(OrderStatus from, OrderStatus to) {
-        return RULES.stream()
-                .filter(r -> r.from() == from && r.to() == to)
-                .findFirst()
-                .orElse(null);
-    }
-
-    /**
-     * 특정 상태에서 특정 행위자가 누를 수 있는 상태 목록.
-     * API 응답의 availableTransitions 가 이 메서드 결과다.
-     */
-    public static Set<OrderStatus> availableFor(OrderStatus current, ActorSide side) {
-        return RULES.stream()
-                .filter(r -> r.from() == current)
-                .filter(r -> r.actorSide() == ActorSide.BOTH || r.actorSide() == side)
-                .map(Rule::to)
-                .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
-    }
-
-    public static OrderStatus from(String value) {
-        return Arrays.stream(values())
-                .filter(s -> s.name().equalsIgnoreCase(value))
-                .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("알 수 없는 상태: " + value));
-    }
+    public Rule findRule(OrderStatus from, OrderStatus to) { ... }
+    public Set<OrderStatus> availableFor(OrderStatus current, ActorSide side) { ... }
+    public String labelOf(OrderStatus status) { ... }
 }
 ```
+
+규칙표가 `OrderStatus` 에서 `OrderType` 으로 옮겨갔을 뿐,
+**"규칙이 사는 곳은 한 군데"** 라는 원칙은 그대로다.
+종류를 더할 때 고칠 곳은 위 표 하나이고, 화면의 버튼 목록도
+사유·예정시각 필수 여부도 전부 여기서 나온다.
+
+#### 종류마다 같은 상태를 다르게 부른다
+
+같은 `IN_PROGRESS` 라도 검사실은 "검사중", 약제부는 "조제중", 의공학팀은 "수리중" 이다.
+이 표를 화면이 따로 들고 있으면 종류를 더할 때 서버와 화면 두 곳을 고쳐야 하고
+한쪽만 고쳐지는 날이 온다. 그래서 응답에 `statusLabel` 을 함께 내려보낸다.
+
+#### 규칙표에 거는 불변식
+
+`OrderTypeTest` 가 특정 종류가 아니라 **모든 종류**에 다음을 건다.
+종류를 새로 더해도 저절로 따라붙게 하려는 것이다.
+
+- 보류·취소로 가는 전이는 전부 사유가 필수다
+- 예정시각이 필수인 전이는 접수뿐이다
+- 종료 상태에서 나가는 규칙이 없다
+- 같은 `from → to` 를 두 번 적지 않았다 (뒤에 적은 규칙이 조용히 무시된다)
+- 요청됨에서 완료까지 갈 길이 있다
+- 모든 상태에서 완료나 취소로 빠져나갈 길이 있다 — 막다른 상태에 빠진 요청은
+  화면에 버튼이 하나도 없고 영원히 목록에 남는다
+
 
 ### 2-3. WorkOrder 엔티티
 

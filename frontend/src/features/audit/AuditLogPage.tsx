@@ -15,7 +15,7 @@ const ACTION_LABEL: Record<string, string> = {
 
 const TARGET_LABEL: Record<string, string> = {
   ENCOUNTER: '환자 정보',
-  TRANSFER_REQUEST: '이송 요청',
+  WORK_ORDER: '업무 요청',
   NURSING_NOTE: '간호기록',
 };
 

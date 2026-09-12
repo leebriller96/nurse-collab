@@ -15,9 +15,9 @@ DBMS: PostgreSQL 16
 | 환자 | `patient` | 환자 기본정보 (변하지 않는 것) |
 | 환자 | `encounter` | 재원 정보 (입원할 때마다 새로 생김) |
 | 환자 | `patient_alert` | 파트별 주의사항 (금속물, 알레르기 등) |
-| 이송 | `service_item` | 검사 종류 마스터 |
-| 이송 | `work_order` | 이송 요청 (핵심 테이블) |
-| 이송 | `work_order_event` | 상태 변경 이력 |
+| 업무 | `service_item` | 업무 항목 마스터 (검사·검체·약제·장비) |
+| 업무 | `work_order` | 부서 간 업무 요청 (핵심 테이블) |
+| 업무 | `work_order_event` | 상태 변경 이력 |
 | 소통 | `request_message` | 요청 단위 대화 스레드 |
 | 소통 | `notification` | 개인별 알림함 |
 | 기록 | `vital_sign` | 활력징후 |
@@ -213,29 +213,38 @@ COMMENT ON TABLE patient_alert IS
 '파트별로 보여줄 주의사항. alert_type 을 파트 유형과 매핑해서 필요한 것만 노출한다';
 
 -- ---------------------------------------------------------
--- 6. 이송 : 검사 종류 마스터
+-- 6. 업무 : 업무 항목 마스터
 -- ---------------------------------------------------------
+-- order_type 이 이 항목의 흐름을 정한다. 규칙표는 OrderType 안에 있고
+-- DB 는 어느 종류인지만 들고 있는다. (V9)
 CREATE TABLE service_item (
     id                  BIGSERIAL    PRIMARY KEY,
     code                VARCHAR(20)  NOT NULL UNIQUE,  -- 예: MRI_BRAIN
     name                VARCHAR(100) NOT NULL,         -- 예: 뇌 MRI
-    department_id       BIGINT       NOT NULL REFERENCES department(id), -- 담당 검사실
+    order_type          VARCHAR(20)  NOT NULL,         -- 업무 종류 (V9)
+    department_id       BIGINT       NOT NULL REFERENCES department(id), -- 수행 파트
     default_duration    INT          NOT NULL DEFAULT 30, -- 예상 소요시간(분)
     prep_instruction    TEXT,                          -- 사전 준비사항 (금식 등)
-    required_alerts     VARCHAR(200),                  -- 이 검사에 필수 확인할 alert_type 목록(CSV)
+    required_alerts     VARCHAR(200),                  -- 이 업무 전에 확인할 alert_type 목록(CSV)
     is_active           BOOLEAN      NOT NULL DEFAULT TRUE
 );
 
-COMMENT ON TABLE service_item IS '검사 종류. required_alerts 로 파트별 필수 확인 항목을 정의한다';
+COMMENT ON TABLE service_item IS
+'부서가 제공하는 업무 항목. required_alerts 로 파트별 필수 확인 항목을 정의한다';
+COMMENT ON COLUMN service_item.order_type IS
+'TRANSFER/SPECIMEN/PHARMACY/EQUIPMENT';
 
 -- ---------------------------------------------------------
--- 7. 이송 : 요청 (핵심 테이블)
+-- 7. 업무 : 요청 (핵심 테이블)
 -- ---------------------------------------------------------
 CREATE TABLE work_order (
     id                  BIGSERIAL    PRIMARY KEY,
     request_no          VARCHAR(30)  NOT NULL UNIQUE, -- 요청번호 (예: TR20260904-0001)
-    encounter_id        BIGINT       NOT NULL REFERENCES encounter(id),
-    service_item_id        BIGINT       NOT NULL REFERENCES service_item(id),
+    order_type          VARCHAR(20)  NOT NULL,          -- 업무 종류 (V9)
+    -- 장비 수리처럼 환자가 없는 업무가 있어 NULL 을 허용한다 (V9).
+    -- 환자 접근 판정은 이 값이 있는 요청에만 걸린다.
+    encounter_id        BIGINT                REFERENCES encounter(id),
+    service_item_id     BIGINT       NOT NULL REFERENCES service_item(id),
     from_department_id  BIGINT       NOT NULL REFERENCES department(id), -- 요청 파트(병동)
     to_department_id    BIGINT       NOT NULL REFERENCES department(id), -- 수행 파트(검사실)
 
@@ -257,19 +266,19 @@ CREATE TABLE work_order (
 );
 
 -- 검사실 화면: "우리 파트로 온 진행중 요청" 조회가 가장 빈번함
-CREATE INDEX idx_tr_to_dept_status ON work_order(to_department_id, status, requested_at DESC);
+CREATE INDEX idx_wo_to_dept_status ON work_order(to_department_id, status, requested_at DESC);
 -- 병동 화면: "우리가 보낸 요청" 조회
-CREATE INDEX idx_tr_from_dept      ON work_order(from_department_id, status);
-CREATE INDEX idx_tr_encounter      ON work_order(encounter_id);
+CREATE INDEX idx_wo_from_dept      ON work_order(from_department_id, status);
+CREATE INDEX idx_wo_encounter      ON work_order(encounter_id);
 
-COMMENT ON TABLE work_order IS '파트 간 환자 이송/검사 요청. 이 시스템의 심장';
+COMMENT ON TABLE work_order IS '부서 간 업무 요청. 이 시스템의 심장';
 
 -- ---------------------------------------------------------
--- 8. 이송 : 상태 변경 이력
+-- 8. 업무 : 상태 변경 이력
 -- ---------------------------------------------------------
 CREATE TABLE work_order_event (
     id              BIGSERIAL    PRIMARY KEY,
-    request_id      BIGINT       NOT NULL REFERENCES work_order(id),
+    order_id        BIGINT       NOT NULL REFERENCES work_order(id),
     from_status     VARCHAR(20),                    -- 최초 생성 시 NULL
     to_status       VARCHAR(20)  NOT NULL,
     actor_id        BIGINT       NOT NULL REFERENCES staff(id),
@@ -278,7 +287,7 @@ CREATE TABLE work_order_event (
     occurred_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_te_request ON work_order_event(request_id, occurred_at);
+CREATE INDEX idx_woe_order ON work_order_event(order_id, occurred_at);
 
 COMMENT ON TABLE work_order_event IS
 '상태 전이 이력. 대기시간 통계는 이 테이블만으로 계산 가능하다';
@@ -288,7 +297,7 @@ COMMENT ON TABLE work_order_event IS
 -- ---------------------------------------------------------
 CREATE TABLE request_message (
     id              BIGSERIAL    PRIMARY KEY,
-    request_id      BIGINT       NOT NULL REFERENCES work_order(id),
+    order_id        BIGINT       NOT NULL REFERENCES work_order(id),
     sender_id       BIGINT       NOT NULL REFERENCES staff(id),
     content         VARCHAR(1000) NOT NULL,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()

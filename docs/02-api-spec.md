@@ -104,7 +104,9 @@ X-Request-Id: {UUID}        -- 선택. 로그 추적용
 | ORD-002 | 409 | 낙관적 락 충돌 (동시 처리) |
 | ORD-003 | 400 | 보류/취소 사유 누락 |
 | ORD-004 | 409 | 이미 종료된 요청 |
-| ORD-005 | 400 | 접수 시 예정시각 누락 |
+| ORD-005 | 400 | 접수 시 예정시각 누락 (이송만 요구한다) |
+| ORD-006 | 400 | 환자가 필요한 업무인데 재원 정보가 없음 |
+| ORD-007 | 400 | 환자를 지정할 수 없는 업무에 재원 정보를 보냄 |
 | ENC-000 | 404 | 재원 없음 |
 | ALT-000 | 404 | 주의사항 없음 |
 | ENC-001 | 422 | 퇴원한 재원 건에 대한 요청 |
@@ -400,7 +402,11 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
   "checklistWarnings": [
     { "alertType": "METAL_IMPLANT", "message": "MRI 금기 가능성. 시행 전 확인 필요." }
   ],
-  "availableTransitions": ["READY", "ON_HOLD", "CANCELLED"],
+  "availableTransitions": [
+    { "status": "READY",     "label": "준비완료" },
+    { "status": "ON_HOLD",   "label": "보류" },
+    { "status": "CANCELLED", "label": "취소" }
+  ],
   "version": 3
 }
 ```
@@ -408,6 +414,15 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 **`availableTransitions` 가 핵심이다.**
 현재 상태 + 호출자 파트 + 역할을 서버가 계산해서 "지금 누를 수 있는 버튼 목록"을 내려준다.
 프론트는 이 배열만 보고 버튼을 렌더링하면 된다. 상태 전이 규칙을 프론트에 중복 구현하지 않는다.
+
+**이름까지 서버가 준다.** 상태값만 내려보내면 화면이 `IN_PROGRESS` 를 무엇이라 부를지
+스스로 정해야 하는데, 그 이름이 종류마다 다르다 (검사중 / 조제중 / 수리중).
+화면이 그 표를 따로 들면 종류를 더할 때 두 곳을 고쳐야 하고 한쪽만 고쳐지는 날이 온다.
+현재 상태의 이름은 `statusLabel` 로 함께 내려간다.
+
+**환자가 없는 업무에서는 `encounter` 와 `patient` 가 없다.**
+장비 수리(`EQUIPMENT`)가 그렇다. 화면은 그 자리를 접어야 하고,
+`alerts` 와 `checklistWarnings` 는 빈 배열로 온다.
 
 ### POST /work-orders/{id}/transitions
 
@@ -429,7 +444,11 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
   "id": 101,
   "status": "ACCEPTED",
   "scheduledAt": "2026-09-04T15:30:00+09:00",
-  "availableTransitions": ["READY", "ON_HOLD", "CANCELLED"],
+  "availableTransitions": [
+    { "status": "READY", "label": "준비완료" },
+    { "status": "ON_HOLD", "label": "보류" },
+    { "status": "CANCELLED", "label": "취소" }
+  ],
   "version": 4
 }
 ```

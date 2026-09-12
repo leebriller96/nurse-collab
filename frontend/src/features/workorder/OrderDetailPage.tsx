@@ -2,15 +2,20 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, messageOf } from '@/shared/api/client';
-import type { Message, OrderDetail, OrderEvent, OrderStatus } from '@/shared/api/types';
-import { AlertBadge, PriorityBadge, StatusBadge, actionLabel, statusLabel } from '@/shared/ui/badges';
+import type {
+  Message, OrderDetail, OrderEvent, OrderStatus, TransitionOption,
+} from '@/shared/api/types';
+import { AlertBadge, PriorityBadge, StatusBadge, statusLabel } from '@/shared/ui/badges';
 import LoadFailed from '@/shared/ui/LoadFailed';
 import { useToast } from '@/shared/ui/toast';
 import { DetailSkeleton } from '@/shared/ui/Skeleton';
 
-/** 전이마다 무엇을 더 받아야 하는지. 서버 규칙과 짝을 이룬다. */
-const NEEDS_REASON: OrderStatus[] = ['ON_HOLD', 'CANCELLED'];
-const NEEDS_SCHEDULE: OrderStatus[] = ['ACCEPTED'];
+/*
+ * 무엇을 더 받아야 하는지는 서버가 버튼마다 알려준다(reasonRequired / scheduleRequired).
+ * 예전에는 여기 표를 따로 두었는데, 그 표는 이송 하나에만 맞았다.
+ * 업무 종류마다 요구하는 것이 달라서(검체는 예정시각을 받지 않고, 장비 수리는
+ * 부품대기에 사유가 필요하다) 화면이 표를 들고 있으면 종류를 더할 때마다 어긋난다.
+ */
 
 /**
  * 한 번 더 묻는 전이.
@@ -24,6 +29,10 @@ const NEEDS_SCHEDULE: OrderStatus[] = ['ACCEPTED'];
  */
 const NEEDS_CONFIRM: OrderStatus[] = ['COMPLETED'];
 
+/** 이 버튼을 누르기 전에 무언가를 더 받아야 하는가 */
+const needsInputFor = (option: TransitionOption) =>
+  option.reasonRequired || option.scheduleRequired || NEEDS_CONFIRM.includes(option.status);
+
 const time = (iso: string) =>
   new Date(iso).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
 
@@ -35,7 +44,7 @@ export default function OrderDetailPage() {
   const queryClient = useQueryClient();
   const toast = useToast();
 
-  const [pending, setPending] = useState<OrderStatus | null>(null);
+  const [pending, setPending] = useState<TransitionOption | null>(null);
   const [reason, setReason] = useState('');
   const [scheduledAt, setScheduledAt] = useState('');
   const [draft, setDraft] = useState('');
@@ -68,14 +77,12 @@ export default function OrderDetailPage() {
   const transition = useMutation({
     // 무엇을 눌렀는지 확인 문구에 쓰려면 기억해 둬야 한다.
     // 성공한 시점에는 이미 상태가 바뀌어 있어서 다시 만들 수 없다.
-    onMutate: (toStatus: OrderStatus) => ({
-      label: actionLabel(toStatus, detail.data?.status ?? 'REQUESTED'),
-    }),
-    mutationFn: async (toStatus: OrderStatus) => {
+    onMutate: (option: TransitionOption) => ({ label: option.actionLabel }),
+    mutationFn: async (option: TransitionOption) => {
       const { data } = await api.post(`/work-orders/${requestId}/transitions`, {
-        toStatus,
-        reason: NEEDS_REASON.includes(toStatus) ? reason.trim() : null,
-        scheduledAt: NEEDS_SCHEDULE.includes(toStatus) ? new Date(scheduledAt).toISOString() : null,
+        toStatus: option.status,
+        reason: option.reasonRequired ? reason.trim() : null,
+        scheduledAt: option.scheduleRequired ? new Date(scheduledAt).toISOString() : null,
         version: detail.data?.version,
       });
       return data;
@@ -111,15 +118,11 @@ export default function OrderDetailPage() {
   }
 
   const d = detail.data;
-  const needsInput =
-    pending &&
-    (NEEDS_REASON.includes(pending) ||
-      NEEDS_SCHEDULE.includes(pending) ||
-      NEEDS_CONFIRM.includes(pending));
+  const needsInput = pending != null && needsInputFor(pending);
   const canSubmit =
-    pending &&
-    (!NEEDS_REASON.includes(pending) || reason.trim().length > 0) &&
-    (!NEEDS_SCHEDULE.includes(pending) || scheduledAt.length > 0);
+    pending != null &&
+    (!pending.reasonRequired || reason.trim().length > 0) &&
+    (!pending.scheduleRequired || scheduledAt.length > 0);
 
   return (
     <div className="mx-auto max-w-3xl pb-28">
@@ -148,26 +151,32 @@ export default function OrderDetailPage() {
       )}
 
       <section className="mx-3 mt-3 rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200">
-        <div className="flex items-baseline gap-2">
-          <span className="font-bold text-slate-900">
-            {d.encounter.roomNo}-{d.encounter.bedNo}
-          </span>
-          <span className="font-semibold text-slate-800">{d.patient.name}</span>
-          <span className="text-sm text-slate-500">
-            {d.patient.sex}/{d.patient.age}
-          </span>
-          {!d.encounter.isMobile && (
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">거동 불가</span>
-          )}
-        </div>
+        {/* 장비 수리처럼 대상 환자가 없는 업무가 있다. 그때는 이 줄을 통째로 접는다. */}
+        {d.encounter && d.patient && (
+          <div className="flex items-baseline gap-2">
+            <span className="font-bold text-slate-900">
+              {d.encounter.roomNo}-{d.encounter.bedNo}
+            </span>
+            <span className="font-semibold text-slate-800">{d.patient.name}</span>
+            <span className="text-sm text-slate-500">
+              {d.patient.sex}/{d.patient.age}
+            </span>
+            {!d.encounter.isMobile && (
+              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">거동 불가</span>
+            )}
+          </div>
+        )}
         <dl className="mt-3 grid grid-cols-2 gap-y-2 text-sm">
-          <dt className="text-slate-500">검사</dt>
-          <dd className="text-slate-800">{d.serviceItem.name}</dd>
+          <dt className="text-slate-500">업무</dt>
+          <dd className="text-slate-800">
+            {d.serviceItem.name}
+            <span className="ml-1.5 text-xs text-slate-500">{d.orderTypeLabel}</span>
+          </dd>
           <dt className="text-slate-500">요청한 곳</dt>
           <dd className="text-slate-800">
             {d.fromDepartment.name} · {d.requestedBy.name}
           </dd>
-          <dt className="text-slate-500">검사하는 곳</dt>
+          <dt className="text-slate-500">수행하는 곳</dt>
           <dd className="text-slate-800">{d.toDepartment.name}</dd>
           {d.scheduledAt && (
             <>
@@ -248,13 +257,13 @@ export default function OrderDetailPage() {
         <div className="fixed inset-x-0 bottom-[var(--app-bottom-bar,0px)] z-10 mx-auto max-w-3xl border-t border-slate-200 bg-white p-3">
           {needsInput && (
             <div className="mb-2 space-y-2">
-              {NEEDS_CONFIRM.includes(pending) && (
+              {NEEDS_CONFIRM.includes(pending.status) && (
                 <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
                   환자가 병동에 도착한 것이 맞습니까? 확정하면 이 요청은 끝나고
                   되돌릴 수 없습니다.
                 </p>
               )}
-              {NEEDS_SCHEDULE.includes(pending) && (
+              {pending.scheduleRequired && (
                 <input
                   type="datetime-local"
                   value={scheduledAt}
@@ -262,7 +271,7 @@ export default function OrderDetailPage() {
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-base"
                 />
               )}
-              {NEEDS_REASON.includes(pending) && (
+              {pending.reasonRequired && (
                 <input
                   value={reason}
                   onChange={(e) => setReason(e.target.value)}
@@ -289,7 +298,7 @@ export default function OrderDetailPage() {
                   onClick={() => transition.mutate(pending)}
                   className="flex-1 rounded-lg bg-sky-600 py-2.5 text-sm font-bold text-white disabled:bg-slate-300"
                 >
-                  {actionLabel(pending, d.status)} 확정
+                  {pending.actionLabel} 확정
                 </button>
               </div>
             </div>
@@ -299,32 +308,28 @@ export default function OrderDetailPage() {
             /* 버튼 목록은 서버가 내려준 availableTransitions 그대로다.
                전이 규칙을 프론트에 다시 구현하지 않는다. */
             <div className="flex flex-wrap gap-2">
-              {d.availableTransitions.map((status) => (
+              {d.availableTransitions.map((option) => (
                 <button
-                  key={status}
+                  key={option.status}
                   type="button"
                   disabled={transition.isPending}
                   onClick={() => {
                     setError(null);
-                    if (
-                      NEEDS_REASON.includes(status) ||
-                      NEEDS_SCHEDULE.includes(status) ||
-                      NEEDS_CONFIRM.includes(status)
-                    ) {
-                      setPending(status);
+                    if (needsInputFor(option)) {
+                      setPending(option);
                     } else {
-                      transition.mutate(status);
+                      transition.mutate(option);
                     }
                   }}
                   className={`flex-1 rounded-lg py-3 text-sm font-bold ${
-                    status === 'CANCELLED'
+                    option.status === 'CANCELLED'
                       ? 'bg-slate-100 text-slate-600'
-                      : status === 'ON_HOLD'
+                      : option.status === 'ON_HOLD'
                         ? 'bg-amber-100 text-amber-900'
                         : 'bg-sky-600 text-white'
                   }`}
                 >
-                  {actionLabel(status, d.status)}
+                  {option.actionLabel}
                 </button>
               ))}
             </div>

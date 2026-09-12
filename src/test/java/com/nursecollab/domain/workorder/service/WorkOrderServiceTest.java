@@ -10,6 +10,7 @@ import com.nursecollab.domain.staff.entity.Staff;
 import com.nursecollab.domain.staff.repository.StaffRepository;
 import com.nursecollab.domain.workorder.dto.WorkOrderCreateRequest;
 import com.nursecollab.domain.workorder.dto.WorkOrderCreateResponse;
+import com.nursecollab.domain.workorder.dto.TransitionOption;
 import com.nursecollab.domain.workorder.dto.TransitionRequest;
 import com.nursecollab.domain.workorder.dto.TransitionResponse;
 import com.nursecollab.domain.workorder.entity.ServiceItem;
@@ -99,8 +100,18 @@ class WorkOrderServiceTest extends IntegrationTest {
         assertThat(response.status()).isEqualTo(OrderStatus.ACCEPTED);
         assertThat(response.version()).isGreaterThan(created.version());
         assertThat(response.availableTransitions())
+                .extracting(TransitionOption::status)
                 .containsExactlyInAnyOrder(OrderStatus.READY,
                         OrderStatus.ON_HOLD, OrderStatus.CANCELLED);
+        // 사유가 필요한 버튼은 화면이 눌리기 전에 입력칸을 띄워야 한다.
+        // 그 판단을 화면이 스스로 하지 않도록 서버가 표시해서 내려준다.
+        assertThat(response.availableTransitions())
+                .filteredOn(o -> o.status() == OrderStatus.ON_HOLD)
+                .singleElement()
+                .satisfies(o -> {
+                    assertThat(o.reasonRequired()).isTrue();
+                    assertThat(o.actionLabel()).isEqualTo("보류");
+                });
         assertThat(eventRepository.findAllByRequestId(created.id())).hasSize(2);
     }
 
