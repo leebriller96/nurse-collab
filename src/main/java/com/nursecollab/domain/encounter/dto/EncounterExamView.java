@@ -1,6 +1,5 @@
 package com.nursecollab.domain.encounter.dto;
 
-import com.nursecollab.domain.department.dto.DepartmentSummary;
 import com.nursecollab.domain.encounter.entity.Encounter;
 import com.nursecollab.domain.patient.dto.AlertResponse;
 import com.nursecollab.domain.patient.dto.ChecklistWarning;
@@ -15,7 +14,8 @@ import java.util.List;
 public record EncounterExamView(
         Long encounterId,
         PatientInfo patient,
-        DepartmentSummary fromDepartment,
+        /** 이 환자가 있는 병동의 id. 이름은 화면이 부서 목록에서 찾아 채운다. */
+        Long fromDepartmentId,
         String roomNo,
         boolean isMobile,
         List<AlertResponse> alerts,
@@ -32,7 +32,7 @@ public record EncounterExamView(
                 encounter.getId(),
                 new PatientInfo(patient.getPatientNo(), patient.getName(),
                         patient.age(), patient.getSex()),
-                DepartmentSummary.from(encounter.getDepartment()),
+                encounter.getDepartmentId(),
                 encounter.getRoomNo(),
                 encounter.isMobile(),
                 alerts,

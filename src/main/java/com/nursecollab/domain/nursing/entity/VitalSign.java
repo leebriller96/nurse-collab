@@ -51,9 +51,17 @@ public class VitalSign {
     @Column(name = "pain_score")
     private Integer painScore;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "recorded_by")
-    private Staff recordedBy;
+    /**
+     * 기록한 사람. 업무 쪽 staff 를 가리키지만 관계로 잇지 않는다.
+     *
+     * 이름을 함께 굳혀 둔다. 기록에 찍힌 이름은 <b>그때 그 사람의 이름</b>이어야 한다.
+     * 지금 이름으로 다시 그리면 기록이 조용히 달라진다.
+     */
+    @Column(name = "recorded_by", nullable = false)
+    private Long recordedById;
+
+    @Column(name = "recorded_by_name", nullable = false, length = 50)
+    private String recordedByName;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -72,7 +80,8 @@ public class VitalSign {
         vital.dbp = dbp;
         vital.spo2 = spo2;
         vital.painScore = painScore;
-        vital.recordedBy = recordedBy;
+        vital.recordedById = recordedBy.getId();
+        vital.recordedByName = recordedBy.getName();
         vital.createdAt = OffsetDateTime.now();
         return vital;
     }

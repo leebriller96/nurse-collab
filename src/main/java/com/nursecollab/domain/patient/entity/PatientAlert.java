@@ -51,9 +51,12 @@ public class PatientAlert {
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "created_by")
-    private Staff createdBy;
+    /**
+     * 남긴 사람. 업무 쪽 staff 를 가리키지만 관계로 잇지 않는다.
+     * 화면에 이름을 띄우지 않으므로 id 만 있으면 된다.
+     */
+    @Column(name = "created_by", nullable = false)
+    private Long createdById;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -65,7 +68,7 @@ public class PatientAlert {
         alert.alertType = alertType;
         alert.severity = severity;
         alert.content = content;
-        alert.createdBy = createdBy;
+        alert.createdById = createdBy.getId();
         alert.active = true;
         alert.createdAt = OffsetDateTime.now();
         return alert;

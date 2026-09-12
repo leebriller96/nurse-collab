@@ -153,7 +153,11 @@ export interface EncounterFullView {
   /** 업무 요청을 걸 때 이 열쇠로 대상을 가리킨다 */
   subjectRef: string;
   patient: { id: number; patientNo: string; name: string; birthDate: string; age: number; sex: Sex };
-  department: DepartmentSummary;
+  /**
+   * 현재 병동의 id. 이름이 없는 이유는 부서가 업무 쪽에 있기 때문이다.
+   * 필요하면 화면이 부서 목록에서 찾아 채운다.
+   */
+  departmentId: number;
   roomNo: string;
   bedNo: string;
   admittedAt: string;
@@ -253,7 +257,8 @@ export interface NursingNote {
   recommendation: string | null;
   content: string | null;
   recordedAt: string;
-  recordedBy: { id: number; name: string; departmentName: string };
+  /** 이름은 쓸 때 굳혀 둔 값이다. 그때 그 사람의 이름이어야 한다 */
+  recordedBy: { id: number; name: string };
   createdAt: string;
   /** 서버가 계산해 내려준다. 24시간 규칙을 화면에서 다시 구현하지 않는다. */
   editable: boolean;

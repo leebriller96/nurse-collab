@@ -40,6 +40,13 @@ DBMS: PostgreSQL 16
 | 진료 (원내) | `patient`, `encounter`, `patient_alert`, `vital_sign`, `nursing_note`, `phi_access_log` |
 | 업무 | `care_episode`, `work_order`, `work_order_event`, `department`, `staff`, `service_item`, `notification`, `audit_log` |
 
+양쪽은 서로를 **외래키로 잇지 않는다**(V11, V13). 두 DB 로 갈라 놓아야 하기 때문이다.
+`encounter.department_id` 나 `nursing_note.recorded_by` 처럼 상대를 가리키는 컬럼은 남지만,
+DB 가 무결성을 보장해 주지 않는다는 뜻이다. 화면에 이름이 필요한 곳은 두 가지로 나뉜다.
+
+- **기록한 사람의 이름**은 쓸 때 함께 굳힌다. 기록에 찍힌 이름은 그때 그 사람의 이름이어야 한다.
+- **병동 이름**은 굳히지 않는다. 전동하면 바뀌는 값이라 굳히면 어긋난다. 화면이 찾아 채운다.
+
 가명은 **사람이 아니라 재원 건**에 붙는다. 같은 사람이 3년 뒤 다시 입원하면
 다른 열쇠를 받는다. 사람에 붙이면 업무 데이터만 보고도 "이 사람이 네 번 입원했다" 를
 알 수 있고, 그건 가명정보라고 부르기 어렵다.

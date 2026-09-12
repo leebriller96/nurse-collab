@@ -97,7 +97,7 @@ public class EncounterQueryService {
 
         List<PatientAlert> alerts = alertRepository.findActiveByPatientId(encounter.getPatient().getId());
 
-        boolean ownWard = encounter.getDepartment().getId().equals(loginStaff.departmentId());
+        boolean ownWard = encounter.getDepartmentId().equals(loginStaff.departmentId());
         if (loginStaff.role() == StaffRole.ADMIN || ownWard) {
             return fullView(encounter, alerts);
         }
@@ -135,7 +135,7 @@ public class EncounterQueryService {
         Encounter encounter = encounterRepository.findByIdWithPatientAndDepartment(encounterId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ENCOUNTER_NOT_FOUND));
 
-        boolean ownWard = encounter.getDepartment().getId().equals(loginStaff.departmentId());
+        boolean ownWard = encounter.getDepartmentId().equals(loginStaff.departmentId());
         if (loginStaff.role() == StaffRole.ADMIN || ownWard) {
             return encounter;
         }

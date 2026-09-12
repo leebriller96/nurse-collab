@@ -18,7 +18,6 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
     @Query("""
             select e from Encounter e
             join fetch e.patient
-            join fetch e.department
             where e.subjectRef = :subjectRef
             """)
     Optional<Encounter> findBySubjectRef(UUID subjectRef);
@@ -26,7 +25,6 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
     @Query("""
             select e from Encounter e
             join fetch e.patient
-            join fetch e.department
             where e.subjectRef in :subjectRefs
             """)
     List<Encounter> findAllBySubjectRefs(Collection<UUID> subjectRefs);
@@ -39,7 +37,6 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
     @Query("""
             select e from Encounter e
             join fetch e.patient p
-            join fetch e.department
             where e.status = com.nursecollab.domain.encounter.entity.EncounterStatus.ADMITTED
               and p.name like %:namePart%
             """)
@@ -48,7 +45,6 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
     @Query("""
             select e from Encounter e
             join fetch e.patient
-            join fetch e.department
             where e.id = :id
             """)
     Optional<Encounter> findByIdWithPatientAndDepartment(Long id);
@@ -62,7 +58,6 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
     @Query("""
             select e from Encounter e
             join fetch e.patient
-            join fetch e.department
             where e.patient.id = :patientId
               and e.status = com.nursecollab.domain.encounter.entity.EncounterStatus.ADMITTED
             """)
@@ -72,8 +67,7 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
     @Query(value = """
             select e from Encounter e
             join fetch e.patient p
-            join fetch e.department
-            where e.department.id = :departmentId
+            where e.departmentId = :departmentId
               and e.status = :status
               and (:keyword is null or p.name like %:keyword% or p.patientNo like %:keyword%)
             order by e.roomNo asc, e.bedNo asc
@@ -81,7 +75,7 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
             countQuery = """
             select count(e) from Encounter e
             join e.patient p
-            where e.department.id = :departmentId
+            where e.departmentId = :departmentId
               and e.status = :status
               and (:keyword is null or p.name like %:keyword% or p.patientNo like %:keyword%)
             """)

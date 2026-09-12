@@ -153,7 +153,7 @@ public class NursingRecordService {
         Encounter encounter = encounterRepository.findByIdWithPatientAndDepartment(encounterId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ENCOUNTER_NOT_FOUND));
 
-        boolean ownWard = encounter.getDepartment().getId().equals(loginStaff.departmentId());
+        boolean ownWard = encounter.getDepartmentId().equals(loginStaff.departmentId());
         if (!ownWard && loginStaff.role() != StaffRole.ADMIN) {
             throw new BusinessException(ErrorCode.NOT_RELATED_DEPARTMENT);
         }

@@ -52,10 +52,15 @@ public class Encounter extends BaseTimeEntity {
     @JoinColumn(name = "patient_id")
     private Patient patient;
 
-    /** 현재 입원 중인 병동 */
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "department_id")
-    private Department department;
+    /**
+     * 현재 입원 중인 병동.
+     *
+     * 업무 쪽 department 를 가리키지만 관계로 잇지 않는다. 두 DB 로 갈라지기 때문이다.
+     * 이름이 필요한 곳은 화면이 부서 목록에서 찾아 채운다 —
+     * 부서는 몇 개 안 되고, 화면은 이미 그 목록을 들고 있다.
+     */
+    @Column(name = "department_id", nullable = false)
+    private Long departmentId;
 
     @Column(name = "room_no", length = 10)
     private String roomNo;
@@ -86,7 +91,7 @@ public class Encounter extends BaseTimeEntity {
         Encounter encounter = new Encounter();
         encounter.subjectRef = UUID.randomUUID();
         encounter.patient = patient;
-        encounter.department = department;
+        encounter.departmentId = department.getId();
         encounter.roomNo = roomNo;
         encounter.bedNo = bedNo;
         encounter.admittedAt = admittedAt;

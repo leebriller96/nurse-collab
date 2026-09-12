@@ -184,7 +184,7 @@ public class SubjectPhiService {
 
     private boolean viewable(Encounter encounter, LoginStaff loginStaff) {
         if (loginStaff.role() == StaffRole.ADMIN) return true;
-        if (encounter.getDepartment().getId().equals(loginStaff.departmentId())) return true;
+        if (encounter.getDepartmentId().equals(loginStaff.departmentId())) return true;
 
         return workOrderRepository.existsActiveBySubjectAndToDepartment(
                 encounter.getSubjectRef(), loginStaff.departmentId(), OrderStatus.terminals());

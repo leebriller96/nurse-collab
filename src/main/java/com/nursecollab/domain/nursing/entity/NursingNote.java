@@ -67,9 +67,17 @@ public class NursingNote {
     @Column(name = "recorded_at", nullable = false)
     private OffsetDateTime recordedAt;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "recorded_by")
-    private Staff recordedBy;
+    /**
+     * 기록한 사람. 업무 쪽 staff 를 가리키지만 관계로 잇지 않는다.
+     *
+     * 이름을 함께 굳혀 둔다. 기록에 찍힌 이름은 <b>그때 그 사람의 이름</b>이어야 한다.
+     * 지금 이름으로 다시 그리면 기록이 조용히 달라진다.
+     */
+    @Column(name = "recorded_by", nullable = false)
+    private Long recordedById;
+
+    @Column(name = "recorded_by_name", nullable = false, length = 50)
+    private String recordedByName;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -87,7 +95,8 @@ public class NursingNote {
         note.recommendation = recommendation;
         note.content = content;
         note.recordedAt = (recordedAt == null) ? OffsetDateTime.now() : recordedAt;
-        note.recordedBy = recordedBy;
+        note.recordedById = recordedBy.getId();
+        note.recordedByName = recordedBy.getName();
         note.createdAt = OffsetDateTime.now();
         note.validate();
         return note;
@@ -100,7 +109,7 @@ public class NursingNote {
     public void edit(Staff editor, String situation, String background,
                      String assessment, String recommendation, String content) {
 
-        if (!recordedBy.getId().equals(editor.getId())) {
+        if (!recordedById.equals(editor.getId())) {
             throw new BusinessException(ErrorCode.NOTE_NOT_EDITABLE);
         }
         if (Duration.between(createdAt, OffsetDateTime.now()).compareTo(EDIT_WINDOW) > 0) {
