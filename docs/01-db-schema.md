@@ -23,7 +23,8 @@ DBMS: PostgreSQL 16
 | 소통 | `notification` | 개인별 알림함 |
 | 기록 | `vital_sign` | 활력징후 |
 | 기록 | `nursing_note` | 간호기록 (SBAR) |
-| 감사 | `audit_log` | 접근·변경 감사 추적 |
+| 감사 | `audit_log` | 업무 쪽 접근·변경 추적 |
+| 감사 | `phi_access_log` | **원내 자체** 접근 기록. 거절된 시도까지 남긴다 |
 
 ---
 
@@ -36,7 +37,7 @@ DBMS: PostgreSQL 16
 
 | 사는 곳 | 테이블 |
 |---|---|
-| 진료 (원내) | `patient`, `encounter`, `patient_alert`, `vital_sign`, `nursing_note` |
+| 진료 (원내) | `patient`, `encounter`, `patient_alert`, `vital_sign`, `nursing_note`, `phi_access_log` |
 | 업무 | `care_episode`, `work_order`, `work_order_event`, `department`, `staff`, `service_item`, `notification`, `audit_log` |
 
 가명은 **사람이 아니라 재원 건**에 붙는다. 같은 사람이 3년 뒤 다시 입원하면

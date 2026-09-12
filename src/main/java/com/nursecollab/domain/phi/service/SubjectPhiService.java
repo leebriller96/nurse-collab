@@ -7,6 +7,7 @@ import com.nursecollab.domain.patient.entity.AlertType;
 import com.nursecollab.domain.patient.entity.PatientAlert;
 import com.nursecollab.domain.patient.repository.PatientAlertRepository;
 import com.nursecollab.domain.phi.dto.SubjectBrief;
+import com.nursecollab.domain.phi.repository.PhiAccessLogRepository;
 import com.nursecollab.domain.phi.dto.SubjectPhi;
 import com.nursecollab.domain.staff.entity.StaffRole;
 import com.nursecollab.domain.workorder.entity.OrderStatus;
@@ -23,6 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.time.Duration;
+import java.time.OffsetDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -49,6 +52,24 @@ public class SubjectPhiService {
     private final PatientAlertRepository alertRepository;
     private final WorkOrderRepository workOrderRepository;
     private final AuditRecorder auditRecorder;
+    private final PhiAccessRecorder phiAccessRecorder;
+    private final PhiAccessLogRepository phiAccessLogRepository;
+
+    /**
+     * 조회량 제한.
+     *
+     * 클라우드가 뚫리면 간호사 토큰을 새로 발급해 원내에 물어볼 수 있다.
+     * 인증 서버가 클라우드인 이상 이 구멍은 구조적으로 남는다. 막지는 못한다.
+     * 대신 <b>한 번에 많이 긁어가는 것</b>을 막고 흔적을 남긴다.
+     *
+     * 요청 수가 아니라 서로 다른 사람 수를 센다. 같은 환자를 다섯 번 여는 것은
+     * 정상 근무이고, 스무 명을 한 번씩 여는 것이 이상한 일이다.
+     * 간호사 한 명이 한 근무에 맡는 환자가 10~15명이라 30명이면 넉넉하다.
+     *
+     * 관리자도 예외로 두지 않는다. 관리자 계정이야말로 노리는 쪽이 제일 갖고 싶어 하는 것이다.
+     */
+    private static final Duration RATE_WINDOW = Duration.ofMinutes(10);
+    private static final long RATE_LIMIT_PATIENTS = 30;
 
     /**
      * 한 사람을 연다. 누가 언제 열었는지 감사 로그에 남는다.
@@ -59,12 +80,25 @@ public class SubjectPhiService {
      * 그래서 환자 id 를 직접 넣어 기록한다.
      */
     public SubjectPhi findOne(UUID subjectRef, LoginStaff loginStaff) {
-        Encounter encounter = requireViewable(subjectRef, loginStaff);
+        Encounter encounter = requireViewable(subjectRef, loginStaff, "VIEW");
         Long patientId = encounter.getPatient().getId();
 
+        if (rateLimited(loginStaff)) {
+            phiAccessRecorder.denied(loginStaff, subjectRef, "VIEW", "RATE_LIMITED");
+            throw new BusinessException(ErrorCode.PHI_RATE_LIMITED);
+        }
+
+        // 원내 기록이 먼저다. 이것이 남지 않으면 무엇이 나갔는지 알 수 없다.
+        phiAccessRecorder.granted(loginStaff, subjectRef, patientId, "VIEW");
         recordView(patientId, loginStaff);
 
         return SubjectPhi.of(encounter, alertRepository.findActiveByPatientId(patientId));
+    }
+
+    private boolean rateLimited(LoginStaff loginStaff) {
+        return phiAccessLogRepository.countDistinctPatientsSince(
+                loginStaff.staffId(), OffsetDateTime.now().minus(RATE_WINDOW))
+                >= RATE_LIMIT_PATIENTS;
     }
 
     private void recordView(Long patientId, LoginStaff loginStaff) {
@@ -118,7 +152,7 @@ public class SubjectPhiService {
                                             LoginStaff loginStaff) {
         if (required == null || required.isEmpty()) return List.of();
 
-        Encounter encounter = requireViewable(subjectRef, loginStaff);
+        Encounter encounter = requireViewable(subjectRef, loginStaff, "CHECKLIST");
         return ChecklistWarning.cross(required,
                 alertRepository.findActiveByPatientId(encounter.getPatient().getId()));
     }
@@ -135,11 +169,14 @@ public class SubjectPhiService {
 
     // ------------------------------------------------------------------
 
-    private Encounter requireViewable(UUID subjectRef, LoginStaff loginStaff) {
+    private Encounter requireViewable(UUID subjectRef, LoginStaff loginStaff, String action) {
         Encounter encounter = encounterRepository.findBySubjectRef(subjectRef)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ENCOUNTER_NOT_FOUND));
 
         if (!viewable(encounter, loginStaff)) {
+            // 막힌 시도야말로 조사할 때 제일 보고 싶은 것이다.
+            // 업무 쪽 감사 로그는 성공한 요청만 적으므로 여기서 남겨야 한다.
+            phiAccessRecorder.denied(loginStaff, subjectRef, action, "NOT_RELATED");
             throw new BusinessException(ErrorCode.NOT_RELATED_DEPARTMENT);
         }
         return encounter;

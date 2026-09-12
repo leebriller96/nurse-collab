@@ -53,6 +53,10 @@ public enum ErrorCode {
     // 알림
     NOTIFICATION_NOT_FOUND("NTF-000", HttpStatus.NOT_FOUND, "알림을 찾을 수 없습니다."),
 
+    // 원내 조회
+    PHI_RATE_LIMITED("PHI-001", HttpStatus.TOO_MANY_REQUESTS,
+            "짧은 시간에 너무 많은 환자 정보를 열었습니다. 잠시 후 다시 시도해 주세요."),
+
     // 기타
     STAFF_NOT_FOUND("STF-001", HttpStatus.NOT_FOUND, "직원 정보를 찾을 수 없습니다."),
     INTERNAL_ERROR("SYS-001", HttpStatus.INTERNAL_SERVER_ERROR, "일시적인 오류가 발생했습니다.");

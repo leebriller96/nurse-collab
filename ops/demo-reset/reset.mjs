@@ -66,7 +66,7 @@ const runFile = (path) => runSql(readFileSync(path, 'utf8'));
 function wipe() {
   runSql(`
     truncate table
-      audit_log, nursing_note, vital_sign, notification, request_message,
+      audit_log, phi_access_log, nursing_note, vital_sign, notification, request_message,
       work_order_event, work_order, request_no_sequence,
       patient_alert, care_episode, encounter, service_item, staff, patient, department
     restart identity cascade;
