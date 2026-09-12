@@ -2,7 +2,7 @@ package com.nursecollab.domain.workorder.service;
 
 import com.nursecollab.domain.department.entity.Department;
 import com.nursecollab.domain.encounter.entity.Encounter;
-import com.nursecollab.domain.encounter.repository.EncounterRepository;
+import com.nursecollab.domain.encounter.service.AdmissionService;
 import com.nursecollab.domain.patient.entity.Patient;
 import com.nursecollab.domain.patient.entity.Sex;
 import com.nursecollab.domain.patient.repository.PatientRepository;
@@ -46,7 +46,7 @@ class WorkOrderServiceTest extends IntegrationTest {
     @Autowired private WorkOrderService workOrderService;
     @Autowired private StaffRepository staffRepository;
     @Autowired private PatientRepository patientRepository;
-    @Autowired private EncounterRepository encounterRepository;
+    @Autowired private AdmissionService admissionService;
     @Autowired private ServiceItemRepository serviceItemRepository;
     @Autowired private WorkOrderEventRepository eventRepository;
 
@@ -68,8 +68,9 @@ class WorkOrderServiceTest extends IntegrationTest {
         Patient patient = patientRepository.save(Patient.create(
                 "P%07d".formatted(PATIENT_SEQ.getAndIncrement()), "김OO",
                 LocalDate.of(1958, 3, 11), Sex.M, null, null));
-        encounter = encounterRepository.save(Encounter.admit(patient, ward, "302", "1",
-                OffsetDateTime.now().minusDays(4), "뇌경색", false));
+        // 입원 등록은 재원(진료)과 침대(업무) 두 곳에 쓴다. AdmissionService 가 그 유일한 통로다.
+        encounter = admissionService.admit(patient, ward, "302", "1",
+                OffsetDateTime.now().minusDays(4), "뇌경색", false);
     }
 
     @Test
@@ -175,7 +176,7 @@ class WorkOrderServiceTest extends IntegrationTest {
 
     private WorkOrderCreateResponse createRequest() {
         return workOrderService.create(
-                new WorkOrderCreateRequest(encounter.getId(), brainMri.getId(),
+                new WorkOrderCreateRequest(encounter.getSubjectRef(), brainMri.getId(),
                         OrderPriority.URGENT, null, "휠체어 이송 필요"),
                 wardNurse.getId());
     }

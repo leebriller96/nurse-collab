@@ -3,7 +3,7 @@ package com.nursecollab.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nursecollab.domain.encounter.entity.Encounter;
-import com.nursecollab.domain.encounter.repository.EncounterRepository;
+import com.nursecollab.domain.encounter.service.AdmissionService;
 import com.nursecollab.domain.patient.entity.Patient;
 import com.nursecollab.domain.patient.entity.Sex;
 import com.nursecollab.domain.patient.repository.PatientRepository;
@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -40,9 +41,10 @@ class WorkOrderTypeApiTest extends IntegrationTest {
     @Autowired private ObjectMapper om;
     @Autowired private StaffRepository staffRepository;
     @Autowired private PatientRepository patientRepository;
-    @Autowired private EncounterRepository encounterRepository;
+    @Autowired private AdmissionService admissionService;
 
     private Long encounterId;
+    private UUID subjectRef;
     private Long repairItemId;      // 장비 수리 (환자 없음)
     private Long bloodTestItemId;   // 검체 (환자 있음)
     private String biomedLoginId;   // 의공학팀 담당자
@@ -55,8 +57,10 @@ class WorkOrderTypeApiTest extends IntegrationTest {
         Patient patient = patientRepository.save(Patient.create(
                 "P%07d".formatted(n), "박OO",
                 LocalDate.of(1971, 6, 2), Sex.F, null, null));
-        encounterId = encounterRepository.save(Encounter.admit(patient, ward, "305", "2",
-                OffsetDateTime.now().minusDays(2), "폐렴", true)).getId();
+        Encounter encounter = admissionService.admit(patient, ward, "305", "2",
+                OffsetDateTime.now().minusDays(2), "폐렴", true);
+        encounterId = encounter.getId();
+        subjectRef = encounter.getSubjectRef();
 
         Long biomedDeptId = createDepartment("BIO" + n, "의공학팀" + n, "BIOMED");
         Long labDeptId = createDepartment("LAB" + n, "진단검사의학과" + n, "LAB");
@@ -91,8 +95,8 @@ class WorkOrderTypeApiTest extends IntegrationTest {
                         .header("Authorization", bearer("ward01"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"encounterId":%d,"serviceItemId":%d,"priority":"ROUTINE"}"""
-                                .formatted(encounterId, repairItemId)))
+                                {"subjectRef":"%s","serviceItemId":%d,"priority":"ROUTINE"}"""
+                                .formatted(subjectRef, repairItemId)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("ORD-007"));
     }
@@ -117,10 +121,8 @@ class WorkOrderTypeApiTest extends IntegrationTest {
                         .header("Authorization", bearer(biomedLoginId)))
                 .andExpect(status().isOk())
                 // 환자 자리가 비어 있어도 화면이 열려야 한다. 여기서 터지면 큐 전체가 죽는다.
-                .andExpect(jsonPath("$.patient").doesNotExist())
-                .andExpect(jsonPath("$.encounter").doesNotExist())
-                .andExpect(jsonPath("$.orderType").value("EQUIPMENT"))
-                .andExpect(jsonPath("$.alerts").isEmpty());
+                .andExpect(jsonPath("$.episode").doesNotExist())
+                .andExpect(jsonPath("$.orderType").value("EQUIPMENT"));
     }
 
     // ── 종류마다 갈 수 있는 길이 다르다 ─────────────────────
@@ -273,8 +275,8 @@ class WorkOrderTypeApiTest extends IntegrationTest {
                         .header("Authorization", bearer("ward01"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"encounterId":%d,"serviceItemId":%d,"priority":"ROUTINE"}"""
-                                .formatted(encounterId, bloodTestItemId)))
+                                {"subjectRef":"%s","serviceItemId":%d,"priority":"ROUTINE"}"""
+                                .formatted(subjectRef, bloodTestItemId)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return om.readTree(body);

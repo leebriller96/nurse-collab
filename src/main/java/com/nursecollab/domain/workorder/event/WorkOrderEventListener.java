@@ -84,11 +84,13 @@ public class WorkOrderEventListener {
                             fromStatus,
                             toStatus,
                             request.getPriority(),
-                            // 환자가 없는 업무에서는 비어서 나간다. 화면이 그 자리를 접는다.
-                            request.getEncounter() == null ? null
-                                    : request.getEncounter().getPatient().getName(),
-                            request.getEncounter() == null ? null
-                                    : request.getEncounter().getRoomNo(),
+                            // 이름은 실시간 방송에도 싣지 않는다. 알림은 파트 채널로 나가고
+                            // 그 채널을 구독하는 브라우저가 원내망 밖에 있을 수도 있다.
+                            // 화면이 필요하면 이 가명으로 원내에 물어 채운다.
+                            request.getCareEpisode() == null ? null
+                                    : request.getCareEpisode().getSubjectRef(),
+                            request.getCareEpisode() == null ? null
+                                    : request.getCareEpisode().getRoomNo(),
                             request.getServiceItem().getName(),
                             actor.getId(),
                             actor.getName(),

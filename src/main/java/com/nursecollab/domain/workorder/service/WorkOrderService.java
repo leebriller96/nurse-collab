@@ -1,7 +1,7 @@
 package com.nursecollab.domain.workorder.service;
 
-import com.nursecollab.domain.encounter.entity.Encounter;
-import com.nursecollab.domain.encounter.repository.EncounterRepository;
+import com.nursecollab.domain.episode.entity.CareEpisode;
+import com.nursecollab.domain.episode.repository.CareEpisodeRepository;
 import com.nursecollab.domain.staff.entity.Staff;
 import com.nursecollab.domain.staff.repository.StaffRepository;
 import com.nursecollab.domain.workorder.dto.WorkOrderCreateRequest;
@@ -34,7 +34,7 @@ public class WorkOrderService {
     private final WorkOrderRepository requestRepository;
     private final WorkOrderEventRepository eventRepository;
     private final StaffRepository staffRepository;
-    private final EncounterRepository encounterRepository;
+    private final CareEpisodeRepository careEpisodeRepository;
     private final ServiceItemRepository serviceItemRepository;
     private final RequestNoGenerator requestNoGenerator;
     private final ApplicationEventPublisher eventPublisher;
@@ -55,14 +55,14 @@ public class WorkOrderService {
 
         // 장비 수리처럼 환자가 없는 업무가 있다. 비었는지 아닌지의 판정은 엔티티가 한다.
         // 여기서 종류를 다시 보고 분기하면 규칙이 두 군데로 갈라진다.
-        Encounter encounter = req.encounterId() == null ? null
-                : encounterRepository.findByIdWithPatientAndDepartment(req.encounterId())
+        CareEpisode episode = req.subjectRef() == null ? null
+                : careEpisodeRepository.findWithDepartment(req.subjectRef())
                         .orElseThrow(() -> new BusinessException(ErrorCode.ENCOUNTER_NOT_FOUND));
 
-        // 퇴원 여부와 병동 일치 검증도 엔티티가 한다
+        // 퇴원 여부와 병동 일치 검증도 엔티티가 한다. 둘 다 환자 정보 없이 판정된다.
         WorkOrder request = WorkOrder.create(
                 requestNoGenerator.generate(serviceItem.getOrderType(), LocalDate.now()),
-                encounter, serviceItem, requester,
+                episode, serviceItem, requester,
                 req.priority(), req.desiredAt(), req.note());
 
         requestRepository.save(request);

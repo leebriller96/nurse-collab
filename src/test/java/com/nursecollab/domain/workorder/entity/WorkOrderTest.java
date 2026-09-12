@@ -2,7 +2,7 @@ package com.nursecollab.domain.workorder.entity;
 
 import com.nursecollab.domain.department.entity.Department;
 import com.nursecollab.domain.department.entity.DeptType;
-import com.nursecollab.domain.encounter.entity.Encounter;
+import com.nursecollab.domain.episode.entity.CareEpisode;
 import com.nursecollab.domain.patient.entity.Patient;
 import com.nursecollab.domain.patient.entity.AlertType;
 import com.nursecollab.domain.patient.entity.Sex;
@@ -16,6 +16,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -28,7 +29,7 @@ class WorkOrderTest {
     private Staff wardNurse;
     private Staff mriNurse;
     private Staff ctNurse;
-    private Encounter encounter;
+    private CareEpisode episode;
     private ServiceItem brainMri;
 
     @BeforeEach
@@ -41,11 +42,9 @@ class WorkOrderTest {
         mriNurse  = staff(21L, "mri01",  "박간호", mri);
         ctNurse   = staff(31L, "ct01",   "최간호", ct);
 
-        Patient patient = Patient.create("P0001234", "김OO",
-                LocalDate.of(1958, 3, 11), Sex.M, null, null);
-        encounter = Encounter.admit(patient, ward, "302", "1",
-                OffsetDateTime.now().minusDays(4), "뇌경색", false);
-        ReflectionTestUtils.setField(encounter, "id", 501L);
+        // 업무 쪽이 보는 것은 침대뿐이다. 여기에는 환자가 등장하지 않는다.
+        episode = CareEpisode.of(UUID.randomUUID(), ward, "302", "1",
+                OffsetDateTime.now().minusDays(4));
 
         brainMri = ServiceItem.create("MRI_BRAIN", "뇌 MRI", OrderType.TRANSFER, mri, 40,
                 "검사 4시간 전부터 금식", List.of(AlertType.METAL_IMPLANT));
@@ -66,18 +65,18 @@ class WorkOrderTest {
     }
 
     @Test
-    void 퇴원한_환자로는_요청을_만들_수_없다() {
-        encounter.discharge();
+    void 퇴원한_침대로는_요청을_만들_수_없다() {
+        episode.discharge(OffsetDateTime.now());
 
         assertThat(errorOf(this::newRequest)).isEqualTo(ErrorCode.DISCHARGED_ENCOUNTER);
     }
 
     @Test
-    void 다른_병동의_환자로는_요청을_만들_수_없다() {
+    void 다른_병동의_침대로는_요청을_만들_수_없다() {
         Staff otherWardNurse = staff(12L, "ward02", "이간호",
                 department(2L, "W05", "5병동", DeptType.WARD));
 
-        assertThat(errorOf(() -> WorkOrder.create("TR20260905-0001", encounter, brainMri,
+        assertThat(errorOf(() -> WorkOrder.create("TR20260905-0001", episode, brainMri,
                 otherWardNurse, OrderPriority.ROUTINE, null, null)))
                 .isEqualTo(ErrorCode.NOT_RELATED_DEPARTMENT);
     }
@@ -270,7 +269,7 @@ class WorkOrderTest {
     // ------------------------------------------------------------------
 
     private WorkOrder newRequest() {
-        return WorkOrder.create("TR20260905-0001", encounter, brainMri, wardNurse,
+        return WorkOrder.create("TR20260905-0001", episode, brainMri, wardNurse,
                 OrderPriority.URGENT, null, "휠체어 이송 필요");
     }
 

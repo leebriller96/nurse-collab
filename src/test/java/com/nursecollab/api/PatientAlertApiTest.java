@@ -3,7 +3,7 @@ package com.nursecollab.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nursecollab.domain.encounter.entity.Encounter;
-import com.nursecollab.domain.encounter.repository.EncounterRepository;
+import com.nursecollab.domain.encounter.service.AdmissionService;
 import com.nursecollab.domain.patient.entity.Patient;
 import com.nursecollab.domain.patient.entity.Sex;
 import com.nursecollab.domain.patient.repository.PatientRepository;
@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -39,10 +40,11 @@ class PatientAlertApiTest extends IntegrationTest {
     @Autowired private ObjectMapper om;
     @Autowired private StaffRepository staffRepository;
     @Autowired private PatientRepository patientRepository;
-    @Autowired private EncounterRepository encounterRepository;
+    @Autowired private AdmissionService admissionService;
 
     private Long patientId;
     private Long encounterId;
+    private UUID subjectRef;
 
     @BeforeEach
     void setUp() {
@@ -51,8 +53,10 @@ class PatientAlertApiTest extends IntegrationTest {
                 "P%07d".formatted(SEQ.getAndIncrement()), "박OO",
                 LocalDate.of(1971, 11, 2), Sex.F, null, null));
         patientId = patient.getId();
-        encounterId = encounterRepository.save(Encounter.admit(patient, ward, "501", "1",
-                OffsetDateTime.now().minusDays(3), "요추 추간판탈출증", true)).getId();
+        Encounter encounter = admissionService.admit(patient, ward, "501", "1",
+                OffsetDateTime.now().minusDays(3), "요추 추간판탈출증", true);
+        encounterId = encounter.getId();
+        subjectRef = encounter.getSubjectRef();
     }
 
     @Test
@@ -126,12 +130,54 @@ class PatientAlertApiTest extends IntegrationTest {
     void 남긴_주의사항이_검사_전_확인_항목으로_이어진다() throws Exception {
         // 이 연결이 이 프로젝트의 핵심이다. 주의사항 하나가 검사실 화면의 경고가 된다.
         addAlert("ward01");
+        createMriRequest();
+
+        // 업무 응답에는 이제 경고가 없다. 진료정보라 원내에서 온다.
+        // 확인할 항목이 무엇인지는 업무 쪽(업무 항목)이 알고 있으므로 부르는 쪽이 들고 온다.
+        mvc.perform(get("/api/v1/phi/subjects/" + subjectRef + "/checklist")
+                        .param("required", "CLAUSTROPHOBIA")
+                        .header("Authorization", bearer("mri01")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void 업무_응답에는_환자_정보가_들어_있지_않다() throws Exception {
+        // 분리의 핵심이다. 업무 쪽 응답에 이름이나 진단명이 섞이면
+        // 그 순간 클라우드 DB 에 진료정보가 쌓이기 시작한다.
         long requestId = createMriRequest();
 
         mvc.perform(get("/api/v1/work-orders/" + requestId)
                         .header("Authorization", bearer("mri01")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.checklistWarnings.length()").value(1));
+                .andExpect(jsonPath("$.patient").doesNotExist())
+                .andExpect(jsonPath("$.alerts").doesNotExist())
+                .andExpect(jsonPath("$.checklistWarnings").doesNotExist())
+                // 있는 것은 침대와 가명뿐이다
+                .andExpect(jsonPath("$.episode.roomNo").value("501"))
+                .andExpect(jsonPath("$.episode.subjectRef").value(subjectRef.toString()));
+    }
+
+    @Test
+    void 관계없는_파트는_가명으로도_사람을_되돌릴_수_없다() throws Exception {
+        // 가명을 손에 넣어도 그것만으로는 아무것도 안 된다.
+        // 판정은 예전과 같다 — 우리 파트로 온 진행중 요청이 걸려 있는가.
+        mvc.perform(get("/api/v1/phi/subjects/" + subjectRef)
+                        .header("Authorization", bearer("ct01")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("PERM-001"));
+    }
+
+    @Test
+    void 요청이_걸린_파트는_가명으로_사람을_되돌린다() throws Exception {
+        addAlert("ward01");
+        createMriRequest();
+
+        mvc.perform(get("/api/v1/phi/subjects/" + subjectRef)
+                        .header("Authorization", bearer("mri01")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("박OO"))
+                .andExpect(jsonPath("$.alerts.length()").value(1));
     }
 
     // ── 도우미 ──────────────────────────────────────────────
@@ -150,8 +196,8 @@ class PatientAlertApiTest extends IntegrationTest {
                         .header("Authorization", bearer("ward01"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"encounterId":%d,"serviceItemId":%d,"priority":"ROUTINE"}"""
-                                .formatted(encounterId, serviceItemId)))
+                                {"subjectRef":"%s","serviceItemId":%d,"priority":"ROUTINE"}"""
+                                .formatted(subjectRef, serviceItemId)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
         return om.readTree(body).get("id").asLong();

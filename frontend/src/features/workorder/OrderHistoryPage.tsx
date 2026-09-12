@@ -9,6 +9,8 @@ import LoadFailed from '@/shared/ui/LoadFailed';
 import { useUrlParam } from '@/shared/hooks/useUrlParam';
 import { TableSkeleton } from '@/shared/ui/Skeleton';
 import OrderSubject from '@/features/workorder/OrderSubject';
+import { useSubjectBriefs } from '@/shared/api/phi';
+import { searchSubjectRefs } from '@/shared/api/phi';
 
 const FINISHED: OrderStatus[] = ['COMPLETED', 'CANCELLED'];
 
@@ -44,19 +46,41 @@ export default function OrderHistoryPage() {
 
   const inbound = staff?.department.deptType === 'EXAM';
 
+  /**
+   * 이름으로 찾으려면 원내에 먼저 물어야 한다.
+   *
+   * 업무 쪽에는 이름이 없다. 여기서 가명 목록을 받아 그것으로 거른다.
+   * 원내에 닿지 못하면 이름 검색만 안 되고 요청번호 검색은 그대로 된다 —
+   * 조회가 통째로 실패하는 것보다 낫다.
+   */
+  const nameMatches = useQuery({
+    queryKey: ['phi', 'search', query],
+    queryFn: () => searchSubjectRefs(query),
+    enabled: !!query,
+    retry: 1,
+  });
+  const nameSearchDown = !!query && nameMatches.isError;
+
   const { data, isPending, isError, error, refetch } = useQuery({
-    queryKey: ['transfer-history', from, to, query, onlyFinished, page],
+    queryKey: ['transfer-history', from, to, query, nameMatches.data, onlyFinished, page],
+    // 가명을 받아오는 중에 조회하면 이름으로 찾은 것이 빠진 결과가 잠깐 보인다.
+    enabled: !query || !nameMatches.isPending,
     queryFn: async () =>
       (await api.get<PageResponse<OrderSummary>>('/work-orders', {
         params: {
           direction: inbound ? 'INBOUND' : 'OUTBOUND',
           from, to, page, size: 30,
           ...(query ? { keyword: query } : {}),
+          ...(nameMatches.data?.length ? { subjectRefs: nameMatches.data } : {}),
           ...(onlyFinished ? { status: FINISHED } : {}),
         },
         paramsSerializer: { indexes: null },
       })).data,
   });
+
+  // 목록의 가명들을 한 번에 사람으로 되돌린다. 업무 응답에는 이름이 없다.
+  // 원내에 닿지 못하면 이름 자리만 비고 업무 흐름은 그대로 돈다.
+  const briefs = useSubjectBriefs((data?.content ?? []).map((r) => r.subjectRef));
 
   const detailPath = inbound ? '/service/requests' : '/ward/requests';
 
@@ -97,6 +121,15 @@ export default function OrderHistoryPage() {
         <button type="submit" className="rounded-lg bg-slate-800 px-4 py-1.5 font-semibold text-white">
           찾기
         </button>
+        {/*
+          이름 검색이 막혔다는 것을 말해 준다. 아무 말 없이 요청번호로만 찾으면
+          "그 환자 요청이 없다" 로 읽힌다. 없는 것과 못 찾는 것은 다르다.
+        */}
+        {nameSearchDown && (
+          <span className="text-xs text-amber-700">
+            환자명 검색은 원내망에서만 됩니다 (요청번호로는 찾을 수 있습니다)
+          </span>
+        )}
         <label className="ml-2 flex items-center gap-1.5 text-slate-600">
           <input
             type="checkbox"
@@ -138,7 +171,7 @@ export default function OrderHistoryPage() {
                     </td>
                     <td className="px-3 py-2.5 font-mono text-xs text-slate-600">{row.requestNo}</td>
                     <td className="px-3 py-2.5">
-                      <OrderSubject row={row} />
+                      <OrderSubject row={row} brief={briefs.byRef.get(row.subjectRef ?? '')} unavailable={briefs.unavailable} />
                     </td>
                     <td className="px-3 py-2.5 text-slate-700">{row.itemName}</td>
                     <td className="px-3 py-2.5 text-slate-700">{row.counterpartDepartment.name}</td>

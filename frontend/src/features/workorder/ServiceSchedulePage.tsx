@@ -7,6 +7,7 @@ import type { PageResponse, OrderSummary } from '@/shared/api/types';
 import { PriorityBadge, StatusBadge } from '@/shared/ui/badges';
 import LoadFailed from '@/shared/ui/LoadFailed';
 import { Skeleton } from '@/shared/ui/Skeleton';
+import { useSubjectBriefs } from '@/shared/api/phi';
 
 /** 기본은 검사실이 실제로 움직이는 시간대. 새벽 칸이 화면 절반을 먹으면 읽기 어렵다. */
 const DEFAULT_START = 7;
@@ -59,6 +60,15 @@ export default function ServiceSchedulePage() {
       })).data,
     refetchInterval: 60_000,
   });
+
+  const briefs = useSubjectBriefs((data?.content ?? []).map((r) => r.subjectRef));
+  /** 원내에 닿지 못하면 빈칸 대신 그렇다고 말한다 */
+  const nameOf = (subjectRef: string | null) => {
+    if (!subjectRef) return '대상 환자 없음';
+    const brief = briefs.byRef.get(subjectRef);
+    if (brief) return brief.name;
+    return briefs.unavailable ? '원내망에서만' : '…';
+  };
 
   if (isPending) {
     // 시간 눈금과 그 옆의 배치 영역. 보드가 통째로 접혔다 펴지지 않게 한다.
@@ -115,9 +125,7 @@ export default function ServiceSchedulePage() {
                 onClick={() => navigate(`/service/requests/${r.id}`)}
                 className="rounded-lg bg-white px-3 py-2 text-left text-sm shadow-sm ring-1 ring-amber-200"
               >
-                <span className="font-medium text-slate-900">
-                  {r.patient?.name ?? '대상 환자 없음'}
-                </span>
+                <span className="font-medium text-slate-900">{nameOf(r.subjectRef)}</span>
                 <span className="ml-1.5 text-slate-500">{r.itemName}</span>
                 <span className="ml-1.5 text-xs text-slate-400">{r.waitingMinutes}분 대기</span>
               </button>
@@ -168,11 +176,11 @@ export default function ServiceSchedulePage() {
                     {hhmm(r.scheduledAt!)}
                   </span>
                   <span className="truncate font-medium text-slate-900">
-                    {r.patient?.name ?? '대상 환자 없음'}
+                    {nameOf(r.subjectRef)}
                   </span>
                   <span className="truncate text-slate-500">{r.itemName}</span>
                   {r.roomNo && <span className="shrink-0 text-xs text-slate-400">{r.roomNo}호</span>}
-                  {r.criticalAlertCount > 0 && (
+                  {(briefs.byRef.get(r.subjectRef ?? '')?.criticalAlertCount ?? 0) > 0 && (
                     <span className="shrink-0 rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700">
                       !주의
                     </span>

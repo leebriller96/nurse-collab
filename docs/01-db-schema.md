@@ -13,7 +13,8 @@ DBMS: PostgreSQL 16
 | 조직 | `department` | 파트(병동, MRI실, 수술실 등) |
 | 조직 | `staff` | 간호사·관리자 계정 |
 | 환자 | `patient` | 환자 기본정보 (변하지 않는 것) |
-| 환자 | `encounter` | 재원 정보 (입원할 때마다 새로 생김) |
+| 환자 | `encounter` | 재원 정보 (입원할 때마다 새로 생김). **가명 대응표가 여기에만 있다** |
+| 업무 | `care_episode` | 업무 흐름이 보는 침대 정보. 사람을 가리키는 것이 없다 |
 | 환자 | `patient_alert` | 파트별 주의사항 (금속물, 알레르기 등) |
 | 업무 | `service_item` | 업무 항목 마스터 (검사·검체·약제·장비) |
 | 업무 | `work_order` | 부서 간 업무 요청 (핵심 테이블) |
@@ -27,6 +28,25 @@ DBMS: PostgreSQL 16
 ---
 
 ## 2. 설계 핵심 4가지
+
+### (0) 진료정보와 업무정보를 갈라 둔다
+
+`work_order` 는 환자를 `subject_ref` 라는 **불투명한 UUID** 로만 가리킨다.
+그 열쇠를 사람으로 되돌리는 대응표는 `encounter` 에만 있다.
+
+| 사는 곳 | 테이블 |
+|---|---|
+| 진료 (원내) | `patient`, `encounter`, `patient_alert`, `vital_sign`, `nursing_note` |
+| 업무 | `care_episode`, `work_order`, `work_order_event`, `department`, `staff`, `service_item`, `notification`, `audit_log` |
+
+가명은 **사람이 아니라 재원 건**에 붙는다. 같은 사람이 3년 뒤 다시 입원하면
+다른 열쇠를 받는다. 사람에 붙이면 업무 데이터만 보고도 "이 사람이 네 번 입원했다" 를
+알 수 있고, 그건 가명정보라고 부르기 어렵다.
+
+병실·병상이 업무 쪽(`care_episode`)에 있는 이유는 침대가 사람을 가리키지 않기 때문이다.
+이것까지 진료 쪽에 두면 원내망 밖에서 병동 보드가 통째로 비어 업무 자체가 돌아가지 않는다.
+반대로 진단명과 거동 여부는 이송 준비물을 정하는 값이더라도 업무 쪽으로 넘기지 않는다.
+그건 그 사람의 건강 상태다. 자세한 판정 근거는 `06-hospital-scale.md` 3장에 있다.
 
 ### (1) patient 와 encounter 를 분리한다
 
@@ -241,9 +261,10 @@ CREATE TABLE work_order (
     id                  BIGSERIAL    PRIMARY KEY,
     request_no          VARCHAR(30)  NOT NULL UNIQUE, -- 요청번호 (예: TR20260904-0001)
     order_type          VARCHAR(20)  NOT NULL,          -- 업무 종류 (V9)
-    -- 장비 수리처럼 환자가 없는 업무가 있어 NULL 을 허용한다 (V9).
-    -- 환자 접근 판정은 이 값이 있는 요청에만 걸린다.
-    encounter_id        BIGINT                REFERENCES encounter(id),
+    -- 재원이 아니라 가명을 본다 (V11). 업무 쪽 테이블 중 진료 쪽을 참조하는 것은
+    -- 이제 하나도 없다. 끊어 두었으므로 진료 쪽을 원내 DB 로 통째로 옮길 수 있다.
+    -- 장비 수리처럼 환자가 없는 업무가 있어 NULL 을 허용한다.
+    subject_ref         UUID                  REFERENCES care_episode(subject_ref),
     service_item_id     BIGINT       NOT NULL REFERENCES service_item(id),
     from_department_id  BIGINT       NOT NULL REFERENCES department(id), -- 요청 파트(병동)
     to_department_id    BIGINT       NOT NULL REFERENCES department(id), -- 수행 파트(검사실)

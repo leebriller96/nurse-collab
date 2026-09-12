@@ -7,9 +7,43 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface EncounterRepository extends JpaRepository<Encounter, Long> {
+
+    /** 업무 쪽이 들고 있는 가명으로 사람을 되찾는다. 이 대응은 여기에만 있다. */
+    @Query("""
+            select e from Encounter e
+            join fetch e.patient
+            join fetch e.department
+            where e.subjectRef = :subjectRef
+            """)
+    Optional<Encounter> findBySubjectRef(UUID subjectRef);
+
+    @Query("""
+            select e from Encounter e
+            join fetch e.patient
+            join fetch e.department
+            where e.subjectRef in :subjectRefs
+            """)
+    List<Encounter> findAllBySubjectRefs(Collection<UUID> subjectRefs);
+
+    /**
+     * 이름 일부로 재원 중인 건을 찾는다.
+     * 업무 쪽 목록에서 이름으로 검색하려면 먼저 여기서 가명을 받아야 한다.
+     * 이름은 원내 밖으로 나가지 않고, 나가는 것은 가명뿐이다.
+     */
+    @Query("""
+            select e from Encounter e
+            join fetch e.patient p
+            join fetch e.department
+            where e.status = com.nursecollab.domain.encounter.entity.EncounterStatus.ADMITTED
+              and p.name like %:namePart%
+            """)
+    List<Encounter> findAdmittedByPatientNameLike(String namePart);
 
     @Query("""
             select e from Encounter e

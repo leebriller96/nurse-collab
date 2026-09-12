@@ -30,6 +30,7 @@ import java.time.ZoneId;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.UUID;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -62,6 +63,7 @@ public class WorkOrderQueryService {
                                                 LocalDate from, LocalDate to,
                                                 OrderPriority priority,
                                                 String keyword,
+                                                Collection<UUID> subjectRefs,
                                                 Pageable pageable,
                                                 LoginStaff loginStaff) {
 
@@ -78,7 +80,8 @@ public class WorkOrderQueryService {
         var page = requestRepository.search(
                 direction.isInbound(), loginStaff.departmentId(),
                 statusFilter(statuses), priority, start, end,
-                (keyword == null || keyword.isBlank()) ? null : keyword.trim(), pageable);
+                (keyword == null || keyword.isBlank()) ? null : keyword.trim(),
+                refFilter(subjectRefs), pageable);
 
         List<WorkOrder> requests = page.getContent();
         if (requests.isEmpty()) {
@@ -86,23 +89,20 @@ public class WorkOrderQueryService {
                     page.getTotalElements(), page.getTotalPages());
         }
 
-        // 환자가 없는 업무는 주의사항을 셀 대상이 아니다
-        Map<Long, Long> criticalCountByPatient = alertRepository
-                .findActiveByPatientIds(requests.stream()
-                        .map(WorkOrder::getEncounter)
-                        .filter(Objects::nonNull)
-                        .map(e -> e.getPatient().getId()).distinct().toList())
-                .stream()
-                .filter(PatientAlert::isCritical)
-                .collect(Collectors.groupingBy(a -> a.getPatient().getId(), Collectors.counting()));
+        // 주의사항 개수는 여기서 세지 않는다. 그건 진료정보라 원내에 있다.
+        // 화면이 subjectRef 로 원내에 물어 빨간 표시를 붙인다.
+        return PageResponse.of(page.map(request ->
+                WorkOrderSummary.of(request, direction.isInbound())));
+    }
 
-        return PageResponse.of(page.map(request -> WorkOrderSummary.of(
-                request,
-                direction.isInbound(),
-                request.getEncounter() == null ? 0
-                        : criticalCountByPatient
-                                .getOrDefault(request.getEncounter().getPatient().getId(), 0L)
-                                .intValue())));
+    /**
+     * 빈 컬렉션을 in 절에 바인딩하면 Hibernate 가 조건을 만들지 못한다.
+     * 아무것도 맞지 않는 값 하나를 넣어 "가명으로는 걸리는 것이 없다" 를 표현한다.
+     */
+    private static Collection<UUID> refFilter(Collection<UUID> subjectRefs) {
+        return (subjectRefs == null || subjectRefs.isEmpty())
+                ? List.of(new UUID(0L, 0L))
+                : subjectRefs;
     }
 
     public WorkOrderDetailResponse findDetail(Long requestId, LoginStaff loginStaff) {
@@ -115,13 +115,8 @@ public class WorkOrderQueryService {
         // 관계없는 파트면 여기서 막힌다
         request.resolveActorSide(viewer);
 
-        List<PatientAlert> alerts = request.getEncounter() == null
-                ? List.of()
-                : alertRepository.findActiveByPatientId(request.getEncounter().getPatient().getId());
-
-        return WorkOrderDetailResponse.of(request, viewer,
-                alerts.stream().map(AlertResponse::from).toList(),
-                ChecklistWarning.cross(request.getServiceItem().requiredAlertTypes(), alerts));
+        // 주의사항과 확인 경고는 이 응답에 없다. 진료정보라 원내에서 온다.
+        return WorkOrderDetailResponse.of(request, viewer);
     }
 
     public List<WorkOrderEventResponse> findEvents(Long requestId, LoginStaff loginStaff) {

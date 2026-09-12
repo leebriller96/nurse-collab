@@ -3,7 +3,7 @@ package com.nursecollab.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nursecollab.domain.encounter.entity.Encounter;
-import com.nursecollab.domain.encounter.repository.EncounterRepository;
+import com.nursecollab.domain.encounter.service.AdmissionService;
 import com.nursecollab.domain.patient.entity.Patient;
 import com.nursecollab.domain.patient.entity.Sex;
 import com.nursecollab.domain.patient.repository.PatientRepository;
@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -41,10 +42,11 @@ class WorkOrderApiTest extends IntegrationTest {
     @Autowired private ObjectMapper om;
     @Autowired private StaffRepository staffRepository;
     @Autowired private PatientRepository patientRepository;
-    @Autowired private EncounterRepository encounterRepository;
+    @Autowired private AdmissionService admissionService;
     @Autowired private ServiceItemRepository serviceItemRepository;
 
     private Long encounterId;
+    private UUID subjectRef;
     private Long brainMriId;
 
     @BeforeEach
@@ -55,8 +57,10 @@ class WorkOrderApiTest extends IntegrationTest {
         Patient patient = patientRepository.save(Patient.create(
                 "P%07d".formatted(PATIENT_SEQ.getAndIncrement()), "김OO",
                 LocalDate.of(1958, 3, 11), Sex.M, null, null));
-        encounterId = encounterRepository.save(Encounter.admit(patient, ward, "302", "1",
-                OffsetDateTime.now().minusDays(4), "뇌경색", false)).getId();
+        Encounter encounter = admissionService.admit(patient, ward, "302", "1",
+                OffsetDateTime.now().minusDays(4), "뇌경색", false);
+        encounterId = encounter.getId();
+        subjectRef = encounter.getSubjectRef();
 
         brainMriId = serviceItemRepository.findAllActiveWithDepartment().stream()
                 .filter(e -> e.getCode().equals("MRI_BRAIN"))
@@ -198,8 +202,8 @@ class WorkOrderApiTest extends IntegrationTest {
                         .header("Authorization", bearer("ward01"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"encounterId":%d,"serviceItemId":%d,"priority":"URGENT"}"""
-                                .formatted(encounterId, brainMriId)))
+                                {"subjectRef":"%s","serviceItemId":%d,"priority":"URGENT"}"""
+                                .formatted(subjectRef, brainMriId)))
                 // 생성은 201 이고 Location 헤더가 붙는다
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();

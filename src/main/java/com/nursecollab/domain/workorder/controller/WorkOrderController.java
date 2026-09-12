@@ -34,6 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.net.URI;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1/work-orders")
@@ -65,13 +66,16 @@ public class WorkOrderController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
             @RequestParam(required = false) String keyword,
+            // 이름으로 찾은 결과다. 부르는 쪽이 원내에 먼저 물어 가명 목록을 받아 넘긴다.
+            // 업무 쪽에는 이름이 없으므로 여기서 이름으로 거를 방법이 없다.
+            @RequestParam(required = false) List<UUID> subjectRefs,
             @RequestParam(required = false) OrderPriority priority,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal LoginStaff loginStaff) {
 
         return ResponseEntity.ok(transferQueryService.search(
-                direction, status, from, to, priority, keyword,
+                direction, status, from, to, priority, keyword, subjectRefs,
                 PageRequest.of(page, size), loginStaff));
     }
 

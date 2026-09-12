@@ -9,6 +9,7 @@ import { AlertBadge, PriorityBadge, StatusBadge, statusLabel } from '@/shared/ui
 import LoadFailed from '@/shared/ui/LoadFailed';
 import { useToast } from '@/shared/ui/toast';
 import { DetailSkeleton } from '@/shared/ui/Skeleton';
+import { useChecklist, useSubject } from '@/shared/api/phi';
 
 /*
  * 무엇을 더 받아야 하는지는 서버가 버튼마다 알려준다(reasonRequired / scheduleRequired).
@@ -112,6 +113,14 @@ export default function OrderDetailPage() {
     onError: (e) => setError(messageOf(e, '전송에 실패했습니다.')),
   });
 
+  // 이름·진단명·주의사항은 업무 응답에 없다. 가명으로 원내에 따로 묻는다.
+  // 훅은 조기 반환보다 위에 있어야 한다. 아래에 두면 로딩이 끝나는 순간
+  // 훅 순서가 달라져 React 가 상태를 잘못 물려준다.
+  const subjectRef = detail.data?.episode?.subjectRef;
+  const { subject, unavailable: subjectDown } = useSubject(subjectRef);
+  const checklist = useChecklist(subjectRef, detail.data?.serviceItem.requiredAlerts ?? []);
+  const phiUnavailable = subjectDown || checklist.unavailable;
+
   if (detail.isPending) return <DetailSkeleton />;
   if (detail.isError) {
     return <LoadFailed error={detail.error} onRetry={() => void detail.refetch()} />;
@@ -135,15 +144,33 @@ export default function OrderDetailPage() {
         <StatusBadge status={d.status} label={d.statusLabel} />
       </header>
 
-      {d.checklistWarnings.length > 0 && (
+      {/*
+        경고와 주의사항은 업무 응답에 없다. 진료정보라 원내에서 따로 받는다.
+        원내에 닿지 못하면 경고를 감추는 대신 못 받았다고 말한다.
+        "경고가 없다" 와 "경고를 못 받았다" 를 같게 보여주면, 금기 환자를
+        그냥 검사실로 보내게 된다. 이 화면에서 제일 위험한 실수다.
+      */}
+      {phiUnavailable && d.episode && (
+        <section className="mx-3 rounded-xl bg-amber-50 p-3.5 ring-1 ring-amber-300">
+          <p className="text-sm font-semibold text-amber-900">
+            ⚠ 주의사항을 확인하지 못했습니다
+          </p>
+          <p className="mt-1 text-sm text-amber-800">
+            환자 정보는 원내망에서만 조회됩니다. 확인 항목이 있는지 알 수 없으니
+            검사 전에 병동에 확인해 주세요.
+          </p>
+        </section>
+      )}
+
+      {checklist.warnings.length > 0 && (
         <section className="mx-3 rounded-xl bg-red-50 p-3.5 ring-1 ring-red-300">
-          {d.checklistWarnings.map((w) => (
+          {checklist.warnings.map((w) => (
             <p key={w.alertType} className="text-sm font-semibold text-red-800">
               ⚠ {w.message}
             </p>
           ))}
           <div className="mt-2 flex flex-wrap gap-1">
-            {d.alerts.map((a) => (
+            {(subject?.alerts ?? []).map((a) => (
               <AlertBadge key={a.id} type={a.alertType} severity={a.severity} />
             ))}
           </div>
@@ -152,17 +179,27 @@ export default function OrderDetailPage() {
 
       <section className="mx-3 mt-3 rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200">
         {/* 장비 수리처럼 대상 환자가 없는 업무가 있다. 그때는 이 줄을 통째로 접는다. */}
-        {d.encounter && d.patient && (
+        {d.episode && (
           <div className="flex items-baseline gap-2">
             <span className="font-bold text-slate-900">
-              {d.encounter.roomNo}-{d.encounter.bedNo}
+              {d.episode.roomNo}-{d.episode.bedNo}
             </span>
-            <span className="font-semibold text-slate-800">{d.patient.name}</span>
-            <span className="text-sm text-slate-500">
-              {d.patient.sex}/{d.patient.age}
-            </span>
-            {!d.encounter.isMobile && (
-              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">거동 불가</span>
+            {subject ? (
+              <>
+                <span className="font-semibold text-slate-800">{subject.name}</span>
+                <span className="text-sm text-slate-500">
+                  {subject.sex}/{subject.age}
+                </span>
+                {!subject.mobile && (
+                  <span className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                    거동 불가
+                  </span>
+                )}
+              </>
+            ) : (
+              <span className={`text-sm ${phiUnavailable ? 'text-amber-700' : 'text-slate-400'}`}>
+                {phiUnavailable ? '원내망에서만 조회됩니다' : '불러오는 중…'}
+              </span>
             )}
           </div>
         )}

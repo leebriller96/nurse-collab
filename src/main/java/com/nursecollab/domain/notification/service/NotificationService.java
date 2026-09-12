@@ -51,17 +51,20 @@ public class NotificationService {
     }
 
     /**
-     * 302호 김OO / 뇌 MRI / 15:30 예정
-     * 환자가 없는 업무(장비 수리)는 앞의 병실·이름 없이 업무명만 남는다.
+     * 302호 / 뇌 MRI / 15:30 예정
+     *
+     * <b>환자 이름은 넣지 않는다.</b> 알림은 DB 에 그대로 쌓이고 폰 알림창에도 뜬다.
+     * 이름을 넣으면 진료정보가 업무 쪽 DB 에 복사되어 남는다.
+     * 침대 번호로도 병동에서는 누구인지 안다.
+     *
+     * 환자가 없는 업무(장비 수리)는 앞의 병실 없이 업무명만 남는다.
      */
     public String describe(WorkOrder request) {
         StringBuilder sb = new StringBuilder();
 
-        var encounter = request.getEncounter();
-        if (encounter != null) {
-            sb.append(encounter.getRoomNo()).append("호 ")
-              .append(encounter.getPatient().getName())
-              .append(" / ");
+        var episode = request.getCareEpisode();
+        if (episode != null && episode.getRoomNo() != null) {
+            sb.append(episode.getRoomNo()).append("호 / ");
         }
         sb.append(request.getServiceItem().getName());
 

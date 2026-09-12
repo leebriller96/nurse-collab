@@ -19,6 +19,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 /**
  * 재원(입원) 건.
@@ -34,6 +35,18 @@ public class Encounter extends BaseTimeEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    /**
+     * 업무 쪽이 이 재원 건을 가리키는 불투명 열쇠.
+     *
+     * 사람이 아니라 <b>재원 건</b>에 붙는다. 같은 사람이 3년 뒤 다시 입원하면 다른 값을 받는다.
+     * 사람에 붙이면 업무 데이터만 보고도 "이 사람이 네 번 입원했다" 를 알 수 있고,
+     * 그건 가명정보라고 부르기 어렵다.
+     *
+     * 이 열쇠를 사람으로 되돌리는 대응표는 이 테이블에만 있다.
+     */
+    @Column(name = "subject_ref", nullable = false, unique = true, updatable = false)
+    private UUID subjectRef;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "patient_id")
@@ -71,6 +84,7 @@ public class Encounter extends BaseTimeEntity {
                                   String bedNo, OffsetDateTime admittedAt,
                                   String diagnosis, boolean mobile) {
         Encounter encounter = new Encounter();
+        encounter.subjectRef = UUID.randomUUID();
         encounter.patient = patient;
         encounter.department = department;
         encounter.roomNo = roomNo;

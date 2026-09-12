@@ -1,7 +1,7 @@
 package com.nursecollab.domain.workorder.entity;
 
 import com.nursecollab.domain.department.entity.Department;
-import com.nursecollab.domain.encounter.entity.Encounter;
+import com.nursecollab.domain.episode.entity.CareEpisode;
 import com.nursecollab.domain.staff.entity.Staff;
 import com.nursecollab.global.common.BaseTimeEntity;
 import com.nursecollab.global.error.BusinessException;
@@ -43,10 +43,14 @@ public class WorkOrder extends BaseTimeEntity {
     @Column(name = "order_type", nullable = false, length = 20)
     private OrderType orderType;
 
-    /** 환자가 없는 업무(장비 수리)에서는 비어 있다. */
+    /**
+     * 대상 재원 건. 환자가 없는 업무(장비 수리)에서는 비어 있다.
+     *
+     * 여기에는 침대와 병동만 있다. 누구인지는 원내에 물어야 알 수 있다.
+     */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "encounter_id")
-    private Encounter encounter;
+    @JoinColumn(name = "subject_ref")
+    private CareEpisode careEpisode;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "service_item_id")
@@ -112,7 +116,7 @@ public class WorkOrder extends BaseTimeEntity {
      * 클라이언트가 고를 수 있게 하면 "뇌 MRI 를 CT실로" 같은 조합이 만들어진다.
      */
     public static WorkOrder create(String requestNo,
-                                         Encounter encounter,
+                                         CareEpisode episode,
                                          ServiceItem serviceItem,
                                          Staff requester,
                                          OrderPriority priority,
@@ -122,20 +126,21 @@ public class WorkOrder extends BaseTimeEntity {
         OrderType type = serviceItem.getOrderType();
 
         if (type.isPatientRequired()) {
-            if (encounter == null) {
+            if (episode == null) {
                 throw new BusinessException(ErrorCode.PATIENT_REQUIRED);
             }
-            if (!encounter.isAdmitted()) {
+            if (!episode.isAdmitted()) {
                 throw new BusinessException(ErrorCode.DISCHARGED_ENCOUNTER);
             }
-            // 자기 병동에 없는 환자로는 요청을 만들 수 없다.
-            // 소속만 보고 판단하지 않고 "이 환자가 우리 병동에 있는가" 라는 관계로 본다.
-            if (!encounter.getDepartment().getId().equals(requester.getDepartment().getId())) {
+            // 자기 병동에 없는 침대로는 요청을 만들 수 없다.
+            // 소속만 보고 판단하지 않고 "이 침대가 우리 병동에 있는가" 라는 관계로 본다.
+            // 이 판정에 환자 정보는 필요 없다. 그래서 원내에 묻지 않아도 된다.
+            if (!episode.getDepartment().getId().equals(requester.getDepartment().getId())) {
                 throw new BusinessException(ErrorCode.NOT_RELATED_DEPARTMENT);
             }
-        } else if (encounter != null) {
-            // 환자를 붙이면 안 된다. 환자 정보 접근은 "진행 중인 요청이 걸려 있는가" 로
-            // 판정하므로, 장비 수리에 환자를 매달면 의공학팀이 그 환자의 활력징후와
+        } else if (episode != null) {
+            // 대상을 붙이면 안 된다. 환자 정보 접근은 "진행 중인 요청이 걸려 있는가" 로
+            // 판정하므로, 장비 수리에 재원 건을 매달면 의공학팀이 그 환자의 활력징후와
             // 간호기록까지 열 수 있게 된다. 수액펌프를 고치는 데 필요한 권한이 아니다.
             throw new BusinessException(ErrorCode.PATIENT_NOT_ALLOWED);
         }
@@ -143,7 +148,7 @@ public class WorkOrder extends BaseTimeEntity {
         WorkOrder tr = new WorkOrder();
         tr.orderType      = type;
         tr.requestNo      = requestNo;
-        tr.encounter      = encounter;
+        tr.careEpisode    = episode;
         tr.serviceItem       = serviceItem;
         tr.fromDepartment = requester.getDepartment();
         tr.toDepartment   = serviceItem.getDepartment();

@@ -23,7 +23,7 @@ public record RealtimeEvent(
         OrderStatus fromStatus,
         OrderStatus toStatus,
         OrderPriority priority,
-        String patientName,
+        java.util.UUID subjectRef,
         String roomNo,
         String itemName,
         Long actorId,

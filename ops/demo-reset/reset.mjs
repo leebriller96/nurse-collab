@@ -68,7 +68,7 @@ function wipe() {
     truncate table
       audit_log, nursing_note, vital_sign, notification, request_message,
       work_order_event, work_order, request_no_sequence,
-      patient_alert, encounter, service_item, staff, patient, department
+      patient_alert, care_episode, encounter, service_item, staff, patient, department
     restart identity cascade;
   `);
   // 파일 이름을 손으로 적지 않는다. 시드를 하나 더한 날 여기를 같이 고치지 않으면
@@ -203,11 +203,12 @@ async function seed() {
     return found.loginId;
   };
 
-  const encOf = (who, roomNo, bedNo) => {
+  // 업무 요청에는 가명만 넘긴다. 재원 id 도 이름도 업무 쪽으로 가지 않는다.
+  const subjectOf = (who, roomNo, bedNo) => {
     const list = encounters[who].content ?? encounters[who];
     const found = list.find((e) => e.roomNo === roomNo && e.bedNo === bedNo);
     if (!found) throw new Error(`재원 없음: ${roomNo}-${bedNo}`);
-    return found.encounterId ?? found.id;
+    return found.subjectRef;
   };
   const itemOf = (code) => {
     const found = items.find((e) => e.code === code);
@@ -219,7 +220,7 @@ async function seed() {
     const item = itemOf(itemCode);
     const created = await call(requester, 'POST', '/work-orders', {
       // 환자를 붙일 수 없는 업무에 붙이면 서버가 ORD-007 로 막는다
-      encounterId: item.patientRequired ? encOf(requester, room, bed) : null,
+      subjectRef: item.patientRequired ? subjectOf(requester, room, bed) : null,
       serviceItemId: item.id,
       priority,
     });

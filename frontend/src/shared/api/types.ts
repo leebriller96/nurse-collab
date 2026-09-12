@@ -73,6 +73,7 @@ export interface AlertResponse extends AlertSummary {
 
 export interface EncounterSummary {
   encounterId: number;
+  subjectRef: string;
   patientNo: string;
   name: string;
   birthDate: string;
@@ -116,9 +117,13 @@ export interface OrderSummary {
   /** 이 종류에서 이 상태를 부르는 이름 (검사중 / 조제중 / 수리중) */
   statusLabel: string;
   priority: OrderPriority;
-  /** 환자가 없는 업무에서는 비어 있다 */
-  patient: { patientNo: string; name: string; age: number; sex: Sex } | null;
+  /**
+   * 대상 재원 건의 가명. 환자가 없는 업무에서는 비어 있다.
+   * 이름은 이 응답에 없다. 이 열쇠로 원내에 따로 물어 채운다.
+   */
+  subjectRef: string | null;
   roomNo: string | null;
+  bedNo: string | null;
   itemName: string;
   counterpartDepartment: DepartmentSummary;
   requestedAt: string;
@@ -145,6 +150,8 @@ export interface ChecklistWarning {
 
 export interface EncounterFullView {
   encounterId: number;
+  /** 업무 요청을 걸 때 이 열쇠로 대상을 가리킨다 */
+  subjectRef: string;
   patient: { id: number; patientNo: string; name: string; birthDate: string; age: number; sex: Sex };
   department: DepartmentSummary;
   roomNo: string;
@@ -170,15 +177,19 @@ export interface OrderDetail {
   status: OrderStatus;
   statusLabel: string;
   priority: OrderPriority;
-  /** 환자가 없는 업무에서는 encounter 와 patient 가 모두 없다 */
-  encounter: { encounterId: number; roomNo: string; bedNo: string; isMobile: boolean } | null;
-  patient: { patientNo: string; name: string; age: number; sex: Sex } | null;
+  /**
+   * 대상 재원 건. 환자가 없는 업무에서는 없다.
+   * 여기에는 침대와 병동만 있다. 이름·진단명·주의사항은 원내에서 따로 받는다.
+   */
+  episode: { subjectRef: string; roomNo: string; bedNo: string } | null;
   serviceItem: {
     id: number;
     code: string;
     name: string;
     defaultDuration: number;
     prepInstruction: string | null;
+    /** 이 업무 전에 확인할 항목. 이것을 들고 원내에 물어 경고를 받는다 */
+    requiredAlerts: AlertType[];
   };
   fromDepartment: DepartmentSummary;
   toDepartment: DepartmentSummary;
@@ -190,8 +201,6 @@ export interface OrderDetail {
   completedAt: string | null;
   note: string | null;
   holdReason: string | null;
-  alerts: AlertResponse[];
-  checklistWarnings: ChecklistWarning[];
   availableTransitions: TransitionOption[];
   version: number;
 }

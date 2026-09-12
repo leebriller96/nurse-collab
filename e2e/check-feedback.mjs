@@ -37,7 +37,8 @@ async function createRequest() {
     method: 'POST',
     headers: h(ward),
     body: JSON.stringify({
-      encounterId: (encounters.content ?? encounters)[0].encounterId,
+      // 업무 쪽에는 재원 id 도 이름도 넘기지 않는다. 넘기는 것은 가명뿐이다.
+      subjectRef: (encounters.content ?? encounters)[0].subjectRef,
       serviceItemId: mriExam.id,
       priority: 'ROUTINE',
     }),

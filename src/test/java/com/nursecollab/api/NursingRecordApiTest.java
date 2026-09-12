@@ -3,7 +3,7 @@ package com.nursecollab.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nursecollab.domain.encounter.entity.Encounter;
-import com.nursecollab.domain.encounter.repository.EncounterRepository;
+import com.nursecollab.domain.encounter.service.AdmissionService;
 import com.nursecollab.domain.patient.entity.Patient;
 import com.nursecollab.domain.patient.entity.Sex;
 import com.nursecollab.domain.patient.repository.PatientRepository;
@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -41,10 +42,11 @@ class NursingRecordApiTest extends IntegrationTest {
     @Autowired private ObjectMapper om;
     @Autowired private StaffRepository staffRepository;
     @Autowired private PatientRepository patientRepository;
-    @Autowired private EncounterRepository encounterRepository;
+    @Autowired private AdmissionService admissionService;
     @Autowired private JdbcTemplate jdbcTemplate;
 
     private Long encounterId;
+    private UUID subjectRef;
 
     @BeforeEach
     void setUp() {
@@ -52,8 +54,10 @@ class NursingRecordApiTest extends IntegrationTest {
         Patient patient = patientRepository.save(Patient.create(
                 "P%07d".formatted(PATIENT_SEQ.getAndIncrement()), "이OO",
                 LocalDate.of(1952, 7, 24), Sex.F, null, null));
-        encounterId = encounterRepository.save(Encounter.admit(patient, ward, "302", "2",
-                OffsetDateTime.now().minusDays(2), "폐렴", true)).getId();
+        Encounter encounter = admissionService.admit(patient, ward, "302", "2",
+                OffsetDateTime.now().minusDays(2), "폐렴", true);
+        encounterId = encounter.getId();
+        subjectRef = encounter.getSubjectRef();
     }
 
     @Test

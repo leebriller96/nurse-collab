@@ -1,9 +1,6 @@
 package com.nursecollab.domain.workorder.dto;
 
 import com.nursecollab.domain.department.dto.DepartmentSummary;
-import com.nursecollab.domain.patient.dto.AlertResponse;
-import com.nursecollab.domain.patient.dto.ChecklistWarning;
-import com.nursecollab.domain.patient.entity.Sex;
 import com.nursecollab.domain.staff.entity.Staff;
 import com.nursecollab.domain.workorder.entity.OrderPriority;
 import com.nursecollab.domain.workorder.entity.OrderStatus;
@@ -12,6 +9,7 @@ import com.nursecollab.domain.workorder.entity.WorkOrder;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.UUID;
 
 /** 요청 상세(W-05 / E-02) */
 public record WorkOrderDetailResponse(
@@ -23,9 +21,13 @@ public record WorkOrderDetailResponse(
         /** 이 종류에서 이 상태를 부르는 이름 (검사중 / 조제중 / 수리중) */
         String statusLabel,
         OrderPriority priority,
-        /** 환자가 없는 업무에서는 encounter 와 patient 가 모두 비어 있다. */
-        EncounterInfo encounter,
-        PatientInfo patient,
+        /**
+         * 대상 재원 건. 환자가 없는 업무에서는 비어 있다.
+         *
+         * <b>여기에는 침대와 병동만 있다.</b> 이름·나이·진단명·주의사항은
+         * 화면이 subjectRef 로 원내에 따로 물어 채운다.
+         */
+        EpisodeInfo episode,
         ServiceItemInfo serviceItem,
         DepartmentSummary fromDepartment,
         DepartmentSummary toDepartment,
@@ -37,37 +39,30 @@ public record WorkOrderDetailResponse(
         OffsetDateTime completedAt,
         String note,
         String holdReason,
-        List<AlertResponse> alerts,
-        List<ChecklistWarning> checklistWarnings,
         List<TransitionOption> availableTransitions,
         Long version
 ) {
-    public record EncounterInfo(Long encounterId, String roomNo, String bedNo, boolean isMobile) {}
+    public record EpisodeInfo(UUID subjectRef, String roomNo, String bedNo) {}
 
-    public record PatientInfo(String patientNo, String name, int age, Sex sex) {}
-
+    /**
+     * @param requiredAlerts 이 업무 전에 확인할 항목. 화면이 이것을 들고 원내에 물어
+     *                       "이 업무 전에 확인이 필요합니다" 경고를 받아 온다.
+     *                       어떤 항목을 봐야 하는지는 업무 쪽이 알고, 그 사람에게
+     *                       그 항목이 있는지는 원내가 안다.
+     */
     public record ServiceItemInfo(Long id, String code, String name, int defaultDuration,
-                               String prepInstruction) {}
+                               String prepInstruction,
+                               List<com.nursecollab.domain.patient.entity.AlertType> requiredAlerts) {}
 
     public record StaffInfo(Long id, String name) {}
 
-    public static WorkOrderDetailResponse of(WorkOrder request,
-                                            Staff viewer,
-                                            List<AlertResponse> alerts,
-                                            List<ChecklistWarning> checklistWarnings) {
-        var encounter = request.getEncounter();
+    public static WorkOrderDetailResponse of(WorkOrder request, Staff viewer) {
+        var episode = request.getCareEpisode();
         var serviceItem = request.getServiceItem();
         var type = request.getOrderType();
 
-        EncounterInfo encounterInfo = null;
-        PatientInfo patientInfo = null;
-        if (encounter != null) {
-            var patient = encounter.getPatient();
-            encounterInfo = new EncounterInfo(encounter.getId(), encounter.getRoomNo(),
-                    encounter.getBedNo(), encounter.isMobile());
-            patientInfo = new PatientInfo(patient.getPatientNo(), patient.getName(),
-                    patient.age(), patient.getSex());
-        }
+        EpisodeInfo episodeInfo = episode == null ? null
+                : new EpisodeInfo(episode.getSubjectRef(), episode.getRoomNo(), episode.getBedNo());
 
         List<TransitionOption> transitions = TransitionOption.listOf(request, viewer);
 
@@ -79,10 +74,10 @@ public record WorkOrderDetailResponse(
                 request.getStatus(),
                 type.labelOf(request.getStatus()),
                 request.getPriority(),
-                encounterInfo,
-                patientInfo,
+                episodeInfo,
                 new ServiceItemInfo(serviceItem.getId(), serviceItem.getCode(), serviceItem.getName(),
-                        serviceItem.getDefaultDuration(), serviceItem.getPrepInstruction()),
+                        serviceItem.getDefaultDuration(), serviceItem.getPrepInstruction(),
+                        serviceItem.requiredAlertTypes()),
                 DepartmentSummary.from(request.getFromDepartment()),
                 DepartmentSummary.from(request.getToDepartment()),
                 new StaffInfo(request.getRequestedBy().getId(), request.getRequestedBy().getName()),
@@ -93,8 +88,6 @@ public record WorkOrderDetailResponse(
                 request.getCompletedAt(),
                 request.getNote(),
                 request.getHoldReason(),
-                alerts,
-                checklistWarnings,
                 transitions,
                 request.getVersion());
     }

@@ -63,22 +63,24 @@ public class EncounterQueryService {
 
         // 카드마다 알림/요청을 따로 조회하면 환자 수만큼 쿼리가 나간다. 한 번에 가져와 묶는다.
         List<Long> patientIds = encounters.stream().map(e -> e.getPatient().getId()).toList();
-        List<Long> encounterIds = encounters.stream().map(Encounter::getId).toList();
+        List<java.util.UUID> subjectRefs = encounters.stream().map(Encounter::getSubjectRef).toList();
 
         Map<Long, List<AlertSummary>> alertsByPatient = alertRepository.findActiveByPatientIds(patientIds)
                 .stream()
                 .collect(Collectors.groupingBy(a -> a.getPatient().getId(),
                         Collectors.mapping(AlertSummary::from, Collectors.toList())));
 
-        Map<Long, Long> requestCountByEncounter = workOrderRepository
-                .findActiveByEncounterIds(encounterIds, OrderStatus.terminals())
+        // 진행중 요청 수는 업무 쪽 사실이다. 재원 id 가 아니라 가명으로 묶는다.
+        Map<java.util.UUID, Long> requestCountBySubject = workOrderRepository
+                .findActiveBySubjectRefs(subjectRefs, OrderStatus.terminals())
                 .stream()
-                .collect(Collectors.groupingBy(r -> r.getEncounter().getId(), Collectors.counting()));
+                .collect(Collectors.groupingBy(r -> r.getCareEpisode().getSubjectRef(),
+                        Collectors.counting()));
 
         return PageResponse.of(page.map(encounter -> EncounterSummary.of(
                 encounter,
                 alertsByPatient.getOrDefault(encounter.getPatient().getId(), List.of()),
-                requestCountByEncounter.getOrDefault(encounter.getId(), 0L).intValue())));
+                requestCountBySubject.getOrDefault(encounter.getSubjectRef(), 0L).intValue())));
     }
 
     /**
@@ -101,8 +103,8 @@ public class EncounterQueryService {
         }
 
         List<WorkOrder> relatedRequests = workOrderRepository
-                .findActiveByEncounterAndToDepartment(encounterId, loginStaff.departmentId(),
-                        OrderStatus.terminals());
+                .findActiveBySubjectAndToDepartment(encounter.getSubjectRef(),
+                        loginStaff.departmentId(), OrderStatus.terminals());
 
         if (relatedRequests.isEmpty()) {
             throw new BusinessException(ErrorCode.NOT_RELATED_DEPARTMENT);
@@ -137,8 +139,8 @@ public class EncounterQueryService {
         if (loginStaff.role() == StaffRole.ADMIN || ownWard) {
             return encounter;
         }
-        if (!workOrderRepository.existsActiveByEncounterAndToDepartment(
-                encounterId, loginStaff.departmentId(), OrderStatus.terminals())) {
+        if (!workOrderRepository.existsActiveBySubjectAndToDepartment(
+                encounter.getSubjectRef(), loginStaff.departmentId(), OrderStatus.terminals())) {
             throw new BusinessException(ErrorCode.NOT_RELATED_DEPARTMENT);
         }
         return encounter;
@@ -146,7 +148,7 @@ public class EncounterQueryService {
 
     private EncounterFullView fullView(Encounter encounter, List<PatientAlert> alerts) {
         List<EncounterFullView.ActiveRequest> activeRequests = workOrderRepository
-                .findActiveByEncounterIds(List.of(encounter.getId()), OrderStatus.terminals())
+                .findActiveBySubjectRefs(List.of(encounter.getSubjectRef()), OrderStatus.terminals())
                 .stream()
                 .map(r -> new EncounterFullView.ActiveRequest(
                         r.getId(), r.getRequestNo(), r.getServiceItem().getName(),

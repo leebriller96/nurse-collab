@@ -2,7 +2,7 @@ package com.nursecollab.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nursecollab.domain.encounter.entity.Encounter;
-import com.nursecollab.domain.encounter.repository.EncounterRepository;
+import com.nursecollab.domain.encounter.service.AdmissionService;
 import com.nursecollab.domain.patient.entity.Patient;
 import com.nursecollab.domain.patient.entity.Sex;
 import com.nursecollab.domain.patient.repository.PatientRepository;
@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,9 +41,10 @@ class AuditAndNotificationApiTest extends IntegrationTest {
     @Autowired private ObjectMapper om;
     @Autowired private StaffRepository staffRepository;
     @Autowired private PatientRepository patientRepository;
-    @Autowired private EncounterRepository encounterRepository;
+    @Autowired private AdmissionService admissionService;
 
     private Long encounterId;
+    private UUID subjectRef;
 
     @BeforeEach
     void setUp() {
@@ -50,8 +52,10 @@ class AuditAndNotificationApiTest extends IntegrationTest {
         Patient patient = patientRepository.save(Patient.create(
                 "P%07d".formatted(PATIENT_SEQ.getAndIncrement()), "정OO",
                 LocalDate.of(1965, 1, 30), Sex.M, null, null));
-        encounterId = encounterRepository.save(Encounter.admit(patient, ward, "503", "2",
-                OffsetDateTime.now().minusDays(1), "당뇨병성 신증", true)).getId();
+        Encounter encounter = admissionService.admit(patient, ward, "503", "2",
+                OffsetDateTime.now().minusDays(1), "당뇨병성 신증", true);
+        encounterId = encounter.getId();
+        subjectRef = encounter.getSubjectRef();
     }
 
     // ── 접근 기록 ───────────────────────────────────────────
@@ -172,8 +176,8 @@ class AuditAndNotificationApiTest extends IntegrationTest {
                         .header("Authorization", bearer("ward01"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"encounterId":%d,"serviceItemId":%d,"priority":"ROUTINE"}"""
-                                .formatted(encounterId, serviceItemId)))
+                                {"subjectRef":"%s","serviceItemId":%d,"priority":"ROUTINE"}"""
+                                .formatted(subjectRef, serviceItemId)))
                 .andExpect(status().isCreated());
 
         String body = mvc.perform(get("/api/v1/notifications")

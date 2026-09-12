@@ -39,3 +39,18 @@ FROM (VALUES
 ) AS a(patient_no, alert_type, severity, content)
 JOIN patient p ON p.patient_no = a.patient_no
 JOIN staff s   ON s.login_id = 'ward01';
+
+-- ---------------------------------------------------------
+-- 업무 흐름이 보는 침대 정보
+--
+-- 한 번의 입원은 두 곳에 기록된다. 위의 encounter 는 누가 입원했고 진단명이
+-- 무엇인지(진료정보), 아래 care_episode 는 어느 병동 몇 번 침대가 찼는지(업무정보).
+-- 둘을 잇는 것은 subject_ref 하나뿐이고, 사람으로 되돌리는 대응표는 encounter 에만 있다.
+--
+-- 진단명과 거동 여부는 넘어가지 않는다. 그건 그 사람의 건강 상태다.
+-- 코드에서는 AdmissionService 가 같은 일을 한다.
+-- ---------------------------------------------------------
+INSERT INTO care_episode
+    (subject_ref, department_id, room_no, bed_no, status, admitted_at, discharged_at)
+SELECT subject_ref, department_id, room_no, bed_no, status, admitted_at, discharged_at
+FROM encounter;

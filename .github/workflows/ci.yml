@@ -169,6 +169,13 @@ jobs:
         working-directory: e2e
         run: APP=http://localhost:8081 node check-order-types.mjs
 
+      # 환자 정보가 업무 흐름과 실제로 갈려 있는지.
+      # 원내가 살아 있으면 화면은 늘 멀쩡해 보인다. 끊어 봐야 무엇이 어디서 오는지 드러난다.
+      # 업무 응답 본문을 직접 뒤져 이름과 진단명이 섞여 있지 않은지도 함께 본다.
+      - name: 환자 정보 분리
+        working-directory: e2e
+        run: APP=http://localhost:8081 node check-phi-split.mjs
+
       - name: 실패하면 스택 로그를 남긴다
         if: failure()
         run: docker compose -p ci -f docker-compose.prod.yml logs --tail 80

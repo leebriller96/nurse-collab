@@ -7,6 +7,7 @@ import { useAuth } from '@/shared/hooks/useAuth';
 import LoadFailed from '@/shared/ui/LoadFailed';
 import { TableSkeleton } from '@/shared/ui/Skeleton';
 import OrderSubject from '@/features/workorder/OrderSubject';
+import { useSubjectBriefs } from '@/shared/api/phi';
 
 /** 대기가 길어질수록 행이 진해진다. 숫자만으로는 눈에 들어오지 않기 때문이다. */
 function waitingStyle(minutes: number) {
@@ -34,6 +35,10 @@ export default function ServiceQueuePage() {
     // 실시간 알림이 주 경로다. 폴링은 알림을 놓쳤을 때를 위한 보조 장치로만 남긴다.
     refetchInterval: 60_000,
   });
+
+  // 목록의 가명들을 한 번에 사람으로 되돌린다. 업무 응답에는 이름이 없다.
+  // 원내에 닿지 못하면 이름 자리만 비고 업무 흐름은 그대로 돈다.
+  const briefs = useSubjectBriefs((data?.content ?? []).map((r) => r.subjectRef));
 
   if (isPending) {
     return (
@@ -82,7 +87,7 @@ export default function ServiceQueuePage() {
                 <td className="px-3 py-3 font-mono text-xs text-slate-600">{row.requestNo}</td>
                 <td className="px-3 py-3 text-slate-700">{row.counterpartDepartment.name}</td>
                 <td className="px-3 py-3">
-                  <OrderSubject row={row} />
+                  <OrderSubject row={row} brief={briefs.byRef.get(row.subjectRef ?? '')} unavailable={briefs.unavailable} />
                   {row.criticalAlertCount > 0 && (
                     <span className="ml-1.5 rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-700">
                       !주의 {row.criticalAlertCount}

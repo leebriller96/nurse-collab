@@ -7,10 +7,11 @@ import { useToast, type ToastTone } from '@/shared/ui/toast';
 
 function describe(event: RealtimeEvent): { title: string; body: string; tone: ToastTone } {
   const who = `${event.actorDepartmentName} ${event.actorName}`;
-  // 장비 수리처럼 환자가 없는 업무가 있다. 그때 "null호 null" 이 뜨면
-  // 알림을 믿을 수 없게 된다. 앞을 통째로 접고 업무명만 남긴다.
-  const patient = event.patientName
-    ? `${event.roomNo}호 ${event.patientName} · ${event.itemName}`
+  // 이름은 방송에 실리지 않는다. 침대 번호로도 병동에서는 누구인지 안다.
+  // 잠깐 뜨는 토스트 하나를 채우려고 원내에 또 물어보는 것은 과하다.
+  // 장비 수리처럼 침대도 없는 업무는 업무명만 남는다.
+  const patient = event.roomNo
+    ? `${event.roomNo}호 · ${event.itemName}`
     : event.itemName;
 
   if (event.eventType === 'ORDER_CREATED') {

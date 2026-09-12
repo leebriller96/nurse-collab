@@ -72,9 +72,10 @@ export default function OrderCreatePage() {
   const create = useMutation({
     mutationFn: async () => {
       const { data } = await api.post<{ id: number }>('/work-orders', {
+        // 업무 쪽에 넘기는 것은 가명뿐이다. 재원 id 도 이름도 넘기지 않는다.
         // 환자를 붙일 수 없는 업무에 붙이면 서버가 ORD-007 로 막는다.
         // 환자를 고르고 들어왔다가 장비 수리로 바꾸는 일이 실제로 생긴다.
-        encounterId: needsPatient ? encounterId : null,
+        subjectRef: needsPatient ? (encounter?.subjectRef ?? null) : null,
         serviceItemId,
         priority,
         note: note.trim() || null,

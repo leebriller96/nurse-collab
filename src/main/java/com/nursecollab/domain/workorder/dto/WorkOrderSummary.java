@@ -1,7 +1,6 @@
 package com.nursecollab.domain.workorder.dto;
 
 import com.nursecollab.domain.department.dto.DepartmentSummary;
-import com.nursecollab.domain.patient.entity.Sex;
 import com.nursecollab.domain.workorder.entity.OrderPriority;
 import com.nursecollab.domain.workorder.entity.OrderStatus;
 import com.nursecollab.domain.workorder.entity.OrderType;
@@ -9,6 +8,7 @@ import com.nursecollab.domain.workorder.entity.WorkOrder;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 /** 큐(E-01)와 현황(W-04)의 행 하나 */
 public record WorkOrderSummary(
@@ -23,33 +23,28 @@ public record WorkOrderSummary(
          */
         String statusLabel,
         OrderPriority priority,
-        /** 장비 수리처럼 환자가 없는 업무에서는 비어 있다. */
-        PatientInfo patient,
+        /**
+         * 대상 재원 건의 가명. 장비 수리처럼 환자가 없는 업무에서는 비어 있다.
+         *
+         * <b>이 응답에 환자 이름은 없다.</b> 화면이 이 열쇠로 원내에 물어 채운다.
+         * 원내망 밖에서는 채워지지 않고, 그것이 설계대로 동작하는 모습이다.
+         */
+        UUID subjectRef,
         String roomNo,
+        String bedNo,
         String itemName,
         DepartmentSummary counterpartDepartment,
         OffsetDateTime requestedAt,
         OffsetDateTime scheduledAt,
         long waitingMinutes,
-        int criticalAlertCount,
         Long version
 ) {
-    public record PatientInfo(String patientNo, String name, int age, Sex sex) {}
-
     /**
-     * @param inbound     우리 파트가 수행측이면 true. 상대 파트를 고르는 데 쓴다.
-     * @param criticalAlertCount 중대 주의사항 수. 큐에서 빨간 표시의 근거다.
+     * @param inbound 우리 파트가 수행측이면 true. 상대 파트를 고르는 데 쓴다.
      */
-    public static WorkOrderSummary of(WorkOrder request, boolean inbound, int criticalAlertCount) {
-        var encounter = request.getEncounter();
+    public static WorkOrderSummary of(WorkOrder request, boolean inbound) {
+        var episode = request.getCareEpisode();
         var counterpart = inbound ? request.getFromDepartment() : request.getToDepartment();
-
-        PatientInfo patientInfo = null;
-        if (encounter != null) {
-            var patient = encounter.getPatient();
-            patientInfo = new PatientInfo(patient.getPatientNo(), patient.getName(),
-                    patient.age(), patient.getSex());
-        }
 
         return new WorkOrderSummary(
                 request.getId(),
@@ -58,14 +53,14 @@ public record WorkOrderSummary(
                 request.getStatus(),
                 request.getOrderType().labelOf(request.getStatus()),
                 request.getPriority(),
-                patientInfo,
-                encounter == null ? null : encounter.getRoomNo(),
+                episode == null ? null : episode.getSubjectRef(),
+                episode == null ? null : episode.getRoomNo(),
+                episode == null ? null : episode.getBedNo(),
                 request.getServiceItem().getName(),
                 DepartmentSummary.from(counterpart),
                 request.getRequestedAt(),
                 request.getScheduledAt(),
                 waitingMinutes(request),
-                criticalAlertCount,
                 request.getVersion());
     }
 

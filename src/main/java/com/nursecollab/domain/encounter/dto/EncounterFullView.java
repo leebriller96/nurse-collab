@@ -12,6 +12,8 @@ import java.util.List;
 /** 담당 병동(과 관리자)이 보는 전체 정보 */
 public record EncounterFullView(
         Long encounterId,
+        /** 업무 요청을 걸 때 이 열쇠로 대상을 가리킨다. 업무 쪽에는 이것만 넘어간다. */
+        java.util.UUID subjectRef,
         PatientInfo patient,
         DepartmentSummary department,
         String roomNo,
@@ -35,6 +37,7 @@ public record EncounterFullView(
         var patient = encounter.getPatient();
         return new EncounterFullView(
                 encounter.getId(),
+                encounter.getSubjectRef(),
                 new PatientInfo(patient.getId(), patient.getPatientNo(), patient.getName(),
                         patient.getBirthDate(), patient.age(), patient.getSex()),
                 DepartmentSummary.from(encounter.getDepartment()),

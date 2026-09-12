@@ -6,6 +6,8 @@ import { PriorityBadge, StatusBadge } from '@/shared/ui/badges';
 import LoadFailed from '@/shared/ui/LoadFailed';
 import PullToRefresh from '@/shared/ui/PullToRefresh';
 import { CardListSkeleton } from '@/shared/ui/Skeleton';
+import { useSubjectBriefs } from '@/shared/api/phi';
+import OrderSubject from '@/features/workorder/OrderSubject';
 
 /** W-04 내 요청 현황. 우리 병동이 보낸 요청만 본다. */
 export default function WardRequestsPage() {
@@ -20,6 +22,9 @@ export default function WardRequestsPage() {
     // 실시간 알림이 주 경로다. 폴링은 알림을 놓쳤을 때를 위한 보조 장치로만 남긴다.
     refetchInterval: 60_000,
   });
+
+  // 업무 응답에는 이름이 없다. 가명으로 원내에 물어 채운다.
+  const briefs = useSubjectBriefs((data?.content ?? []).map((r) => r.subjectRef));
 
   if (isPending) return <CardListSkeleton />;
   if (isError) return <LoadFailed error={error} onRetry={() => void refetch()} />;
@@ -45,17 +50,11 @@ export default function WardRequestsPage() {
                 <span className="ml-auto text-xs text-slate-400">{r.waitingMinutes}분 경과</span>
               </div>
               <div className="mt-2 flex items-baseline gap-2">
-                {r.patient ? (
-                  <>
-                    <span className="font-bold text-slate-900">{r.roomNo}</span>
-                    <span className="font-semibold text-slate-800">{r.patient.name}</span>
-                    <span className="text-sm text-slate-500">
-                      {r.patient.sex}/{r.patient.age}
-                    </span>
-                  </>
-                ) : (
-                  <span className="font-semibold text-slate-600">대상 환자 없음</span>
-                )}
+                <OrderSubject
+                  row={r}
+                  brief={briefs.byRef.get(r.subjectRef ?? '')}
+                  unavailable={briefs.unavailable}
+                />
               </div>
               <p className="mt-0.5 text-sm text-slate-600">
                 {r.itemName} · {r.counterpartDepartment.name}

@@ -11,6 +11,8 @@ import java.util.List;
 /** 환자 보드 카드 하나 */
 public record EncounterSummary(
         Long encounterId,
+        /** 업무 요청을 걸 때 쓰는 열쇠 */
+        java.util.UUID subjectRef,
         String patientNo,
         String name,
         LocalDate birthDate,
@@ -29,6 +31,7 @@ public record EncounterSummary(
         var patient = encounter.getPatient();
         return new EncounterSummary(
                 encounter.getId(),
+                encounter.getSubjectRef(),
                 patient.getPatientNo(),
                 patient.getName(),
                 patient.getBirthDate(),
