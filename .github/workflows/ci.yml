@@ -98,6 +98,11 @@ jobs:
           mkdir -p ci-keys
           openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out ci-keys/jwt-private.pem
           openssl rsa -in ci-keys/jwt-private.pem -pubout -out ci-keys/jwt-public.pem
+          chmod 600 ci-keys/jwt-private.pem
+          # 바인드 마운트는 호스트의 소유자를 그대로 들고 간다.
+          # 컨테이너는 uid 10001 로 돌므로 그 uid 가 읽을 수 있어야 한다.
+          # 배포 문서가 안내하는 것과 같은 절차다. 여기서 같이 확인되는 셈이다.
+          sudo chown -R 10001:10001 ci-keys
 
       - uses: actions/setup-node@v4
         with:

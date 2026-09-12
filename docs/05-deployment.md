@@ -261,7 +261,14 @@ mkdir -p keys && chmod 700 keys
 openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out keys/jwt-private.pem
 openssl rsa -in keys/jwt-private.pem -pubout -out keys/jwt-public.pem
 chmod 600 keys/jwt-private.pem
+sudo chown -R 10001:10001 keys
 ```
+
+**마지막 줄을 빠뜨리면 기동이 막힌다.** 바인드 마운트는 호스트의 소유자와 권한을
+그대로 컨테이너 안으로 들고 간다. 백엔드는 root 가 아니라 uid 10001 로 돌기 때문에,
+`chmod 600` 으로 잠가 둔 키를 그 uid 가 소유하고 있지 않으면 읽지 못한다.
+로그에는 키 내용이 아니라 `Permission denied` 만 찍혀서 원인을 찾는 데 시간이 걸린다.
+(실제로 CI 에서 이 실수를 한 번 했다.)
 
 대칭키가 아니라 키쌍인 이유가 있다.
 대칭키면 토큰을 **검증**만 하면 되는 쪽도 **발급**할 수 있는 키를 가져야 한다.
@@ -402,7 +409,14 @@ docker compose -f docker-compose.prod.yml logs backend --tail 50
 그래서 조용히 도는 대신 뜨지 않게 했다.
 
 위 5장의 키 만들기를 다시 하고, `JWT_KEYS_DIR` 이 그 디렉터리를 가리키는지 확인한다.
-`키 파일을 찾을 수 없습니다` 가 뜨면 경로가 틀렸거나 권한이 막힌 것이다.
+
+`Permission denied` 가 뜨면 키 파일의 소유자가 컨테이너 uid 와 다른 것이다.
+
+```bash
+sudo chown -R 10001:10001 keys
+```
+
+`키 파일을 찾을 수 없습니다` 가 뜨면 경로가 틀린 것이다.
 
 ---
 
