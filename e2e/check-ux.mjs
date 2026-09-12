@@ -98,7 +98,7 @@ async function pushToReturned() {
   const mri = await token('mri01');
   const h = (t) => ({ Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' });
 
-  const encounters = await (await fetch(`${api}/encounters`, { headers: h(ward) })).json();
+  const encounters = await (await fetch(`${api}/care-episodes`, { headers: h(ward) })).json();
   const exams = await (await fetch(`${api}/service-items`, { headers: h(ward) })).json();
   const mriExam = exams.find((e) => e.code.startsWith('MRI'));
 

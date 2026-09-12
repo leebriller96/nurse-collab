@@ -71,20 +71,32 @@ export interface AlertResponse extends AlertSummary {
   createdAt: string;
 }
 
-export interface EncounterSummary {
-  encounterId: number;
+/**
+ * 병동 보드 카드의 업무 쪽 절반. 사람은 여기 없다.
+ * 이름·진단명·주의사항은 화면이 /phi 로 따로 물어 채운다.
+ */
+export interface CareEpisodeSummary {
   subjectRef: string;
-  patientNo: string;
-  name: string;
-  birthDate: string;
-  age: number;
-  sex: Sex;
   roomNo: string;
   bedNo: string;
   admittedAt: string;
-  diagnosis: string | null;
-  alertSummary: AlertSummary[];
   activeRequestCount: number;
+}
+
+/** 침대 하나의 상세. 진행중 요청을 펼쳐서 준다 */
+export interface CareEpisodeDetail {
+  subjectRef: string;
+  roomNo: string;
+  bedNo: string;
+  admittedAt: string;
+  activeRequests: {
+    id: number;
+    requestNo: string;
+    itemName: string;
+    status: OrderStatus;
+    statusLabel: string;
+    scheduledAt: string | null;
+  }[];
 }
 
 export interface PageResponse<T> {
@@ -148,30 +160,6 @@ export interface ChecklistWarning {
   message: string;
 }
 
-export interface EncounterFullView {
-  encounterId: number;
-  /** 업무 요청을 걸 때 이 열쇠로 대상을 가리킨다 */
-  subjectRef: string;
-  patient: { id: number; patientNo: string; name: string; birthDate: string; age: number; sex: Sex };
-  /**
-   * 현재 병동의 id. 이름이 없는 이유는 부서가 업무 쪽에 있기 때문이다.
-   * 필요하면 화면이 부서 목록에서 찾아 채운다.
-   */
-  departmentId: number;
-  roomNo: string;
-  bedNo: string;
-  admittedAt: string;
-  diagnosis: string | null;
-  isMobile: boolean;
-  alerts: AlertResponse[];
-  activeRequests: {
-    id: number;
-    requestNo: string;
-    itemName: string;
-    status: OrderStatus;
-    scheduledAt: string | null;
-  }[];
-}
 
 export interface OrderDetail {
   id: number;

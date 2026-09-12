@@ -80,7 +80,7 @@ try {
     label: '병동 환자 보드',
     loginId: 'ward01',
     viewport: { width: 390, height: 844 },
-    apiPattern: '**/api/v1/encounters**',
+    apiPattern: '**/api/v1/care-episodes**',
     duringSelector: '[role="status"] .space-y-2 > div',
     afterSelector: 'ul > li:first-child',
   });

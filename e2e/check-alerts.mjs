@@ -41,7 +41,7 @@ try {
   await login('ward01');
   // 주의사항이 없는 환자를 고른다. 폐소공포를 새로 남겨야 하기 때문이다.
   await page.getByRole('link', { name: /최OO/ }).first().click();
-  await page.waitForURL(/\/ward\/encounters\/\d+$/);
+  await page.waitForURL(/\/ward\/subjects\/[0-9a-f-]{36}$/);
   await page.waitForLoadState('networkidle');
   const encounterUrl = page.url();
 

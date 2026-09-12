@@ -119,7 +119,32 @@ try {
     '끊겨도 큐 목록은 그대로 뜬다',
   );
 
+  // ── 병동 보드도 같은 방식으로 줄어들어야 한다 ───────────
+  //
+  // 이 화면만 예전에는 이름이 그대로 보였다. 재원 목록을 업무 쪽에서 받았기 때문이다.
+  // 다른 화면은 사라지는데 이 화면만 아니면, 어디까지가 원내인지 아무도 모르게 된다.
+  await login('ward01');
+  await page.route('**/api/v1/phi/**', (route) => route.abort('failed'));
+  await page.goto(`${APP}/ward/board`);
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(1500);
+
+  record(
+    (await page.getByText(/[김이박정최]OO/).count()) === 0,
+    '병동 보드에서도 이름이 사라진다',
+  );
+  record(
+    (await page.getByText(/원내망에서만 조회됩니다/).count()) > 0,
+    '병동 보드도 빈칸이 아니라 이유를 말한다',
+  );
+  // 침대와 요청 건수는 업무 쪽 사실이라 남아야 한다
+  record(
+    (await page.getByText(/^\d{3}-\d$/).count()) > 0,
+    '끊겨도 어느 침대가 찼는지는 보인다',
+  );
+
   await page.unroute('**/api/v1/phi/**');
+  await login('mri01');
   await page.goto(orderUrl);
   await page.waitForLoadState('networkidle');
   await page.waitForTimeout(800);

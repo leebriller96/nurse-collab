@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, messageOf } from '@/shared/api/client';
-import type { AlertSeverity, AlertType, EncounterFullView } from '@/shared/api/types';
+import { phi, useSubject } from '@/shared/api/phi';
+import type { AlertSeverity, AlertType, CareEpisodeDetail } from '@/shared/api/types';
 import { AlertBadge, StatusBadge } from '@/shared/ui/badges';
 import LoadFailed from '@/shared/ui/LoadFailed';
 import { useToast } from '@/shared/ui/toast';
@@ -29,10 +30,10 @@ const SEVERITIES: { value: AlertSeverity; label: string; hint: string }[] = [
 /**
  * 주의사항 남기기.
  *
- * 여기 남긴 것이 검사 종류의 확인 항목과 만나 검사실 화면의 경고가 된다.
+ * 여기 남긴 것이 업무 항목의 확인 항목과 만나 수행 파트 화면의 경고가 된다.
  * 그래서 위험도를 사람 말로 풀어 뒀다. INFO/WARN/CRITICAL 로는 무엇을 고를지 알 수 없다.
  */
-function AlertForm({ patientId, onDone }: { patientId: number; onDone: () => void }) {
+function AlertForm({ subjectRef, onDone }: { subjectRef: string; onDone: () => void }) {
   const toast = useToast();
   const [alertType, setAlertType] = useState<AlertType>('FALL_RISK');
   const [severity, setSeverity] = useState<AlertSeverity>('WARN');
@@ -41,14 +42,14 @@ function AlertForm({ patientId, onDone }: { patientId: number; onDone: () => voi
 
   const save = useMutation({
     mutationFn: async () => {
-      await api.post(`/patients/${patientId}/alerts`, {
+      await phi.post(`/subjects/${subjectRef}/alerts`, {
         alertType,
         severity,
         content: content.trim() || null,
       });
     },
     onSuccess: () => {
-      toast.show('주의사항을 남겼습니다', { body: '검사실에서도 함께 보입니다', tone: 'success' });
+      toast.show('주의사항을 남겼습니다', { body: '수행 파트에서도 함께 보입니다', tone: 'success' });
       onDone();
     },
     onError: (e) => setError(messageOf(e, '남기지 못했습니다.')),
@@ -116,33 +117,49 @@ function AlertForm({ patientId, onDone }: { patientId: number; onDone: () => voi
   );
 }
 
-/** W-02 환자 상세. 여기서 바로 요청을 걸 수 있어야 한다. */
-export default function EncounterDetailPage() {
-  const { id } = useParams();
-  const encounterId = Number(id);
+/**
+ * W-02 환자 상세. 여기서 바로 업무 요청을 걸 수 있어야 한다.
+ *
+ * 화면 한 장이 두 곳에서 온다.
+ *   - 업무 쪽: 침대와 진행중 요청
+ *   - 원내: 이름, 진단명, 거동 여부, 주의사항
+ *
+ * 원내에 닿지 못하면 침대와 요청은 그대로 보이고 사람만 사라진다.
+ * 주의사항은 "없음" 이 아니라 "확인하지 못했다" 로 말한다 —
+ * 둘을 같게 보여주면 금기를 모른 채 요청을 걸게 된다.
+ */
+export default function SubjectDetailPage() {
+  const { subjectRef } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const toast = useToast();
   const [adding, setAdding] = useState(false);
 
+  const episode = useQuery({
+    queryKey: ['care-episode', subjectRef],
+    queryFn: async () => (await api.get<CareEpisodeDetail>(`/care-episodes/${subjectRef}`)).data,
+    enabled: !!subjectRef,
+  });
+
+  const { subject, unavailable: phiDown } = useSubject(subjectRef);
+
   const deactivate = useMutation({
     mutationFn: async (alertId: number) => {
-      await api.patch(`/patients/alerts/${alertId}/deactivate`);
+      await phi.patch(`/alerts/${alertId}/deactivate`);
     },
     onSuccess: () => {
       // 지우는 것이 아니라 내리는 것이다. 지난 요청은 이것을 보고 판단했다.
       toast.show('주의사항을 내렸습니다', { body: '지난 기록에는 그대로 남습니다', tone: 'success' });
-      void queryClient.invalidateQueries({ queryKey: ['encounter', encounterId] });
+      void queryClient.invalidateQueries({ queryKey: ['phi', 'subject', subjectRef] });
     },
   });
 
-  const { data, isPending, isError, error, refetch } = useQuery({
-    queryKey: ['encounter', encounterId],
-    queryFn: async () => (await api.get<EncounterFullView>(`/encounters/${encounterId}`)).data,
-  });
+  if (episode.isPending) return <DetailSkeleton />;
+  if (episode.isError) {
+    return <LoadFailed error={episode.error} onRetry={() => void episode.refetch()} />;
+  }
 
-  if (isPending) return <DetailSkeleton />;
-  if (isError) return <LoadFailed error={error} onRetry={() => void refetch()} />;
+  const bed = episode.data;
 
   return (
     <div className="pb-28">
@@ -151,56 +168,71 @@ export default function EncounterDetailPage() {
           ←
         </button>
         <h1 className="text-lg font-bold text-slate-900">
-          {data.roomNo}-{data.bedNo} {data.patient.name}
+          {bed.roomNo}-{bed.bedNo}{' '}
+          {subject ? (
+            subject.name
+          ) : (
+            <span className={`text-base font-normal ${phiDown ? 'text-amber-700' : 'text-slate-400'}`}>
+              {phiDown ? '원내망에서만 조회됩니다' : '불러오는 중…'}
+            </span>
+          )}
         </h1>
       </header>
 
       <section className="mx-3 rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200">
         <dl className="grid grid-cols-3 gap-y-2 text-sm">
           <dt className="text-slate-500">등록번호</dt>
-          <dd className="col-span-2 font-mono text-slate-800">{data.patient.patientNo}</dd>
+          <dd className="col-span-2 font-mono text-slate-800">{subject?.patientNo ?? '—'}</dd>
           <dt className="text-slate-500">나이/성별</dt>
           <dd className="col-span-2 text-slate-800">
-            {data.patient.age} / {data.patient.sex}
+            {subject ? `${subject.age} / ${subject.sex}` : '—'}
           </dd>
           <dt className="text-slate-500">진단명</dt>
-          <dd className="col-span-2 text-slate-800">{data.diagnosis ?? '-'}</dd>
+          <dd className="col-span-2 text-slate-800">{subject?.diagnosis ?? '—'}</dd>
           <dt className="text-slate-500">거동</dt>
-          <dd className="col-span-2 text-slate-800">{data.isMobile ? '가능' : '불가'}</dd>
+          <dd className="col-span-2 text-slate-800">
+            {subject ? (subject.mobile ? '가능' : '불가') : '—'}
+          </dd>
         </dl>
       </section>
 
       {/*
         비어 있어도 구역을 보여준다. 없을 때 감춰 버리면 남길 자리가 없다.
-        여기 쌓인 것이 검사실 화면의 "이 검사 전에 확인이 필요합니다" 가 된다.
+        여기 쌓인 것이 수행 파트 화면의 "이 업무 전에 확인이 필요합니다" 가 된다.
       */}
       <section className="mx-3 mt-3 rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200">
         <div className="mb-2 flex items-baseline justify-between">
           <h2 className="text-sm font-medium text-slate-600">주의사항</h2>
-          <button
-            type="button"
-            onClick={() => setAdding((v) => !v)}
-            className="text-sm font-semibold text-sky-600"
-          >
-            {adding ? '닫기' : '+ 추가'}
-          </button>
+          {subject && (
+            <button
+              type="button"
+              onClick={() => setAdding((v) => !v)}
+              className="text-sm font-semibold text-sky-600"
+            >
+              {adding ? '닫기' : '+ 추가'}
+            </button>
+          )}
         </div>
 
-        {adding && (
+        {adding && subject && (
           <AlertForm
-            patientId={data.patient.id}
+            subjectRef={subjectRef!}
             onDone={() => {
               setAdding(false);
-              void queryClient.invalidateQueries({ queryKey: ['encounter', data.encounterId] });
+              void queryClient.invalidateQueries({ queryKey: ['phi', 'subject', subjectRef] });
             }}
           />
         )}
 
-        {data.alerts.length === 0 ? (
+        {!subject ? (
+          <p className={`py-3 text-center text-sm ${phiDown ? 'text-amber-700' : 'text-slate-400'}`}>
+            {phiDown ? '원내망에서만 조회됩니다. 없다는 뜻이 아닙니다.' : '불러오는 중…'}
+          </p>
+        ) : subject.alerts.length === 0 ? (
           <p className="py-3 text-center text-sm text-slate-400">남긴 주의사항이 없습니다.</p>
         ) : (
           <ul className="space-y-1.5">
-            {data.alerts.map((a) => (
+            {subject.alerts.map((a) => (
               <li key={a.id} className="flex items-start gap-2 text-sm">
                 <AlertBadge type={a.alertType} severity={a.severity} />
                 <span className="text-slate-700">{a.content}</span>
@@ -217,21 +249,33 @@ export default function EncounterDetailPage() {
         )}
       </section>
 
-      <section className="mx-3 mt-3 grid grid-cols-2 gap-2">
-        <Link to={`/ward/encounters/${data.encounterId}/vitals`} className="rounded-xl bg-white py-3 text-center text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200">활력징후</Link>
-        <Link to={`/ward/encounters/${data.encounterId}/notes`} className="rounded-xl bg-white py-3 text-center text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200">간호기록</Link>
-      </section>
+      {subject && (
+        <section className="mx-3 mt-3 grid grid-cols-2 gap-2">
+          <Link
+            to={`/ward/subjects/${subjectRef}/vitals`}
+            className="rounded-xl bg-white py-3 text-center text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200"
+          >
+            활력징후
+          </Link>
+          <Link
+            to={`/ward/subjects/${subjectRef}/notes`}
+            className="rounded-xl bg-white py-3 text-center text-sm font-semibold text-slate-700 shadow-sm ring-1 ring-slate-200"
+          >
+            간호기록
+          </Link>
+        </section>
+      )}
 
       <section className="mx-3 mt-3 rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200">
         <h2 className="mb-2 text-sm font-medium text-slate-600">진행중 요청</h2>
-        {data.activeRequests.length === 0 ? (
+        {bed.activeRequests.length === 0 ? (
           <p className="text-sm text-slate-400">없습니다.</p>
         ) : (
           <ul className="space-y-2">
-            {data.activeRequests.map((r) => (
+            {bed.activeRequests.map((r) => (
               <li key={r.id}>
                 <Link to={`/ward/requests/${r.id}`} className="flex items-center gap-2 text-sm">
-                  <StatusBadge status={r.status} />
+                  <StatusBadge status={r.status} label={r.statusLabel} />
                   <span className="text-slate-800">{r.itemName}</span>
                   <span className="ml-auto font-mono text-xs text-slate-400">{r.requestNo}</span>
                 </Link>
@@ -243,7 +287,7 @@ export default function EncounterDetailPage() {
 
       <div className="fixed inset-x-0 bottom-[var(--app-bottom-bar,0px)] z-10 mx-auto max-w-md border-t border-slate-200 bg-white p-3">
         <Link
-          to={`/ward/requests/new?encounterId=${data.encounterId}`}
+          to={`/ward/requests/new?subjectRef=${subjectRef}`}
           className="block w-full rounded-xl bg-sky-600 py-3.5 text-center text-base font-bold text-white"
         >
           + 업무 요청

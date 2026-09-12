@@ -29,7 +29,7 @@ const h = (t) => ({ Authorization: `Bearer ${t}`, 'Content-Type': 'application/j
 /** 요청 하나를 만들어 검사실이 접수할 수 있는 상태로 둔다 */
 async function createRequest() {
   const ward = await token('ward01');
-  const encounters = await (await fetch(`${API}/encounters`, { headers: h(ward) })).json();
+  const encounters = await (await fetch(`${API}/care-episodes`, { headers: h(ward) })).json();
   const exams = await (await fetch(`${API}/service-items`, { headers: h(ward) })).json();
   const mriExam = exams.find((e) => e.code.startsWith('MRI'));
 

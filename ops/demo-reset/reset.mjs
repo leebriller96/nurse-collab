@@ -186,9 +186,10 @@ async function seed() {
     await login(id);
   }
 
-  const encounters = {
-    ward01: await call('ward01', 'GET', '/encounters'),
-    ward02: await call('ward02', 'GET', '/encounters'),
+  // 업무 요청을 걸려면 침대(가명)만 알면 된다. 이름은 필요 없다.
+  const episodes = {
+    ward01: await call('ward01', 'GET', '/care-episodes'),
+    ward02: await call('ward02', 'GET', '/care-episodes'),
   };
   const items = await call('ward01', 'GET', '/service-items');
 
@@ -205,7 +206,7 @@ async function seed() {
 
   // 업무 요청에는 가명만 넘긴다. 재원 id 도 이름도 업무 쪽으로 가지 않는다.
   const subjectOf = (who, roomNo, bedNo) => {
-    const list = encounters[who].content ?? encounters[who];
+    const list = episodes[who];
     const found = list.find((e) => e.roomNo === roomNo && e.bedNo === bedNo);
     if (!found) throw new Error(`재원 없음: ${roomNo}-${bedNo}`);
     return found.subjectRef;

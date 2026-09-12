@@ -1,7 +1,7 @@
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import LoginPage from '@/features/auth/LoginPage';
 import WardBoardPage from '@/features/encounter/WardBoardPage';
-import EncounterDetailPage from '@/features/encounter/EncounterDetailPage';
+import SubjectDetailPage from '@/features/encounter/SubjectDetailPage';
 import ServiceQueuePage from '@/features/workorder/ServiceQueuePage';
 import WardRequestsPage from '@/features/workorder/WardRequestsPage';
 import OrderCreatePage from '@/features/workorder/OrderCreatePage';
@@ -45,9 +45,10 @@ export default function Router() {
 
         <Route path="/ward" element={<WardLayout />}>
           <Route path="board" element={<WardBoardPage />} />
-          <Route path="encounters/:id" element={<EncounterDetailPage />} />
-          <Route path="encounters/:id/vitals" element={<VitalSignPage />} />
-          <Route path="encounters/:id/notes" element={<NursingNotePage />} />
+          {/* 환자를 가리키는 것은 가명뿐이다. 재원 id 는 주소에 드러나지 않는다. */}
+          <Route path="subjects/:subjectRef" element={<SubjectDetailPage />} />
+          <Route path="subjects/:subjectRef/vitals" element={<VitalSignPage />} />
+          <Route path="subjects/:subjectRef/notes" element={<NursingNotePage />} />
           <Route path="requests" element={<WardRequestsPage />} />
           <Route path="requests/new" element={<OrderCreatePage />} />
           <Route path="requests/:id" element={<OrderDetailPage />} />

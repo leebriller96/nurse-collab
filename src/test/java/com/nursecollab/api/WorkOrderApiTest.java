@@ -107,7 +107,7 @@ class WorkOrderApiTest extends IntegrationTest {
         // MRI 로만 요청을 보냈으므로 CT실은 이 환자와 아무 관계가 없다
         createRequest();
 
-        mvc.perform(get("/api/v1/encounters/" + encounterId).header("Authorization", bearer("ct01")))
+        mvc.perform(get("/api/v1/phi/subjects/" + subjectRef).header("Authorization", bearer("ct01")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("PERM-001"));
     }
@@ -116,7 +116,7 @@ class WorkOrderApiTest extends IntegrationTest {
     void 요청이_걸린_검사실은_환자를_열_수_있다() throws Exception {
         createRequest();
 
-        mvc.perform(get("/api/v1/encounters/" + encounterId).header("Authorization", bearer("mri01")))
+        mvc.perform(get("/api/v1/phi/subjects/" + subjectRef).header("Authorization", bearer("mri01")))
                 .andExpect(status().isOk());
     }
 

@@ -2,10 +2,13 @@ package com.nursecollab.domain.phi.service;
 
 import com.nursecollab.domain.encounter.entity.Encounter;
 import com.nursecollab.domain.encounter.repository.EncounterRepository;
+import com.nursecollab.domain.patient.dto.AlertCreateRequest;
+import com.nursecollab.domain.patient.dto.AlertResponse;
 import com.nursecollab.domain.patient.dto.ChecklistWarning;
 import com.nursecollab.domain.patient.entity.AlertType;
 import com.nursecollab.domain.patient.entity.PatientAlert;
 import com.nursecollab.domain.patient.repository.PatientAlertRepository;
+import com.nursecollab.domain.patient.service.PatientAlertService;
 import com.nursecollab.domain.phi.dto.SubjectBrief;
 import com.nursecollab.domain.phi.repository.PhiAccessLogRepository;
 import com.nursecollab.domain.phi.dto.SubjectPhi;
@@ -54,6 +57,7 @@ public class SubjectPhiService {
     private final AuditRecorder auditRecorder;
     private final PhiAccessRecorder phiAccessRecorder;
     private final PhiAccessLogRepository phiAccessLogRepository;
+    private final PatientAlertService patientAlertService;
 
     /**
      * 조회량 제한.
@@ -136,7 +140,10 @@ public class SubjectPhiService {
 
         return encounters.stream()
                 .map(e -> SubjectBrief.of(e,
-                        alertsByPatient.getOrDefault(e.getPatient().getId(), List.of())))
+                        alertsByPatient.getOrDefault(e.getPatient().getId(), List.of()),
+                        // 담당 병동이면 진단명과 주의사항 뱃지까지 받는다.
+                        // 검사실은 이름과 "주의할 것이 몇 건" 까지만 본다.
+                        ownWard(e, loginStaff)))
                 .toList();
     }
 
@@ -155,6 +162,30 @@ public class SubjectPhiService {
         Encounter encounter = requireViewable(subjectRef, loginStaff, "CHECKLIST");
         return ChecklistWarning.cross(required,
                 alertRepository.findActiveByPatientId(encounter.getPatient().getId()));
+    }
+
+    /**
+     * 주의사항을 남긴다. 붙는 곳은 재원이 아니라 사람이다.
+     * 판정은 조회와 같은 것을 쓴다 — 남의 병동 환자에게 붙일 수 있으면 안 된다.
+     */
+    @Transactional
+    public AlertResponse addAlert(UUID subjectRef, AlertCreateRequest request,
+                                  LoginStaff loginStaff) {
+        Encounter encounter = requireViewable(subjectRef, loginStaff, "VIEW");
+        return patientAlertService.add(encounter.getPatient().getId(), request, loginStaff);
+    }
+
+    @Transactional
+    public void deactivateAlert(Long alertId, LoginStaff loginStaff) {
+        patientAlertService.deactivate(alertId, loginStaff);
+    }
+
+    /** 이 사람에게 지금 붙어 있는 주의사항. 상세 화면이 목록으로 보여준다. */
+    public List<AlertResponse> findAlerts(UUID subjectRef, LoginStaff loginStaff) {
+        Encounter encounter = requireViewable(subjectRef, loginStaff, "VIEW");
+        return alertRepository.findActiveByPatientId(encounter.getPatient().getId()).stream()
+                .map(AlertResponse::from)
+                .toList();
     }
 
     /** 이름 일부로 가명을 찾는다. 이름은 밖으로 나가지 않고 가명만 돌려준다. */
@@ -182,9 +213,14 @@ public class SubjectPhiService {
         return encounter;
     }
 
+    /** 담당 병동이거나 관리자인가. 검사실은 여기에 해당하지 않는다. */
+    private boolean ownWard(Encounter encounter, LoginStaff loginStaff) {
+        return loginStaff.role() == StaffRole.ADMIN
+                || encounter.getDepartmentId().equals(loginStaff.departmentId());
+    }
+
     private boolean viewable(Encounter encounter, LoginStaff loginStaff) {
-        if (loginStaff.role() == StaffRole.ADMIN) return true;
-        if (encounter.getDepartmentId().equals(loginStaff.departmentId())) return true;
+        if (ownWard(encounter, loginStaff)) return true;
 
         return workOrderRepository.existsActiveBySubjectAndToDepartment(
                 encounter.getSubjectRef(), loginStaff.departmentId(), OrderStatus.terminals());

@@ -71,7 +71,7 @@ async function main() {
 
     // 요청 등록. 검사를 고르면 그 환자에게 확인이 필요한 항목이 바로 뜬다.
     await phone.page.getByRole('link', { name: /김OO/ }).first().click();
-    await phone.page.waitForURL(/\/ward\/encounters\/\d+$/);
+    await phone.page.waitForURL(/\/ward\/subjects\/[0-9a-f-]{36}$/);
     await phone.page.getByRole('link', { name: /이송 요청/ }).click();
     await phone.page.waitForURL(/\/ward\/requests\/new/);
     await phone.page.getByRole('button', { name: /뇌 MRI/ }).click();

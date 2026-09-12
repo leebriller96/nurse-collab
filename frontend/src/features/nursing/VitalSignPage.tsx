@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api, messageOf } from '@/shared/api/client';
-import type { EncounterFullView, PageResponse, VitalSign } from '@/shared/api/types';
+import type { PageResponse, VitalSign } from '@/shared/api/types';
 import { useToast } from '@/shared/ui/toast';
+import { useSubject } from '@/shared/api/phi';
 
 /** 입력 칸 정의를 한곳에 모은다. 칸이 늘거나 순서가 바뀌어도 여기만 고치면 된다. */
 const FIELDS = [
@@ -30,8 +31,7 @@ function nowForInput() {
 
 /** W-06 활력징후. 이동 중에 한 손으로 쓰는 화면이라 숫자 키패드가 바로 올라와야 한다. */
 export default function VitalSignPage() {
-  const { id } = useParams();
-  const encounterId = Number(id);
+  const { subjectRef } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -42,13 +42,27 @@ export default function VitalSignPage() {
   });
   const [error, setError] = useState<string | null>(null);
 
-  const encounter = useQuery({
-    queryKey: ['encounter', encounterId],
-    queryFn: async () => (await api.get<EncounterFullView>(`/encounters/${encounterId}`)).data,
-  });
+  // 사람은 원내에서 받는다. 기록이 붙는 곳은 재원이라 encounterId 도 여기서 나온다.
+  const { subject, unavailable: phiDown } = useSubject(subjectRef);
+  const encounterId = subject?.encounterId;
+
+  /*
+    이 화면은 통째로 진료 기록이다. 앞의 목록들처럼 일부만 비는 것이 아니라
+    아무것도 그릴 수 없다. 빈 목록을 보여주면 "기록이 없다" 로 읽히므로
+    화면 대신 이유를 띄운다.
+  */
+  const phiBlocked = phiDown ? (
+    <div className="p-6 text-center">
+      <p className="text-sm font-semibold text-amber-900">원내망에서만 조회됩니다</p>
+      <p className="mt-1 text-sm text-amber-800">
+        활력징후은 병원 안에서만 볼 수 있습니다. 기록이 없다는 뜻이 아닙니다.
+      </p>
+    </div>
+  ) : null;
 
   const history = useQuery({
     queryKey: ['vital-signs', encounterId],
+    enabled: !!encounterId,
     queryFn: async () =>
       (await api.get<PageResponse<VitalSign>>(`/encounters/${encounterId}/vital-signs`,
         { params: { page: 0, size: 20 } })).data,
@@ -76,6 +90,20 @@ export default function VitalSignPage() {
 
   const anyFilled = FIELDS.some((f) => values[f.key].trim() !== '');
 
+  if (phiBlocked) {
+    return (
+      <div className="pb-28">
+        <header className="sticky top-0 z-10 flex items-center gap-2 bg-slate-100/95 px-4 py-3 backdrop-blur">
+          <button type="button" onClick={() => navigate(-1)} className="text-slate-500">
+            ←
+          </button>
+          <h1 className="text-lg font-bold text-slate-900">활력징후</h1>
+        </header>
+        {phiBlocked}
+      </div>
+    );
+  }
+
   return (
     <div className="pb-28">
       <header className="sticky top-0 z-10 flex items-center gap-2 bg-slate-100/95 px-4 py-3 backdrop-blur">
@@ -83,9 +111,9 @@ export default function VitalSignPage() {
           ←
         </button>
         <h1 className="text-lg font-bold text-slate-900">활력징후</h1>
-        {encounter.data && (
+        {subject && (
           <span className="text-sm text-slate-500">
-            {encounter.data.roomNo}-{encounter.data.bedNo} {encounter.data.patient.name}
+            {subject.name}
           </span>
         )}
       </header>

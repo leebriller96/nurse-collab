@@ -643,8 +643,27 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 |---|---|---|
 | GET | `/phi/subjects/{subjectRef}` | 가명 하나를 사람으로. 이 호출이 감사 로그에 남는다 |
 | POST | `/phi/subjects/brief` | 목록 한 화면을 한 번에. 몸통에 가명 배열 |
+| GET | `/phi/subjects/{subjectRef}/alerts` | 지금 붙어 있는 주의사항 |
+| POST | `/phi/subjects/{subjectRef}/alerts` | 주의사항 남기기 |
+| PATCH | `/phi/alerts/{alertId}/deactivate` | 내리기 (지우지 않는다) |
 | GET | `/phi/subjects/{subjectRef}/checklist?required=` | 이 업무 전에 확인할 것 |
 | GET | `/phi/subjects/search?name=` | 이름으로 가명 찾기. 나가는 것은 가명뿐이다 |
+
+### `/encounters` 는 없어졌다
+
+병동 보드와 환자 상세가 이 경로로 재원 목록을 받았고, 그 응답에 이름과 진단명이
+실려 있었다. 그래서 **원내망 밖에서 이 화면만 이름이 그대로 보였다.**
+다른 화면은 사라지는데 이 화면만 아니면, 어디까지가 원내인지 아무도 기억하지 못한다.
+
+이제 화면 한 장을 두 곳에서 받아 합친다.
+
+| 화면 | 업무 쪽 | 원내 |
+|---|---|---|
+| W-01 병동 보드 | `GET /care-episodes` — 침대·진행중 요청 수 | `POST /phi/subjects/brief` |
+| W-02 환자 상세 | `GET /care-episodes/{ref}` — 침대·진행중 요청 | `GET /phi/subjects/{ref}` |
+
+`/care-episodes` 응답에는 사람이 없다. 감사 로그도 남기지 않는다 —
+환자 정보를 열어본 것이 아니기 때문이다.
 
 ### 목록 조회가 POST 인 이유
 

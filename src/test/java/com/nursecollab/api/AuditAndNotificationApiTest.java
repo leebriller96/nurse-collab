@@ -95,7 +95,7 @@ class AuditAndNotificationApiTest extends IntegrationTest {
     void 환자를_열어보면_접근_기록에_남는다() throws Exception {
         // @Audited + AOP 가 자동으로 적재한다. 이게 이 기능의 전부라
         // 조용히 안 쌓이면 아무도 모른다. 실제로 개발 중에 그랬다.
-        mvc.perform(get("/api/v1/encounters/" + encounterId)
+        mvc.perform(get("/api/v1/phi/subjects/" + subjectRef)
                         .header("Authorization", bearer("ward01")))
                 .andExpect(status().isOk());
 

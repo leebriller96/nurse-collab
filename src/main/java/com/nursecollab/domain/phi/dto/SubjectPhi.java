@@ -20,6 +20,13 @@ import java.util.UUID;
  */
 public record SubjectPhi(
         UUID subjectRef,
+        /**
+         * 활력징후·간호기록이 이 값에 붙는다. 원내 안에서만 쓰는 식별자다.
+         * 업무 쪽으로는 나가지 않는다.
+         */
+        Long encounterId,
+        /** 주의사항은 재원이 아니라 사람에 붙는다. 퇴원한다고 인공관절이 사라지지 않는다. */
+        Long patientId,
         String patientNo,
         String name,
         int age,
@@ -32,6 +39,8 @@ public record SubjectPhi(
         var patient = encounter.getPatient();
         return new SubjectPhi(
                 encounter.getSubjectRef(),
+                encounter.getId(),
+                patient.getId(),
                 patient.getPatientNo(),
                 patient.getName(),
                 patient.age(),

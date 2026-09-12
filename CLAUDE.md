@@ -281,6 +281,19 @@ chore: Testcontainers 의존성 추가
     - 목록 이름 채우기(`/phi/subjects/brief`)는 세지 않는다. 그건 "여는 것" 이 아니고,
       볼 자격이 없는 가명은 애초에 빠지므로 이 통로로는 관계 밖의 사람을 긁어갈 수 없다.
     - 관리자도 예외로 두지 않는다. 관리자 계정이야말로 노리는 쪽이 제일 갖고 싶어 하는 것이다.
+  - **환자 조회는 전부 `/phi` 아래로 모았다.** 예전에는 병동 보드가 `/encounters` 로
+    재원 목록을 받았고 그 응답에 이름과 진단명이 실려 있었다. 그래서 원내망 밖에서
+    이 화면만 이름이 그대로 보였다 — 다른 화면은 사라지는데. 어디까지가 원내인지
+    화면마다 다르면 아무도 기억하지 못한다.
+    - 병동 보드는 이제 `/care-episodes`(침대·요청 수)와 `/phi/subjects/brief`(사람)를
+      합쳐 그린다. 원내가 끊기면 "302-1에 누군가 있고 요청 2건" 까지는 보인다.
+    - 활력징후·간호기록 화면은 통째로 진료 기록이라 일부만 비는 것이 아니다.
+      빈 목록을 보여주면 "기록이 없다" 로 읽히므로 화면 대신 이유를 띄운다.
+    - 주소에서도 재원 id 를 걷어냈다(`/ward/subjects/{가명}`).
+      브라우저 기록과 중계 서버 로그에 남는 것이 가명이어야 한다.
+    - 목록에 나가는 것은 보는 사람에 따라 다르다. 담당 병동은 진단명과 주의사항
+      뱃지까지, 검사실은 이름과 "주의할 것이 몇 건" 까지. 검사실 상세에 진단명이
+      실리지 않는 것과 같은 규칙이다.
   - `e2e/check-phi-split.mjs` 가 일부러 원내를 끊어 본다. 원내가 살아 있으면 화면은
     늘 멀쩡해 보여서, 끊어 봐야 무엇이 어디서 오는지 드러난다.
     업무 응답 본문을 직접 뒤져 이름·진단명이 섞여 있지 않은지도 함께 본다.
@@ -359,17 +372,15 @@ chore: Testcontainers 의존성 추가
 | POST | `/auth/login` `/auth/refresh` `/auth/logout` | C-01 |
 | GET | `/auth/me` | C-03 |
 | GET | `/departments` `/service-items` | W-03, A-04 |
-| GET | `/encounters` | W-01 |
-| GET | `/encounters/{id}` `/encounters/{id}/alerts` | W-02 |
-| GET | `/phi/subjects/{ref}` `/{ref}/checklist` `/subjects/search` | 이름·경고 채우기 |
+| GET | `/care-episodes` `/care-episodes/{ref}` | W-01, W-02 의 업무 쪽 절반 |
+| GET | `/phi/subjects/{ref}` `/{ref}/alerts` `/{ref}/checklist` `/subjects/search` | 사람 쪽 절반 |
 | POST | `/phi/subjects/brief` | 목록 이름 채우기 |
+| POST PATCH | `/phi/subjects/{ref}/alerts` `/phi/alerts/{id}/deactivate` | W-02 |
 | POST | `/work-orders` | W-03 |
 | GET | `/work-orders?direction=` | W-04, E-01 |
 | GET | `/work-orders/{id}` `/{id}/events` | W-05, E-02 |
 | POST | `/work-orders/{id}/transitions` | W-05, E-02 |
 | GET POST | `/work-orders/{id}/messages` | W-05, E-02 |
-| POST | `/patients/{patientId}/alerts` | W-02 |
-| PATCH | `/patients/alerts/{alertId}/deactivate` | W-02 |
 | GET POST | `/encounters/{id}/vital-signs` | W-06 |
 | GET POST | `/encounters/{id}/nursing-notes` | W-07 |
 | PUT | `/nursing-notes/{noteId}` | W-07 |

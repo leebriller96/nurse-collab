@@ -1,15 +1,19 @@
 package com.nursecollab.domain.phi.controller;
 
+import com.nursecollab.domain.patient.dto.AlertCreateRequest;
+import com.nursecollab.domain.patient.dto.AlertResponse;
 import com.nursecollab.domain.patient.dto.ChecklistWarning;
 import com.nursecollab.domain.patient.entity.AlertType;
 import com.nursecollab.domain.phi.dto.SubjectBrief;
 import com.nursecollab.domain.phi.dto.SubjectPhi;
 import com.nursecollab.domain.phi.service.SubjectPhiService;
 import com.nursecollab.global.security.LoginStaff;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -17,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.net.URI;
 import java.util.List;
 import java.util.UUID;
 
@@ -53,6 +58,42 @@ public class SubjectPhiController {
     public ResponseEntity<List<SubjectBrief>> findBrief(@RequestBody List<UUID> subjectRefs,
                                                         @AuthenticationPrincipal LoginStaff staff) {
         return ResponseEntity.ok(subjectPhiService.findBrief(subjectRefs, staff));
+    }
+
+    /**
+     * 주의사항을 남긴다.
+     *
+     * 경로는 가명이지만 주의사항이 붙는 곳은 <b>사람</b>이다.
+     * 퇴원한다고 인공관절이 사라지지 않는다. 다음 입원 때도 그대로 있어야 한다.
+     * 그래서 가명으로 받아 사람을 찾아 붙인다.
+     */
+    @PostMapping("/subjects/{subjectRef}/alerts")
+    public ResponseEntity<AlertResponse> addAlert(
+            @PathVariable UUID subjectRef,
+            @Valid @RequestBody AlertCreateRequest request,
+            @AuthenticationPrincipal LoginStaff loginStaff) {
+
+        AlertResponse created = subjectPhiService.addAlert(subjectRef, request, loginStaff);
+        return ResponseEntity
+                .created(URI.create("/api/v1/phi/subjects/" + subjectRef + "/alerts"))
+                .body(created);
+    }
+
+    /** 지우지 않고 내린다. 이 주의사항을 보고 판단한 지난 요청이 있다. */
+    @PatchMapping("/alerts/{alertId}/deactivate")
+    public ResponseEntity<Void> deactivateAlert(
+            @PathVariable Long alertId,
+            @AuthenticationPrincipal LoginStaff loginStaff) {
+
+        subjectPhiService.deactivateAlert(alertId, loginStaff);
+        return ResponseEntity.noContent().build();
+    }
+
+    /** 이 사람에게 지금 붙어 있는 주의사항 */
+    @GetMapping("/subjects/{subjectRef}/alerts")
+    public ResponseEntity<List<AlertResponse>> alerts(@PathVariable UUID subjectRef,
+                                                      @AuthenticationPrincipal LoginStaff staff) {
+        return ResponseEntity.ok(subjectPhiService.findAlerts(subjectRef, staff));
     }
 
     /**

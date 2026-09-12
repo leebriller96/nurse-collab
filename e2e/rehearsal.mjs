@@ -94,7 +94,7 @@ async function main() {
 
     // ── 2. 환자 상세
     await page.getByRole('link', { name: /김OO/ }).first().click();
-    await page.waitForURL(/\/ward\/encounters\//);
+    await page.waitForURL(/\/ward\/subjects\//);
     await caption(page, '3', '이 환자는 좌측 고관절에 인공관절이 있다.');
     await beat(page, 2600);
 
@@ -191,7 +191,7 @@ async function main() {
     await page.getByRole('link', { name: '환자' }).click();
     await page.waitForURL(/\/ward\/board/);
     await page.getByRole('link', { name: /김OO/ }).first().click();
-    await page.waitForURL(/\/ward\/encounters\/\d+$/);
+    await page.waitForURL(/\/ward\/subjects\/[0-9a-f-]{36}$/);
     await page.getByRole('link', { name: '간호기록' }).click();
     await page.waitForURL(/\/notes$/);
     await caption(page, '17', '간호기록은 SBAR 로 쓴다. 본인이 24시간 안에만 고칠 수 있고 삭제는 없다.');

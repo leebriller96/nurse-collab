@@ -63,7 +63,7 @@ class PatientAlertApiTest extends IntegrationTest {
     void 주의사항을_남기면_환자_화면에서_보인다() throws Exception {
         addAlert("ward01");
 
-        mvc.perform(get("/api/v1/encounters/" + encounterId + "/alerts")
+        mvc.perform(get("/api/v1/phi/subjects/" + subjectRef + "/alerts")
                         .header("Authorization", bearer("ward01")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$[0].alertType").value("CLAUSTROPHOBIA"));
@@ -95,7 +95,7 @@ class PatientAlertApiTest extends IntegrationTest {
 
     @Test
     void 종류가_없으면_VAL_001() throws Exception {
-        mvc.perform(post("/api/v1/patients/" + patientId + "/alerts")
+        mvc.perform(post("/api/v1/phi/subjects/" + subjectRef + "/alerts")
                         .header("Authorization", bearer("ward01"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -108,11 +108,11 @@ class PatientAlertApiTest extends IntegrationTest {
     void 내리면_목록에서_빠지지만_지워지지는_않는다() throws Exception {
         long alertId = addAlert("ward01").get("id").asLong();
 
-        mvc.perform(patch("/api/v1/patients/alerts/" + alertId + "/deactivate")
+        mvc.perform(patch("/api/v1/phi/alerts/" + alertId + "/deactivate")
                         .header("Authorization", bearer("ward01")))
                 .andExpect(status().isNoContent());
 
-        mvc.perform(get("/api/v1/encounters/" + encounterId + "/alerts")
+        mvc.perform(get("/api/v1/phi/subjects/" + subjectRef + "/alerts")
                         .header("Authorization", bearer("ward01")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
@@ -120,7 +120,7 @@ class PatientAlertApiTest extends IntegrationTest {
 
     @Test
     void 없는_주의사항을_내리면_ALT_000() throws Exception {
-        mvc.perform(patch("/api/v1/patients/alerts/99999999/deactivate")
+        mvc.perform(patch("/api/v1/phi/alerts/99999999/deactivate")
                         .header("Authorization", bearer("ward01")))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("ALT-000"));
@@ -212,7 +212,7 @@ class PatientAlertApiTest extends IntegrationTest {
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
             alertRequest(String actor) throws Exception {
-        return post("/api/v1/patients/" + patientId + "/alerts")
+        return post("/api/v1/phi/subjects/" + subjectRef + "/alerts")
                 .header("Authorization", bearer(actor))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""

@@ -1,7 +1,7 @@
 import axios from 'axios';
 import { useQuery } from '@tanstack/react-query';
 import { tokenStore } from './client';
-import type { AlertResponse, AlertType, ChecklistWarning, Sex } from './types';
+import type { AlertResponse, AlertSummary, AlertType, ChecklistWarning, Sex } from './types';
 
 /**
  * 원내에만 있는 것들을 받아오는 통로.
@@ -32,10 +32,18 @@ export interface SubjectBrief {
   age: number;
   sex: Sex;
   criticalAlertCount: number;
+  /** 담당 병동이 아니면 비어 있다. 검사를 수행하는 데 진단명은 필요하지 않다 */
+  diagnosis: string | null;
+  /** 유형과 심각도만. 내용은 담기지 않는다. 담당 병동이 아니면 빈 배열 */
+  alerts: AlertSummary[];
 }
 
 export interface SubjectPhi {
   subjectRef: string;
+  /** 활력징후·간호기록이 이 값에 붙는다. 원내 안에서만 쓰는 식별자다 */
+  encounterId: number;
+  /** 주의사항은 재원이 아니라 사람에 붙는다 */
+  patientId: number;
   patientNo: string;
   name: string;
   age: number;
