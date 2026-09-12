@@ -251,10 +251,23 @@ cp .env.example .env
 비밀값 두 개를 만든다. 출력된 문자열을 복사해 둔다.
 
 ```bash
-openssl rand -base64 24 && openssl rand -base64 48
+openssl rand -base64 24
 ```
 
-첫 번째가 DB 비밀번호, 두 번째가 토큰 서명 키다.
+DB 비밀번호다. 토큰 서명 키는 문자열이 아니라 **키쌍**이라 따로 만든다.
+
+```bash
+mkdir -p keys && chmod 700 keys
+openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out keys/jwt-private.pem
+openssl rsa -in keys/jwt-private.pem -pubout -out keys/jwt-public.pem
+chmod 600 keys/jwt-private.pem
+```
+
+대칭키가 아니라 키쌍인 이유가 있다.
+대칭키면 토큰을 **검증**만 하면 되는 쪽도 **발급**할 수 있는 키를 가져야 한다.
+지금은 한 대뿐이라 차이가 없지만, 환자 정보를 원내에만 두는 구성으로 가면
+원내 게이트웨이가 검증만 하는 쪽이 된다. 그때 대칭키를 나눠 주면
+원내에서 관리자 토큰을 스스로 만들 수 있고, 원내 키가 새면 클라우드까지 같이 뚫린다.
 
 ```bash
 nano .env
@@ -263,8 +276,8 @@ nano .env
 이렇게 채운다.
 
 ```
-POSTGRES_PASSWORD=(첫 번째 문자열)
-JWT_SECRET=(두 번째 문자열)
+POSTGRES_PASSWORD=(위에서 나온 문자열)
+JWT_KEYS_DIR=./keys
 
 SITE_ADDRESS=내도메인.com
 ACME_EMAIL=내이메일@example.com
@@ -378,21 +391,18 @@ docker compose -f docker-compose.prod.yml up -d
 docker compose -f docker-compose.prod.yml logs backend --tail 50
 ```
 
-`JWT_SECRET` 이 비었거나, 너무 짧거나, **개발용 기본값 그대로면 일부러 기동을 막는다.**
+키 파일이 없거나, **저장소에 든 개발용 키 그대로면 일부러 기동을 막는다.**
 
 ```
 개발용 기본 서명 키로 운영에 띄우려 했습니다.
 ```
 
-이 키는 저장소에 공개돼 있어서, 그대로 뜨면 **누구나 관리자 토큰을 위조할 수 있다.**
+이 키쌍은 저장소에 공개돼 있어서, 그대로 뜨면 **누구나 관리자 토큰을 위조할 수 있다.**
 로그인조차 필요 없다. 화면은 멀쩡히 돌기 때문에 아무도 눈치채지 못한다.
 그래서 조용히 도는 대신 뜨지 않게 했다.
 
-```bash
-openssl rand -base64 48
-```
-
-나온 값을 `.env` 의 `JWT_SECRET` 에 넣고 다시 올린다.
+위 5장의 키 만들기를 다시 하고, `JWT_KEYS_DIR` 이 그 디렉터리를 가리키는지 확인한다.
+`키 파일을 찾을 수 없습니다` 가 뜨면 경로가 틀렸거나 권한이 막힌 것이다.
 
 ---
 

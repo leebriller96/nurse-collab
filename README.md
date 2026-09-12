@@ -253,7 +253,7 @@ npm run dev                   # http://localhost:5173
 이미지 두 개(백엔드 JAR, Caddy + 정적 파일)와 DB · Redis 를 한 번에 올린다.
 
 ```bash
-cp .env.example .env          # POSTGRES_PASSWORD, JWT_SECRET, SITE_ADDRESS 를 채운다
+cp .env.example .env          # POSTGRES_PASSWORD, JWT_KEYS_DIR, SITE_ADDRESS 를 채운다
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 

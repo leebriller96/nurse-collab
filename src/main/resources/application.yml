@@ -26,10 +26,17 @@ spring:
       port: 6379
 
 jwt:
-  # 로컬 개발용 기본값이다. 이 값은 저장소에 공개돼 있으므로 운영에서 쓰면
-  # 누구나 관리자 토큰을 위조할 수 있다. prod 프로파일에서는 JwtSecretGuard 가
-  # "local-dev-only" 표식을 보고 기동을 막는다. 표식을 지우지 말 것.
-  secret: ${JWT_SECRET:local-dev-only-secret-please-override-in-production-0123456789}
+  # RS256 키쌍. 대칭키가 아닌 이유는 JwtProperties 주석에 있다 —
+  # 검증만 하면 되는 원내 게이트웨이에 발급까지 가능한 키를 줄 수 없다.
+  #
+  # 아래 기본값은 로컬 개발용이고 저장소에 공개돼 있다. 운영에서 그대로 쓰면
+  # 누구나 관리자 토큰을 위조할 수 있다. prod 프로파일에서는 JwtKeyGuard 가
+  # 공개키 지문을 보고 기동을 막는다.
+  #
+  # 개인키는 토큰을 발급하는 쪽에만 준다. 환경변수가 아니라 파일로 넘긴다.
+  # 환경변수로 넘기면 docker inspect 와 프로세스 목록에 그대로 찍힌다.
+  private-key: ${JWT_PRIVATE_KEY_FILE:classpath:keys/local-dev-only-private.pem}
+  public-key: ${JWT_PUBLIC_KEY_FILE:classpath:keys/local-dev-only-public.pem}
   access-token-validity: 30m
   refresh-token-validity: 14d
 

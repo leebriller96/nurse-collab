@@ -85,11 +85,19 @@ jobs:
     # 잡 전체에 걸어 둔다. 여기 값은 CI 안에서만 살고 밖으로 열리지 않는다.
     env:
       POSTGRES_PASSWORD: ci-only-password
-      JWT_SECRET: ci-only-secret-at-least-32-bytes-long-0123456789abcdef
+      JWT_KEYS_DIR: ./ci-keys
       WEB_PORT: '8081'
       WEB_TLS_PORT: '8443'
     steps:
       - uses: actions/checkout@v4
+
+      # 저장소에 든 개발용 키로는 prod 프로파일이 뜨지 않는다(JwtKeyGuard).
+      # 그 방어가 살아 있는지도 여기서 함께 확인되는 셈이다.
+      - name: 서명 키쌍 만들기
+        run: |
+          mkdir -p ci-keys
+          openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048 -out ci-keys/jwt-private.pem
+          openssl rsa -in ci-keys/jwt-private.pem -pubout -out ci-keys/jwt-public.pem
 
       - uses: actions/setup-node@v4
         with:
