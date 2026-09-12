@@ -246,7 +246,7 @@ export default function EncounterDetailPage() {
           to={`/ward/requests/new?encounterId=${data.encounterId}`}
           className="block w-full rounded-xl bg-sky-600 py-3.5 text-center text-base font-bold text-white"
         >
-          + 이송 요청
+          + 업무 요청
         </Link>
       </div>
     </div>

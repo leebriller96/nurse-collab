@@ -37,7 +37,7 @@ async function measure({ loginId, viewport, apiPattern, path, label, duringSelec
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.getByRole('button', { name: new RegExp(loginId) }).click();
-  await page.waitForURL(/\/(ward|exam|admin)\//, { timeout: 15000 });
+  await page.waitForURL(/\/(ward|service|admin)\//, { timeout: 15000 });
   if (path) await page.goto(`${APP}${path}`);
   await page.waitForLoadState('networkidle');
 

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { messageOf } from '@/shared/api/client';
 import { useAuth } from '@/shared/hooks/useAuth';
+import { homeFor } from '@/shared/lib/home';
 
 /** 데모용. 실제 병원 배포에서는 없어져야 하는 블록이다. */
 const DEMO_ACCOUNTS = [
@@ -9,6 +10,9 @@ const DEMO_ACCOUNTS = [
   { loginId: 'mri01', label: 'MRI실 박간호' },
   { loginId: 'ward02', label: '5병동 이간호' },
   { loginId: 'ct01', label: 'CT실 최간호' },
+  { loginId: 'lab01', label: '진단검사의학과 한검사' },
+  { loginId: 'pharm01', label: '약제부 오약사' },
+  { loginId: 'bme01', label: '의공학팀 서기사' },
   { loginId: 'head01', label: '3병동 정수간호' },
   { loginId: 'admin01', label: '관리자' },
 ];
@@ -27,14 +31,8 @@ export default function LoginPage() {
     setSubmitting(true);
     try {
       const staff = await login(id, pw);
-      // 소속 파트 유형으로 홈 화면이 갈린다
-      const home =
-        staff.department.deptType === 'ADMIN'
-          ? '/admin/stats'
-          : staff.department.deptType === 'EXAM'
-            ? '/service/queue'
-            : '/ward/board';
-      navigate(home, { replace: true });
+      // 소속 파트 유형으로 홈 화면이 갈린다. 판정은 homeFor 한 곳에만 있다.
+      navigate(homeFor(staff.department.deptType), { replace: true });
     } catch (e) {
       setError(messageOf(e, '로그인에 실패했습니다.'));
     } finally {

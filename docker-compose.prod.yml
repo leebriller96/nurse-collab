@@ -87,9 +87,7 @@ services:
   # 매일 새벽에 처음 상태로 되돌린다. 비공개로 쓸 거면 이 서비스를 지우면 된다.
   demo-reset:
     build:
-      # 시드 SQL 을 이미지에 넣어야 해서 컨텍스트가 저장소 루트다
-      context: .
-      dockerfile: ops/demo-reset/Dockerfile
+      context: ops/demo-reset
     environment:
       API_BASE: http://backend:8080
       PGHOST: postgres

@@ -21,7 +21,7 @@ async function login(page, loginId) {
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.getByRole('button', { name: new RegExp(loginId) }).click();
-  await page.waitForURL(/\/(ward|exam|admin)\//, { timeout: 15000 });
+  await page.waitForURL(/\/(ward|service|admin)\//, { timeout: 15000 });
 }
 
 /** 값이 다 들어온 뒤에 찍는다. 로딩 중 화면이 찍히면 README 가 비어 보인다. */

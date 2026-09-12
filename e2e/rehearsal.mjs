@@ -13,7 +13,7 @@ async function login(page, loginId, label) {
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.getByRole('button', { name: new RegExp(loginId) }).click();
-  await page.waitForURL(/\/(ward|exam|admin)\//, { timeout: 15000 });
+  await page.waitForURL(/\/(ward|service|admin)\//, { timeout: 15000 });
   console.log(`  ${label} 로그인 → ${new URL(page.url()).pathname}`);
   await beat(page);
 }
@@ -99,7 +99,7 @@ async function main() {
     await beat(page, 2600);
 
     // ── 3. 이송 요청 등록
-    await page.getByRole('link', { name: /이송 요청/ }).click();
+    await page.getByRole('link', { name: /업무 요청/ }).click();
     await page.waitForURL(/\/ward\/requests\/new/);
     await caption(page, '4', '검사실로 보낼 검사를 고른다.');
     await beat(page);

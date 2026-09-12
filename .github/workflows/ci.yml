@@ -153,6 +153,14 @@ jobs:
         working-directory: e2e
         run: APP=http://localhost:8081 node check-alerts.mjs
 
+      # 이송 말고 다른 종류의 업무가 실제로 도는지.
+      # 특히 환자가 없는 업무(장비 수리)가 중요하다. 이송만 있을 때는 모든 목록이
+      # 환자 이름을 그냥 꺼내 썼고, 한 군데라도 빠뜨리면 그 화면만 백지가 된다.
+      # 초기화가 심는 시드가 스키마와 어긋나도 여기서 먼저 깨진다.
+      - name: 다른 종류의 업무
+        working-directory: e2e
+        run: APP=http://localhost:8081 node check-order-types.mjs
+
       - name: 실패하면 스택 로그를 남긴다
         if: failure()
         run: docker compose -p ci -f docker-compose.prod.yml logs --tail 80

@@ -132,7 +132,7 @@ export default function OrderDetailPage() {
         </button>
         <span className="font-mono text-sm text-slate-600">{d.requestNo}</span>
         <PriorityBadge priority={d.priority} />
-        <StatusBadge status={d.status} />
+        <StatusBadge status={d.status} label={d.statusLabel} />
       </header>
 
       {d.checklistWarnings.length > 0 && (

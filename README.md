@@ -2,7 +2,8 @@
 
 [![CI](https://github.com/leebriller96/nurse-collab/actions/workflows/ci.yml/badge.svg)](https://github.com/leebriller96/nurse-collab/actions/workflows/ci.yml)
 
-**병동과 검사실 사이의 환자 이송을 전화 대신 시스템으로 처리하는 협업 도구.**
+**병동과 다른 파트 사이의 업무 요청을 전화 대신 시스템으로 처리하는 협업 도구.**
+이송(검사실)으로 시작해 검체 · 약제 · 의공까지 같은 흐름으로 다룬다.
 
 MRI·CT 검사를 위해 환자를 병동에서 검사실로 보내는 일은 지금도 대부분 전화로 이뤄진다.
 언제 걸었는지, 누가 받았는지, 무엇을 주의하라고 말했는지는 아무 데도 남지 않는다.
@@ -59,16 +60,37 @@ EMR 을 대체하지 않는다. **EMR 옆에 붙는 협업 레이어**로 만들
 
 ### 1. 상태 전이 규칙은 한 곳에만 있다
 
-이송 요청은 9개 상태를 오간다. 전이할 수 있는 조합, 그 전이를 누를 수 있는 쪽,
-사유나 예정시각이 필수인지가 전부 `OrderStatus.RULES` 테이블 하나에 들어 있다.
+업무 종류마다 흐름이 다르다. 전이할 수 있는 조합, 그 전이를 누를 수 있는 쪽,
+사유나 예정시각이 필수인지가 전부 `OrderType` 의 종류별 규칙표에 들어 있다.
 
 ```java
-new Rule(REQUESTED, ACCEPTED,  ActorSide.PERFORMER, false, true),   // 접수는 검사실이, 예정시각 필수
-new Rule(READY,     IN_TRANSIT, ActorSide.REQUESTER, false, false), // 출발은 병동이
+RULES.put(TRANSFER, List.of(
+    new Rule(REQUESTED, ACCEPTED,   PERFORMER, false, true),   // 접수는 검사실이, 예정시각 필수
+    new Rule(READY,     IN_TRANSIT, REQUESTER, false, false),  // 출발은 병동이
+    ...));
+
+RULES.put(EQUIPMENT, List.of(
+    // 어떤 부품을 기다리는지 적지 않으면 언제 끝날지 아무도 모른다
+    new Rule(IN_PROGRESS, AWAITING_PARTS, PERFORMER, true, false),
+    // 고친 사람이 끝냈다고 말한다. 병동의 확인을 기다리지 않는 유일한 종류다
+    new Rule(IN_PROGRESS, COMPLETED,      PERFORMER, false, false),
+    ...));
 ```
 
+| 종류 | 요청 → 수행 | 환자 | 흐름 |
+|---|---|---|---|
+| 이송 | 병동 → 검사실 | 있음 | 요청 → 접수 → 준비완료 → 이송중 → 검사중 → 복귀중 → 완료 |
+| 검체 | 병동 → 진단검사의학과 | 있음 | 요청 → 접수 → 채취완료 → 검사중 → 결과등록 → 완료 |
+| 약제 | 병동 → 약제부 | 있음 | 요청 → 접수 → 조제중 → 조제완료 → 불출완료 → 완료 |
+| 의공 | 병동 → 의공학팀 | **없음** | 요청 → 접수 → 수리중 → (부품대기) → 완료 |
+
+의공을 넣은 이유는 **이것만 환자가 없기** 때문이다.
+셋 다 "환자가 있고 병동이 건다" 면 일반화가 됐는지 알 수 없다.
+`encounter_id` 가 NULL 이 되면서 재원 정보를 그냥 꺼내 쓰던 자리가 전부 드러났다.
+
 서비스나 컨트롤러에는 `if (status == ...)` 분기가 없다.
-새 상태를 추가할 때 고칠 곳이 한 군데여야 하기 때문이다.
+새 상태나 종류를 추가할 때 고칠 곳이 한 군데여야 하기 때문이다.
+화면도 규칙표를 들지 않는다. 버튼의 이름·행동·필수 입력을 서버가 함께 내려준다.
 API 응답의 `availableTransitions` 도 이 표에서 그대로 나오므로,
 화면의 버튼과 서버의 검증이 어긋날 수 없다.
 
@@ -150,7 +172,7 @@ return TransitionResponse.of(request, actor);
 `work_order_event`, `nursing_note`, `audit_log` 에는 DELETE 가 없다. API 도 만들지 않았다.
 
 - 간호기록은 **본인이 24시간 안에만** 고칠 수 있고, 고치기 전 내용은 감사 로그에 before/after 로 남는다
-- 부서·직원·검사 종류도 삭제하지 않고 **사용 중지**만 한다. 지난 요청 이력이 그 이름을 참조하고 있기 때문이다
+- 부서·직원·업무 항목도 삭제하지 않고 **사용 중지**만 한다. 지난 요청 이력이 그 이름을 참조하고 있기 때문이다
 - 환자 정보를 열어본 것 자체도 `@Audited` + AOP 로 자동 적재된다
 
 감사 로그 적재가 실패해도 조회는 성공한다. 기록을 남기지 못했다는 이유로
@@ -282,6 +304,9 @@ cd e2e && node check-pwa.mjs
 | `head01` | 수간호사 | 3병동 | 환자 보드 + 통계 |
 | `mri01` | 간호사 | MRI실 | 들어온 요청 |
 | `ct01` | 간호사 | CT실 | 들어온 요청 |
+| `lab01` | 간호사 | 진단검사의학과 | 들어온 검체 |
+| `pharm01` | 간호사 | 약제부 | 들어온 조제 요청 |
+| `bme01` | 간호사 | 의공학팀 | 들어온 수리 요청 |
 | `admin01` | 관리자 | 전산팀 | 통계 · 접근 기록 · 기준 정보 |
 
 로그인 화면에 계정 버튼이 있어 아이디를 칠 필요는 없다.
@@ -325,13 +350,13 @@ PG_VIA_DOCKER=nurse-collab-postgres MIGRATION_DIR=src/main/resources/db/migratio
 ```
 src/main/java/com/nursecollab/
 ├── domain/
-│   ├── transfer/       이송 요청 — 상태 전이 규칙, 요청번호 발번, 메시지
+│   ├── workorder/      업무 요청 — 종류별 상태 전이 규칙, 요청번호 발번, 메시지
 │   ├── encounter/      재원 · 환자 조회 (보는 사람에 따라 결과가 달라진다)
 │   ├── nursing/        활력징후, 간호기록(SBAR)
 │   ├── notification/   알림함
 │   ├── stats/          대기시간 집계 (SQL)
 │   ├── audit/          접근 기록 조회
-│   ├── master/         부서 · 직원 · 검사 종류 관리
+│   ├── master/         부서 · 직원 · 업무 항목 관리
 │   ├── staff/          인증
 │   ├── department/
 │   └── patient/
