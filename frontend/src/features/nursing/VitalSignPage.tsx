@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api, messageOf } from '@/shared/api/client';
+import { messageOf } from '@/shared/api/client';
 import type { PageResponse, VitalSign } from '@/shared/api/types';
 import { useToast } from '@/shared/ui/toast';
-import { useSubject } from '@/shared/api/phi';
+import { phi, useSubject } from '@/shared/api/phi';
 
 /** 입력 칸 정의를 한곳에 모은다. 칸이 늘거나 순서가 바뀌어도 여기만 고치면 된다. */
 const FIELDS = [
@@ -42,9 +42,8 @@ export default function VitalSignPage() {
   });
   const [error, setError] = useState<string | null>(null);
 
-  // 사람은 원내에서 받는다. 기록이 붙는 곳은 재원이라 encounterId 도 여기서 나온다.
+  // 기록도 사람도 원내에서 받는다. 사람을 먼저 받아 두면 원내가 끊겼는지 한 번에 안다.
   const { subject, unavailable: phiDown } = useSubject(subjectRef);
-  const encounterId = subject?.encounterId;
 
   /*
     이 화면은 통째로 진료 기록이다. 앞의 목록들처럼 일부만 비는 것이 아니라
@@ -61,10 +60,10 @@ export default function VitalSignPage() {
   ) : null;
 
   const history = useQuery({
-    queryKey: ['vital-signs', encounterId],
-    enabled: !!encounterId,
+    queryKey: ['vital-signs', subjectRef],
+    enabled: !!subject,
     queryFn: async () =>
-      (await api.get<PageResponse<VitalSign>>(`/encounters/${encounterId}/vital-signs`,
+      (await phi.get<PageResponse<VitalSign>>(`/subjects/${subjectRef}/vital-signs`,
         { params: { page: 0, size: 20 } })).data,
   });
 
@@ -75,13 +74,13 @@ export default function VitalSignPage() {
         const raw = values[field.key].trim();
         body[field.key] = raw === '' ? null : Number(raw);
       }
-      await api.post(`/encounters/${encounterId}/vital-signs`, body);
+      await phi.post(`/subjects/${subjectRef}/vital-signs`, body);
     },
     onSuccess: () => {
       setValues({ temperature: '', pulse: '', respiration: '', sbp: '', dbp: '', spo2: '', painScore: '' });
       setMeasuredAt(nowForInput());
       setError(null);
-      void queryClient.invalidateQueries({ queryKey: ['vital-signs', encounterId] });
+      void queryClient.invalidateQueries({ queryKey: ['vital-signs', subjectRef] });
       // 저장하면 입력칸이 비워진다. 그것만으로는 저장된 것인지 지워진 것인지 알 수 없다.
       toast.show('활력징후를 기록했습니다', { tone: 'success' });
     },

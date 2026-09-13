@@ -45,7 +45,6 @@ class NursingRecordApiTest extends IntegrationTest {
     @Autowired private AdmissionService admissionService;
     @Autowired private JdbcTemplate jdbcTemplate;
 
-    private Long encounterId;
     private UUID subjectRef;
 
     @BeforeEach
@@ -56,7 +55,6 @@ class NursingRecordApiTest extends IntegrationTest {
                 LocalDate.of(1952, 7, 24), Sex.F, null, null));
         Encounter encounter = admissionService.admit(patient, ward.getId(), "302", "2",
                 OffsetDateTime.now().minusDays(2), "폐렴", true);
-        encounterId = encounter.getId();
         subjectRef = encounter.getSubjectRef();
     }
 
@@ -64,7 +62,7 @@ class NursingRecordApiTest extends IntegrationTest {
     void 인수인계_기록을_남기고_다시_읽는다() throws Exception {
         writeNote("ward01");
 
-        mvc.perform(get("/api/v1/encounters/" + encounterId + "/nursing-notes")
+        mvc.perform(get("/api/v1/phi/subjects/" + subjectRef + "/nursing-notes")
                         .header("Authorization", bearer("ward01")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].situation").value("오전 회진 후 발열"));
@@ -82,7 +80,7 @@ class NursingRecordApiTest extends IntegrationTest {
     @Test
     void 기록을_고치면_고치기_전_내용이_원내_기록에_남는다() throws Exception {
         // 수정 전 내용은 그 자체가 진료정보다. 업무 쪽 감사 로그가 아니라 원내에 남아야 한다.
-        String created = mvc.perform(post("/api/v1/encounters/" + encounterId + "/nursing-notes")
+        String created = mvc.perform(post("/api/v1/phi/subjects/" + subjectRef + "/nursing-notes")
                         .header("Authorization", bearer("ward01"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -91,7 +89,7 @@ class NursingRecordApiTest extends IntegrationTest {
                 .andReturn().getResponse().getContentAsString();
         long noteId = om.readTree(created).get("id").asLong();
 
-        mvc.perform(put("/api/v1/nursing-notes/" + noteId)
+        mvc.perform(put("/api/v1/phi/nursing-notes/" + noteId)
                         .header("Authorization", bearer("ward01"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -134,7 +132,7 @@ class NursingRecordApiTest extends IntegrationTest {
 
     @Test
     void 내용이_비면_남길_수_없다_NN_003() throws Exception {
-        mvc.perform(post("/api/v1/encounters/" + encounterId + "/nursing-notes")
+        mvc.perform(post("/api/v1/phi/subjects/" + subjectRef + "/nursing-notes")
                         .header("Authorization", bearer("ward01"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -150,7 +148,7 @@ class NursingRecordApiTest extends IntegrationTest {
         // 규칙 5: 간호기록과 이송 이력은 삭제하지 않는다.
         // 지우는 엔드포인트가 실수로 생기면 여기서 걸린다.
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                        .delete("/api/v1/nursing-notes/" + noteId)
+                        .delete("/api/v1/phi/nursing-notes/" + noteId)
                         .header("Authorization", bearer("ward01")))
                 .andExpect(status().isMethodNotAllowed())
                 .andExpect(jsonPath("$.code").value("VAL-002"));
@@ -161,7 +159,7 @@ class NursingRecordApiTest extends IntegrationTest {
         writeNote("ward01");
 
         // 이 환자에게 걸린 요청이 없으므로 MRI실은 아무 관계가 없다
-        mvc.perform(get("/api/v1/encounters/" + encounterId + "/nursing-notes")
+        mvc.perform(get("/api/v1/phi/subjects/" + subjectRef + "/nursing-notes")
                         .header("Authorization", bearer("mri01")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("PERM-001"));
@@ -169,7 +167,7 @@ class NursingRecordApiTest extends IntegrationTest {
 
     @Test
     void 활력징후를_남기고_다시_읽는다() throws Exception {
-        mvc.perform(post("/api/v1/encounters/" + encounterId + "/vital-signs")
+        mvc.perform(post("/api/v1/phi/subjects/" + subjectRef + "/vital-signs")
                         .header("Authorization", bearer("ward01"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -178,7 +176,7 @@ class NursingRecordApiTest extends IntegrationTest {
                                 .formatted(OffsetDateTime.now())))
                 .andExpect(status().isOk());
 
-        mvc.perform(get("/api/v1/encounters/" + encounterId + "/vital-signs")
+        mvc.perform(get("/api/v1/phi/subjects/" + subjectRef + "/vital-signs")
                         .header("Authorization", bearer("ward01")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].pulse").value(92));
@@ -187,7 +185,7 @@ class NursingRecordApiTest extends IntegrationTest {
     // ── 도우미 ──────────────────────────────────────────────
 
     private JsonNode writeNote(String actor) throws Exception {
-        String body = mvc.perform(post("/api/v1/encounters/" + encounterId + "/nursing-notes")
+        String body = mvc.perform(post("/api/v1/phi/subjects/" + subjectRef + "/nursing-notes")
                         .header("Authorization", bearer(actor))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -203,7 +201,7 @@ class NursingRecordApiTest extends IntegrationTest {
 
     private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder
             editNote(long noteId, String actor, String situation) throws Exception {
-        return put("/api/v1/nursing-notes/" + noteId)
+        return put("/api/v1/phi/nursing-notes/" + noteId)
                 .header("Authorization", bearer(actor))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""

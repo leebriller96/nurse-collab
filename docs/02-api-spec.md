@@ -498,7 +498,11 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 
 ## 6. 간호기록
 
-### POST /encounters/{encounterId}/vital-signs
+전부 원내 경로(`/phi`) 아래다. 두 서버로 갈라지면 중계 서버가 경로 앞머리만 보고
+원내로 보낼지 정하기 때문이다. 열쇠도 재원 id 가 아니라 가명(`subjectRef`)이다.
+주소는 브라우저 기록과 중계 서버 로그에 남는다.
+
+### POST /phi/subjects/{subjectRef}/vital-signs
 
 ```json
 {
@@ -508,9 +512,9 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 }
 ```
 
-### GET /encounters/{encounterId}/vital-signs?from=&to=&page=&size=
+### GET /phi/subjects/{subjectRef}/vital-signs?from=&to=&page=&size=
 
-### POST /encounters/{encounterId}/nursing-notes
+### POST /phi/subjects/{subjectRef}/nursing-notes
 
 ```json
 {
@@ -523,13 +527,13 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 }
 ```
 
-### GET /encounters/{encounterId}/nursing-notes?noteType=&page=&size=
+### GET /phi/subjects/{subjectRef}/nursing-notes?noteType=&page=&size=
 
-### PUT /nursing-notes/{noteId}
+### PUT /phi/nursing-notes/{noteId}
 
 작성자 본인이 24시간 안에만 고칠 수 있다. 삭제는 없다.
 시간이 지난 기록은 고치는 대신 정정 기록을 새로 남긴다.
-고치기 전 내용은 별도 이력 테이블 없이 `audit_log.detail` 에 before/after 로 남는다.
+고치기 전 내용은 별도 이력 테이블 없이 원내 `phi_access_log.detail` 에 before/after 로 남는다.
 
 | 코드 | HTTP | 상황 |
 |---|---|---|

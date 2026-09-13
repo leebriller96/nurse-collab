@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api, messageOf } from '@/shared/api/client';
+import { messageOf } from '@/shared/api/client';
 import type { NoteType, NursingNote, PageResponse } from '@/shared/api/types';
 import { useToast } from '@/shared/ui/toast';
-import { useSubject } from '@/shared/api/phi';
+import { phi, useSubject } from '@/shared/api/phi';
 
 const SBAR_FIELDS = [
   { key: 'situation', label: '지금 상황', hint: '22시경 어지러움 호소' },
@@ -45,9 +45,8 @@ export default function NursingNotePage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // 사람은 원내에서 받는다. 기록이 붙는 곳은 재원이라 encounterId 도 여기서 나온다.
+  // 기록도 사람도 원내에서 받는다. 사람을 먼저 받아 두면 원내가 끊겼는지 한 번에 안다.
   const { subject, unavailable: phiDown } = useSubject(subjectRef);
-  const encounterId = subject?.encounterId;
 
   /*
     이 화면은 통째로 진료 기록이다. 앞의 목록들처럼 일부만 비는 것이 아니라
@@ -64,10 +63,10 @@ export default function NursingNotePage() {
   ) : null;
 
   const notes = useQuery({
-    queryKey: ['nursing-notes', encounterId],
-    enabled: !!encounterId,
+    queryKey: ['nursing-notes', subjectRef],
+    enabled: !!subject,
     queryFn: async () =>
-      (await api.get<PageResponse<NursingNote>>(`/encounters/${encounterId}/nursing-notes`,
+      (await phi.get<PageResponse<NursingNote>>(`/subjects/${subjectRef}/nursing-notes`,
         { params: { page: 0, size: 30 } })).data,
   });
 
@@ -87,14 +86,14 @@ export default function NursingNotePage() {
         recordedAt: new Date().toISOString(),
       };
       if (editingId) {
-        await api.put(`/nursing-notes/${editingId}`, body);
+        await phi.put(`/nursing-notes/${editingId}`, body);
       } else {
-        await api.post(`/encounters/${encounterId}/nursing-notes`, body);
+        await phi.post(`/subjects/${subjectRef}/nursing-notes`, body);
       }
     },
     onSuccess: (_data, _vars, wasEditing: boolean) => {
       reset();
-      void queryClient.invalidateQueries({ queryKey: ['nursing-notes', encounterId] });
+      void queryClient.invalidateQueries({ queryKey: ['nursing-notes', subjectRef] });
       toast.show(wasEditing ? '기록을 고쳤습니다' : '기록을 남겼습니다', { tone: 'success' });
     },
     // 저장하고 나면 editingId 가 지워져서 무엇을 했는지 알 수 없다. 미리 기억해 둔다.

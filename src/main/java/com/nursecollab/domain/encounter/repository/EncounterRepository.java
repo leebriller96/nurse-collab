@@ -42,13 +42,6 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
             """)
     List<Encounter> findAdmittedByPatientNameLike(String namePart);
 
-    @Query("""
-            select e from Encounter e
-            join fetch e.patient
-            where e.id = :id
-            """)
-    Optional<Encounter> findByIdWithPatientAndDepartment(Long id);
-
     /**
      * 환자의 재원 중인 건.
      *

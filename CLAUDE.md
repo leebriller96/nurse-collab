@@ -305,6 +305,9 @@ chore: Testcontainers 의존성 추가
       빈 목록을 보여주면 "기록이 없다" 로 읽히므로 화면 대신 이유를 띄운다.
     - 주소에서도 재원 id 를 걷어냈다(`/ward/subjects/{가명}`).
       브라우저 기록과 중계 서버 로그에 남는 것이 가명이어야 한다.
+    - 활력징후·간호기록 API 도 `/phi/subjects/{가명}/..` 이다. **원내 것은 경로가 `/phi` 로
+      시작한다** — 두 서버로 가르면 중계 서버가 이 앞머리 하나만 보고 보낼 곳을 정한다.
+      새 원내 경로를 `/phi` 밖에 만들면 그 요청은 조용히 클라우드로 간다.
     - 목록에 나가는 것은 보는 사람에 따라 다르다. 담당 병동은 진단명과 주의사항
       뱃지까지, 검사실은 이름과 "주의할 것이 몇 건" 까지. 검사실 상세에 진단명이
       실리지 않는 것과 같은 규칙이다.
@@ -395,9 +398,9 @@ chore: Testcontainers 의존성 추가
 | GET | `/work-orders/{id}` `/{id}/events` | W-05, E-02 |
 | POST | `/work-orders/{id}/transitions` | W-05, E-02 |
 | GET POST | `/work-orders/{id}/messages` | W-05, E-02 |
-| GET POST | `/encounters/{id}/vital-signs` | W-06 |
-| GET POST | `/encounters/{id}/nursing-notes` | W-07 |
-| PUT | `/nursing-notes/{noteId}` | W-07 |
+| GET POST | `/phi/subjects/{ref}/vital-signs` | W-06 |
+| GET POST | `/phi/subjects/{ref}/nursing-notes` | W-07 |
+| PUT | `/phi/nursing-notes/{noteId}` | W-07 |
 | GET PATCH POST | `/notifications` `/{id}/read` `/read-all` | C-02 |
 | GET | `/stats/waiting-time` | A-01 |
 | GET | `/phi/access-logs` | A-05 (원내) |

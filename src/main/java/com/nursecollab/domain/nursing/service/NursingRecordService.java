@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * 활력징후와 간호기록.
@@ -51,9 +52,9 @@ public class NursingRecordService {
     // ------------------------------------------------------------------
 
     @Transactional
-    public VitalSignResponse recordVitalSign(Long encounterId, VitalSignRequest req,
+    public VitalSignResponse recordVitalSign(UUID subjectRef, VitalSignRequest req,
                                              LoginStaff loginStaff) {
-        Encounter encounter = wardEncounter(encounterId, loginStaff, "VITAL_CREATE");
+        Encounter encounter = wardEncounter(subjectRef, loginStaff, "VITAL_CREATE");
 
         VitalSign saved = vitalSignRepository.saveAndFlush(VitalSign.record(
                 encounter, req.measuredAt(), req.temperature(), req.pulse(), req.respiration(),
@@ -65,12 +66,12 @@ public class NursingRecordService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<VitalSignResponse> findVitalSigns(Long encounterId, OffsetDateTime from,
+    public PageResponse<VitalSignResponse> findVitalSigns(UUID subjectRef, OffsetDateTime from,
                                                           OffsetDateTime to, Pageable pageable,
                                                           LoginStaff loginStaff) {
-        Encounter encounter = wardEncounter(encounterId, loginStaff, "VITAL_VIEW");
+        Encounter encounter = wardEncounter(subjectRef, loginStaff, "VITAL_VIEW");
         granted(encounter, loginStaff, "VITAL_VIEW", null);
-        return PageResponse.of(vitalSignRepository.search(encounterId, from, to, pageable)
+        return PageResponse.of(vitalSignRepository.search(encounter.getId(), from, to, pageable)
                 .map(VitalSignResponse::from));
     }
 
@@ -79,9 +80,9 @@ public class NursingRecordService {
     // ------------------------------------------------------------------
 
     @Transactional
-    public NursingNoteResponse writeNote(Long encounterId, NursingNoteRequest req,
+    public NursingNoteResponse writeNote(UUID subjectRef, NursingNoteRequest req,
                                          LoginStaff loginStaff) {
-        Encounter encounter = wardEncounter(encounterId, loginStaff, "NOTE_CREATE");
+        Encounter encounter = wardEncounter(subjectRef, loginStaff, "NOTE_CREATE");
 
         NursingNote saved = noteRepository.saveAndFlush(NursingNote.write(
                 encounter, req.noteType(), req.situation(), req.background(),
@@ -93,11 +94,11 @@ public class NursingRecordService {
     }
 
     @Transactional(readOnly = true)
-    public PageResponse<NursingNoteResponse> findNotes(Long encounterId, NoteType noteType,
+    public PageResponse<NursingNoteResponse> findNotes(UUID subjectRef, NoteType noteType,
                                                        Pageable pageable, LoginStaff loginStaff) {
-        Encounter encounter = wardEncounter(encounterId, loginStaff, "NOTE_VIEW");
+        Encounter encounter = wardEncounter(subjectRef, loginStaff, "NOTE_VIEW");
         granted(encounter, loginStaff, "NOTE_VIEW", null);
-        return PageResponse.of(noteRepository.search(encounterId, noteType, pageable)
+        return PageResponse.of(noteRepository.search(encounter.getId(), noteType, pageable)
                 .map(note -> NursingNoteResponse.of(note, loginStaff.staffId())));
     }
 
@@ -111,7 +112,7 @@ public class NursingRecordService {
         NursingNote note = noteRepository.findDetailById(noteId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOTE_NOT_FOUND));
 
-        Encounter encounter = wardEncounter(note.getEncounter().getId(), loginStaff, "NOTE_EDIT");
+        Encounter encounter = requireOwnWard(note.getEncounter(), loginStaff, "NOTE_EDIT");
 
         Map<String, Object> before = snapshot(note);
         note.edit(loginStaff.staffId(), req.situation(), req.background(),
@@ -138,14 +139,17 @@ public class NursingRecordService {
         return map;
     }
 
+    private Encounter wardEncounter(UUID subjectRef, LoginStaff loginStaff, String action) {
+        Encounter encounter = encounterRepository.findBySubjectRef(subjectRef)
+                .orElseThrow(() -> new BusinessException(ErrorCode.ENCOUNTER_NOT_FOUND));
+        return requireOwnWard(encounter, loginStaff, action);
+    }
+
     /**
      * 간호기록은 그 환자가 있는 병동의 것이다.
      * 업무 요청으로 잠깐 관계가 생긴 수행 파트는 여기까지 볼 이유가 없다.
      */
-    private Encounter wardEncounter(Long encounterId, LoginStaff loginStaff, String action) {
-        Encounter encounter = encounterRepository.findByIdWithPatientAndDepartment(encounterId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.ENCOUNTER_NOT_FOUND));
-
+    private Encounter requireOwnWard(Encounter encounter, LoginStaff loginStaff, String action) {
         boolean ownWard = encounter.getDepartmentId().equals(loginStaff.departmentId());
         if (!ownWard && loginStaff.role() != StaffRole.ADMIN) {
             // 막힌 시도야말로 조사할 때 제일 보고 싶은 것이다

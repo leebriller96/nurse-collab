@@ -153,6 +153,53 @@ try {
     '원내망이 돌아오면 이름도 돌아온다',
   );
 
+  // ── 활력징후·간호기록은 원내 경로로만 나간다 ─────────────
+  //
+  // 두 서버로 가르면 중계 서버는 경로 앞머리(/api/v1/phi)만 보고 보낼 곳을 정한다.
+  // 이 기록 요청이 한 건이라도 그 밖으로 나가면 그 요청은 클라우드로 가서 조용히 사라진다.
+  await login('ward01');
+  await page.goto(`${APP}/ward/board`);
+  const subjectLink = page.locator('a[href*="/ward/subjects/"]').first();
+  await subjectLink.waitFor({ timeout: 15000 });
+  const subjectHref = new URL(await subjectLink.getAttribute('href'), APP).pathname;
+
+  const nursingCalls = [];
+  const onNursingResponse = (res) => {
+    const url = res.url();
+    if (/vital-signs|nursing-notes/.test(url)) nursingCalls.push({ url, status: res.status() });
+  };
+  page.on('response', onNursingResponse);
+
+  await page.goto(`${APP}${subjectHref}/vitals`);
+  await page.locator('#pulse').waitFor({ timeout: 15000 });
+  await page.locator('#pulse').fill('87');
+  await page.getByRole('button', { name: '저장', exact: true }).click();
+  await page.getByText('활력징후를 기록했습니다').first().waitFor({ timeout: 15000 }).catch(() => {});
+  record(
+    (await page.getByText('활력징후를 기록했습니다').count()) > 0,
+    '활력징후를 원내 경로로 남긴다',
+  );
+
+  const NOTE_MARK = `경로 확인 ${Date.now()}`;
+  await page.goto(`${APP}${subjectHref}/notes`);
+  await page.locator('#situation').waitFor({ timeout: 15000 });
+  await page.locator('#situation').fill(NOTE_MARK);
+  await page.getByRole('button', { name: '기록 남기기' }).click();
+  await page.getByText(NOTE_MARK).first().waitFor({ timeout: 15000 }).catch(() => {});
+  record(
+    (await page.getByText(NOTE_MARK).count()) > 0,
+    '간호기록을 원내 경로로 남기고 다시 읽는다',
+  );
+  page.off('response', onNursingResponse);
+
+  const outsidePhi = nursingCalls.filter((c) => !new URL(c.url).pathname.startsWith('/api/v1/phi/'));
+  const failedCalls = nursingCalls.filter((c) => c.status >= 400);
+  record(
+    nursingCalls.length >= 4 && outsidePhi.length === 0 && failedCalls.length === 0,
+    '기록 요청은 전부 /api/v1/phi 로만 나가고 성공한다',
+    outsidePhi[0]?.url ?? failedCalls[0]?.url ?? `${nursingCalls.length}건`,
+  );
+
   // ── 열람 기록도 원내에 있다 ────────────────────────────
   //
   // 끊겼을 때 빈 표를 보여주면 "아무도 열지 않았다" 로 읽힌다.
