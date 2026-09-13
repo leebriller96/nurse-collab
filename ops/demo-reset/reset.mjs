@@ -14,70 +14,128 @@ import { readdirSync, readFileSync } from 'node:fs';
  *   - 시드에 행을 추가할 때마다 목록을 같이 고쳐야 하는데, 잊으면 조용히 어긋난다.
  *
  * 요청 데이터는 SQL 로 꽂지 않고 실제 API 로 만든다. 직접 꽂으면
- * work_order_event 와 audit_log 가 비어서 통계·이력 화면이 텅 빈 채로 나온다.
+ * work_order_event 가 비어서 통계·이력 화면이 텅 빈 채로 나온다.
+ *
+ * **DB 가 둘일 수 있다.** 업무 서버와 원내 서버로 갈라 띄우면 업무 DB 와 원내 DB 가 따로다.
+ * 시드도 seed/work, seed/phi 로 나뉘고 각자 자기 DB 에 들어간다. 원내 접속 정보를 주지 않으면
+ * 둘 다 같은 DB 에 넣는다 — 한 서버로 띄울 때다.
  *
  * 환경변수
- *   API_BASE         기본 http://localhost:8080
- *   SEED_DIR         다시 심을 시드 SQL 이 있는 경로
- *   PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE
+ *   API_BASE         업무 서버. 기본 http://localhost:8080
+ *   SEED_DIR         work/ 와 phi/ 가 들어 있는 경로
+ *   PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE   업무 DB
  *   PG_VIA_DOCKER    값이 있으면 psql 대신 그 이름의 컨테이너에 docker exec 한다 (로컬용)
+ *   PHI_PGHOST PHI_PGPORT PHI_PGUSER PHI_PGPASSWORD PHI_PGDATABASE PHI_PG_VIA_DOCKER
+ *                    원내 DB. 하나도 없으면 업무 DB 와 같다고 본다.
  *   RESET_AT         "04:00" 형식. 지정하면 매일 그 시각에 반복한다. 없으면 한 번만.
  */
 
 const API = `${process.env.API_BASE ?? 'http://localhost:8080'}/api/v1`;
 const SEED_DIR = process.env.SEED_DIR ?? '/app/seed';
-const VIA_DOCKER = process.env.PG_VIA_DOCKER;
 
 const tokens = {};
 
 // ── psql 실행 ───────────────────────────────────────────────
 
+const env = process.env;
+
+const WORK_DB = {
+  host: env.PGHOST ?? 'localhost',
+  port: env.PGPORT ?? '5432',
+  user: env.PGUSER ?? 'nursecollab',
+  password: env.PGPASSWORD,
+  database: env.PGDATABASE ?? 'nursecollab',
+  viaDocker: env.PG_VIA_DOCKER,
+};
+
+const phiConfigured = ['PHI_PGHOST', 'PHI_PGDATABASE', 'PHI_PG_VIA_DOCKER'].some((k) => env[k]);
+
+const PHI_DB = phiConfigured
+  ? {
+      host: env.PHI_PGHOST ?? 'localhost',
+      port: env.PHI_PGPORT ?? '5432',
+      user: env.PHI_PGUSER ?? WORK_DB.user,
+      password: env.PHI_PGPASSWORD ?? WORK_DB.password,
+      database: env.PHI_PGDATABASE ?? WORK_DB.database,
+      viaDocker: env.PHI_PG_VIA_DOCKER,
+    }
+  : WORK_DB;
+
 /**
  * 로컬에서는 psql 이 깔려 있지 않은 경우가 많아 컨테이너에 docker exec 한다.
  * 배포에서는 이미지 안에 psql 이 있고 도커 소켓을 줄 이유가 없으므로 직접 부른다.
+ *
+ * 변수(vars)는 psql -v 로 넘긴다. 원내 시드가 업무 DB 의 id 를 조인으로 찾을 수 없어서다.
  */
-function runSql(sql) {
-  const env = { ...process.env };
+function runSql(db, sql, vars = {}) {
   const args = [
-    '-v', 'ON_ERROR_STOP=1',
-    '-U', env.PGUSER ?? 'nursecollab',
-    '-d', env.PGDATABASE ?? 'nursecollab',
+    '-v', 'ON_ERROR_STOP=1', '-At',
+    '-U', db.user,
+    '-d', db.database,
+    ...Object.entries(vars).flatMap(([k, v]) => ['-v', `${k}=${v}`]),
   ];
 
-  const [command, argv] = VIA_DOCKER
-    ? ['docker', ['exec', '-i', VIA_DOCKER, 'psql', ...args]]
-    : ['psql', ['-h', env.PGHOST ?? 'localhost', '-p', env.PGPORT ?? '5432', ...args]];
+  const [command, argv] = db.viaDocker
+    ? ['docker', ['exec', '-i', db.viaDocker, 'psql', ...args]]
+    : ['psql', ['-h', db.host, '-p', db.port, ...args]];
 
-  execFileSync(command, argv, { input: sql, env, stdio: ['pipe', 'pipe', 'inherit'] });
+  const childEnv = { ...env, PGPASSWORD: db.password ?? '' };
+  return execFileSync(command, argv, {
+    input: sql, env: childEnv, stdio: ['pipe', 'pipe', 'inherit'],
+  }).toString();
 }
 
 /**
  * -f 를 쓰지 않고 내용을 읽어 stdin 으로 넘긴다.
  * docker exec 로 부를 때 -f 의 경로는 컨테이너 안을 가리키기 때문이다.
  */
-const runFile = (path) => runSql(readFileSync(path, 'utf8'));
+function runSeeds(db, dir, vars) {
+  // 파일 이름을 손으로 적지 않는다. 시드를 하나 더한 날 여기를 같이 고치지 않으면
+  // 그 데이터만 초기화 때마다 조용히 사라진다. 이름 순서가 곧 적재 순서다.
+  const files = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
+  if (files.length === 0) throw new Error(`시드 파일이 없다: ${dir}`);
+  for (const file of files) runSql(db, readFileSync(`${dir}/${file}`, 'utf8'), vars);
+  return files;
+}
 
 // ── 1. 비우고 시드 다시 심기 ────────────────────────────────
 
 /**
  * flyway_schema_history 는 건드리지 않는다. 지우면 다음 기동 때
  * Flyway 가 마이그레이션을 처음부터 다시 돌리려다 실패한다.
+ *
+ * 비우는 목록은 AppBoundary 의 테이블 표와 같다. 한 DB 에 한쪽 목록만 건다 —
+ * 갈라진 DB 에서 상대 쪽 테이블 이름을 부르면 없는 테이블이라 실패한다.
  */
 function wipe() {
-  runSql(`
+  runSql(WORK_DB, `
     truncate table
-      audit_log, phi_access_log, nursing_note, vital_sign, notification, request_message,
-      work_order_event, work_order, request_no_sequence,
-      patient_alert, care_episode, encounter, service_item, staff, patient, department
+      audit_log, notification, request_message, work_order_event, work_order,
+      request_no_sequence, care_episode, service_item, staff, department
     restart identity cascade;
   `);
-  // 파일 이름을 손으로 적지 않는다. 시드를 하나 더한 날 여기를 같이 고치지 않으면
-  // 그 데이터만 초기화 때마다 조용히 사라진다. 이름 순서가 곧 적재 순서다.
-  const seeds = readdirSync(SEED_DIR).filter((f) => f.endsWith('.sql')).sort();
+  runSql(PHI_DB, `
+    truncate table
+      phi_access_log, nursing_note, vital_sign, patient_alert, encounter, patient
+    restart identity cascade;
+  `);
 
-  if (seeds.length === 0) throw new Error(`시드 파일이 없다: ${SEED_DIR}`);
-  for (const file of seeds) runFile(`${SEED_DIR}/${file}`);
-  console.log(`  비우고 시드 재적재 완료 (${seeds.join(', ')})`);
+  const work = runSeeds(WORK_DB, `${SEED_DIR}/work`);
+
+  // 원내 시드가 필요로 하는 업무 쪽 id. 원내 서버도 이 값을 토큰으로만 안다.
+  const ids = Object.fromEntries(runSql(WORK_DB, `
+    select 'dept_' || lower(code) || '=' || id from department where code in ('W03', 'W05')
+    union all
+    select login_id || '_id=' || id from staff where login_id = 'ward01';
+  `).trim().split('\n').map((line) => line.split('=')));
+
+  for (const key of ['dept_w03', 'dept_w05', 'ward01_id']) {
+    if (!ids[key]) throw new Error(`원내 시드에 넘길 값이 없다: ${key}`);
+  }
+
+  const phi = runSeeds(PHI_DB, `${SEED_DIR}/phi`, ids);
+  const where = phiConfigured ? '업무 DB · 원내 DB' : '한 DB';
+  console.log(`  비우고 시드 재적재 완료 (${where}: work/${work.join(', ')} · phi/${phi.join(', ')})`);
 }
 
 // ── 2. 시연용 요청 만들기 ───────────────────────────────────
@@ -234,13 +292,13 @@ async function seed() {
 
 /**
  * 방금 만든 요청은 대기시간이 몇 초라 "평균 대기 0분" 이 나온다.
- * 지난 4시간에 걸쳐 들어온 것으로 민다.
+ * 지난 4시간에 걸쳐 들어온 것으로 민다. 업무 DB 만 건드린다.
  *
  * 고정 시각(예: 07시)에 맞추면 그 시각 전에 돌렸을 때 요청이 미래로 가고,
  * 대기시간 계산이 음수가 돼 화면에 전부 0분으로 찍힌다. now() 기준이어야 한다.
  */
 function backdate() {
-  runSql(`
+  runSql(WORK_DB, `
     with ordered as (
       select id, row_number() over (order by id) - 1 as n from work_order
     )
