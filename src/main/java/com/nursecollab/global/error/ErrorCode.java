@@ -56,6 +56,9 @@ public enum ErrorCode {
     // 원내 조회
     PHI_RATE_LIMITED("PHI-001", HttpStatus.TOO_MANY_REQUESTS,
             "짧은 시간에 너무 많은 환자 정보를 열었습니다. 잠시 후 다시 시도해 주세요."),
+    // "관계 없음" 과 구별한다. 같게 보이면 끊긴 것이 권한 문제로 읽힌다.
+    WORK_RELATION_UNAVAILABLE("PHI-002", HttpStatus.SERVICE_UNAVAILABLE,
+            "업무 서버에 닿지 못해 이 환자와의 관계를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요."),
 
     // 기타
     STAFF_NOT_FOUND("STF-001", HttpStatus.NOT_FOUND, "직원 정보를 찾을 수 없습니다."),

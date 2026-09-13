@@ -40,6 +40,15 @@ jwt:
   access-token-validity: 30m
   refresh-token-validity: 14d
 
+app:
+  work-api:
+    # 원내가 업무 쪽에 묻는 곳(WorkRelationPort).
+    # 비워 두면 같은 프로세스가 답한다 — 한 서버로 띄울 때다.
+    # 원내 역할로 따로 띄울 때만 업무 서버 주소를 넣는다. 그때는 사용자 토큰을 실어 HTTP 로 묻는다.
+    base-url: ${WORK_API_BASE_URL:}
+    connect-timeout: 2s
+    read-timeout: 3s
+
 server:
   port: 8080
 

@@ -263,6 +263,12 @@ chore: Testcontainers 의존성 추가
       값의 이름(`StaffRole`, `DeptType`, `AlertType`, `EncounterStatus`)뿐이다.
       한 프로세스인 동안에는 저장소를 직접 주입해도 멀쩡히 돌아서, 갈라 띄우는 날까지 아무도 모른다.
     - 기록자는 DB 에서 다시 읽지 않고 토큰의 `staffId`·`name` 을 쓴다. 직원 정보는 업무 쪽 DB 에 있다.
+    - `app.work-api.base-url` 을 채우면 `HttpWorkRelationAdapter` 가 업무 서버의
+      `/work-relations` 에 **사용자 토큰을 그대로 실어** 묻는다. 서버용 자격증명을 두지 않는 것은
+      그것 하나로 모든 파트에 대해 물을 수 있게 되기 때문이다. 닿지 못하면 `503 PHI-002` —
+      "관계 없음" 으로 치면 끊긴 것이 권한 문제로 보인다.
+    - 켜고 끄는 조건에 `@ConditionalOnProperty` 를 쓰지 않는다. 그 조건은 빈 문자열도 "있음" 으로
+      쳐서, 주소를 비워 두면 HTTP 어댑터가 빈 주소로 뜬다. `@ConditionalOnExpression` 으로 비었는지 본다.
   - 입원 등록은 `AdmissionService` 한 곳에서만 두 곳에 쓴다.
     진료 쪽을 떼어내면 이 자리가 **원내에서 밖으로 나가는 유일한 통로**가 된다.
     통로가 하나여야 무엇이 나가는지 한 곳만 보면 알 수 있다.
