@@ -85,6 +85,7 @@ jobs:
     # 잡 전체에 걸어 둔다. 여기 값은 CI 안에서만 살고 밖으로 열리지 않는다.
     env:
       POSTGRES_PASSWORD: ci-only-password
+      PHI_POSTGRES_PASSWORD: ci-only-phi-password
       JWT_KEYS_DIR: ./ci-keys
       WEB_PORT: '8081'
       WEB_TLS_PORT: '8443'
@@ -110,21 +111,40 @@ jobs:
 
       # 레지스트리에 올리지 않는다. 세 Dockerfile 이 아직 빌드되는지 확인하는 것이다.
       # compose 로 한 번에 굽는다. 따로 docker build 하면 같은 것을 두 번 굽게 된다.
+      #
+      # 스택은 원내 서버를 따로 띄우는 구성으로 올린다. 한 서버 구성과 이미지가 같고
+      # 중계·망·DB 가 더 갈라져 있을 뿐이라, 이쪽에서 검사가 통과하면 더 많이 확인한 것이다.
+      # 한 서버 구성은 compose 파일이 여전히 올바른지만 본다.
       - name: 이미지 빌드
-        run: docker compose -f docker-compose.prod.yml build
+        run: |
+          docker compose -f docker-compose.prod.yml config -q
+          docker compose -f docker-compose.split.yml build
 
       # 스택을 실제로 올려 보안 헤더를 확인한다.
       # 깨지는 CSP 는 없느니만 못하다. 헤더만 넣고 끝내면 실시간 연결이나
       # 인라인 스타일 배치가 조용히 죽어도 화면은 그럴듯하게 보인다.
       - name: 스택 기동
         run: |
-          docker compose -p ci -f docker-compose.prod.yml up -d
+          docker compose -p ci -f docker-compose.split.yml up -d
           # 일정 보드 검사에 시연 데이터가 필요하다. 초기화 컨테이너가 끝나야 한다.
-          for i in $(seq 1 90); do
-            docker compose -p ci -f docker-compose.prod.yml logs demo-reset 2>/dev/null \
+          for i in $(seq 1 120); do
+            docker compose -p ci -f docker-compose.split.yml logs demo-reset 2>/dev/null \
               | grep -q "다음 초기화까지" && break
             sleep 2
           done
+
+      # 갈라 놓았다고 적어 두는 것과 실제로 닿지 않는 것은 다르다.
+      # compose 에 망 하나를 잘못 붙이면 모든 화면이 멀쩡히 돌면서 격리만 사라진다.
+      - name: 원내 격리 확인
+        run: |
+          stack="docker compose -p ci -f docker-compose.split.yml"
+          if $stack exec -T backend getent hosts phi-postgres; then
+            echo "업무 서버에서 원내 DB 이름이 풀린다. 원내 망에 붙어 있다"; exit 1
+          fi
+          if $stack exec -T onprem test -e /run/keys/jwt-private.pem; then
+            echo "원내 서버에 서명용 개인키 파일이 있다"; exit 1
+          fi
+          echo "업무 서버는 원내 DB 에 닿지 않고, 원내 서버에는 개인키가 없다"
 
       - name: 보안 헤더 확인
         working-directory: e2e
@@ -183,8 +203,8 @@ jobs:
 
       - name: 실패하면 스택 로그를 남긴다
         if: failure()
-        run: docker compose -p ci -f docker-compose.prod.yml logs --tail 80
+        run: docker compose -p ci -f docker-compose.split.yml logs --tail 80
 
       - name: 스택 정리
         if: always()
-        run: docker compose -p ci -f docker-compose.prod.yml down -v
+        run: docker compose -p ci -f docker-compose.split.yml down -v

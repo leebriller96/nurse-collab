@@ -469,7 +469,76 @@ docker compose -f docker-compose.prod.yml down
 
 ---
 
-## 8. 알아둘 것
+## 8. 원내 서버를 따로 띄우기 (선택)
+
+환자 정보를 원내에만 두는 구성을 한 대 위에서 흉내 낸다. 위의 한 서버 구성과 **같은 이미지**를 쓰고
+역할(`cloud` / `onprem`)만 다르게 띄운다. 설계 이유는 [06-hospital-scale.md](06-hospital-scale.md) 에 있다.
+
+| | 한 서버 구성 | 원내 분리 구성 |
+|---|---|---|
+| compose | `docker-compose.prod.yml` | `docker-compose.split.yml` |
+| 컨테이너 | 5개 | 7개 (`onprem`, `phi-postgres` 추가) |
+| 램 | 2GB 로 된다 | **4GB 이상** — JVM 이 둘이다 |
+
+### 8-1. 설정
+
+`.env` 에 원내 DB 비밀번호를 하나 더 넣는다. 업무 DB 와 **다른 값**이어야 한다.
+
+```bash
+openssl rand -base64 24
+```
+
+```
+PHI_POSTGRES_PASSWORD=(위에서 나온 문자열)
+JVM_HEAP_PERCENT=30
+```
+
+서명 키는 그대로 쓴다. 원내 서버에는 compose 가 **공개키 파일 하나만** 붙인다.
+디렉터리를 통째로 붙이면 쓰지 않더라도 개인키 파일이 따라 들어가, 원내가 뚫렸을 때
+관리자 토큰을 만들 수 있게 된다.
+
+### 8-2. 올리기
+
+이미 한 서버 구성으로 띄워 둔 적이 있으면 **먼저 내리고 데이터를 지운다.**
+
+```bash
+docker compose -f docker-compose.prod.yml down -v
+docker compose -f docker-compose.split.yml up -d --build
+```
+
+지우지 않으면 업무 서버가 기동하다 멈춘다. 쓰던 합친 DB 에서 환자 테이블을 걷어내려는
+마이그레이션(V15)이 "이미 쓰던 DB" 라며 거절하기 때문이다. 일부러 막아 둔 것이다 —
+실제 병원에서 같은 실수를 하면 진료 기록이 통째로 지워진다. 데모 데이터는 가상이고
+초기화가 다시 심으므로 지워도 된다.
+
+### 8-3. 확인
+
+```bash
+docker compose -f docker-compose.split.yml ps
+```
+
+일곱 개가 전부 `Up` 이어야 한다. `postgres` `redis` `phi-postgres` `backend` `onprem` `web` `demo-reset`
+
+업무 서버가 원내 DB 에 닿지 않는지 직접 본다. **아무것도 출력되지 않아야 한다.**
+
+```bash
+docker compose -f docker-compose.split.yml exec backend getent hosts phi-postgres
+```
+
+화면에서는 차이가 보이지 않아야 정상이다. 중계 서버(Caddy)가 `/api/v1/phi` 로 시작하는 요청만
+원내 서버로 보내고, 화면은 원래도 두 곳에 따로 묻고 있었기 때문이다.
+원내가 멈추면 어떻게 보이는지 보려면:
+
+```bash
+docker compose -f docker-compose.split.yml stop onprem
+```
+
+병동 보드에 침대와 요청 건수는 그대로 있고 이름 자리에 "원내망에서만 조회됩니다" 가 뜬다.
+`start onprem` 으로 되돌린다.
+
+---
+
+## 9. 알아둘 것
 
 **이건 가상 데이터로 도는 데모다.** 실제 병원에서 쓰려면 전혀 다른 이야기가 된다 —
 개인정보 영향평가, 접근권한 심사, EMR 연동, 망분리 요건이 붙는다.

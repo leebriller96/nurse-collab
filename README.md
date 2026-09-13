@@ -291,6 +291,14 @@ docker compose -f docker-compose.prod.yml up -d --build
 서버와 도메인을 고르는 것부터 폰에서 열어 보는 것까지는
 [docs/05-deployment.md](docs/05-deployment.md) 에 단계별로 적어 두었다.
 
+**원내 서버를 따로 띄울 수도 있다.** 같은 이미지를 업무 서버(`cloud`)와 원내 서버(`onprem`)로
+나눠 올리고, 원내 DB 를 따로 둔다. 업무 서버는 원내 망에 붙지 않아 원내 DB 에 닿지 못한다.
+CI 는 이 구성으로 스택을 올려 격리를 확인한 뒤 브라우저 검사를 돌린다.
+
+```bash
+docker compose -f docker-compose.split.yml up -d --build   # PHI_POSTGRES_PASSWORD 도 채운다
+```
+
 `SITE_ADDRESS` 에 도메인을 넣으면 **Caddy 가 인증서를 받아 HTTPS 로 뜬다.**
 발급과 갱신이 자동이다. 비워 두면 `:80` 평문으로 떠서 로컬 확인용이 된다.
 
