@@ -41,6 +41,9 @@ jwt:
   refresh-token-validity: 14d
 
 app:
+  # combined(한 서버가 둘 다) / cloud(업무 서버) / onprem(원내 서버).
+  # 직접 바꾸지 않고 프로파일(cloud, onprem)로 켠다. 프로파일이 마이그레이션 위치까지 함께 바꾼다.
+  role: combined
   work-api:
     # 원내가 업무 쪽에 묻는 곳(WorkRelationPort).
     # 비워 두면 같은 프로세스가 답한다 — 한 서버로 띄울 때다.

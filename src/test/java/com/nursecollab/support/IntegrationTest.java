@@ -30,10 +30,10 @@ import org.testcontainers.containers.PostgreSQLContainer;
 public abstract class IntegrationTest {
 
     @ServiceConnection
-    static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
+    protected static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
 
     @ServiceConnection(name = "redis")
-    static final GenericContainer<?> REDIS =
+    protected static final GenericContainer<?> REDIS =
             new GenericContainer<>("redis:7-alpine").withExposedPorts(6379);
 
     static {
