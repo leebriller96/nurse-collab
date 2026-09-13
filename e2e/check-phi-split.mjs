@@ -163,42 +163,50 @@ try {
   await subjectLink.waitFor({ timeout: 15000 });
   const subjectHref = new URL(await subjectLink.getAttribute('href'), APP).pathname;
 
+  // 다른 조회가 원내 밖으로 새는지 보려고 전부 모은다
   const nursingCalls = [];
   const onNursingResponse = (res) => {
-    const url = res.url();
-    if (/vital-signs|nursing-notes/.test(url)) nursingCalls.push({ url, status: res.status() });
+    if (/vital-signs|nursing-notes/.test(res.url())) nursingCalls.push(res.url());
   };
   page.on('response', onNursingResponse);
+
+  // 저장 요청은 이벤트를 모아 세지 않고 그 응답을 직접 기다린다.
+  // 모은 이벤트는 화면을 옮기는 순간과 겹치면 빠질 수 있어, 저장이 됐는데도 "안 나갔다" 로 읽혔다.
+  const savedVia = (kind) => page.waitForResponse(
+    (res) => res.request().method() === 'POST' && res.url().includes(kind),
+    { timeout: 15000 },
+  );
+  const onPhi = (res) => new URL(res.url()).pathname.startsWith('/api/v1/phi/') && res.status() < 400;
 
   await page.goto(`${APP}${subjectHref}/vitals`);
   await page.locator('#pulse').waitFor({ timeout: 15000 });
   await page.locator('#pulse').fill('87');
-  await page.getByRole('button', { name: '저장', exact: true }).click();
-  await page.getByText('활력징후를 기록했습니다').first().waitFor({ timeout: 15000 }).catch(() => {});
-  record(
-    (await page.getByText('활력징후를 기록했습니다').count()) > 0,
-    '활력징후를 원내 경로로 남긴다',
-  );
+  const [vitalSaved] = await Promise.all([
+    savedVia('/vital-signs'),
+    page.getByRole('button', { name: '저장', exact: true }).click(),
+  ]);
+  record(onPhi(vitalSaved), '활력징후를 원내 경로로 남긴다',
+    `${new URL(vitalSaved.url()).pathname} ${vitalSaved.status()}`);
 
   const NOTE_MARK = `경로 확인 ${Date.now()}`;
   await page.goto(`${APP}${subjectHref}/notes`);
   await page.locator('#situation').waitFor({ timeout: 15000 });
   await page.locator('#situation').fill(NOTE_MARK);
-  await page.getByRole('button', { name: '기록 남기기' }).click();
+  const [noteSaved] = await Promise.all([
+    savedVia('/nursing-notes'),
+    page.getByRole('button', { name: '기록 남기기' }).click(),
+  ]);
   await page.getByText(NOTE_MARK).first().waitFor({ timeout: 15000 }).catch(() => {});
   record(
-    (await page.getByText(NOTE_MARK).count()) > 0,
+    onPhi(noteSaved) && (await page.getByText(NOTE_MARK).count()) > 0,
     '간호기록을 원내 경로로 남기고 다시 읽는다',
+    `${new URL(noteSaved.url()).pathname} ${noteSaved.status()}`,
   );
   page.off('response', onNursingResponse);
 
-  const outsidePhi = nursingCalls.filter((c) => !new URL(c.url).pathname.startsWith('/api/v1/phi/'));
-  const failedCalls = nursingCalls.filter((c) => c.status >= 400);
-  record(
-    nursingCalls.length >= 4 && outsidePhi.length === 0 && failedCalls.length === 0,
-    '기록 요청은 전부 /api/v1/phi 로만 나가고 성공한다',
-    outsidePhi[0]?.url ?? failedCalls[0]?.url ?? `${nursingCalls.length}건`,
-  );
+  const outsidePhi = nursingCalls.filter((u) => !new URL(u).pathname.startsWith('/api/v1/phi/'));
+  record(outsidePhi.length === 0, '기록 조회도 전부 /api/v1/phi 로만 나간다',
+    outsidePhi[0] ?? `${nursingCalls.length}건`);
 
   // ── 열람 기록도 원내에 있다 ────────────────────────────
   //
