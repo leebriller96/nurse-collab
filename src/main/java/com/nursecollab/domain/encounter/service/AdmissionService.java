@@ -1,11 +1,9 @@
 package com.nursecollab.domain.encounter.service;
 
-import com.nursecollab.domain.department.entity.Department;
 import com.nursecollab.domain.encounter.entity.Encounter;
 import com.nursecollab.domain.encounter.repository.EncounterRepository;
-import com.nursecollab.domain.episode.entity.CareEpisode;
-import com.nursecollab.domain.episode.repository.CareEpisodeRepository;
 import com.nursecollab.domain.patient.entity.Patient;
+import com.nursecollab.domain.phi.port.WorkRelationPort;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,28 +21,30 @@ import java.time.OffsetDateTime;
  * 둘을 잇는 것은 {@code subject_ref} 하나뿐이고, 그 열쇠를 사람으로 되돌리는
  * 대응표는 {@code encounter} 에만 있다.
  *
- * <p>지금은 같은 DB 라 한 트랜잭션으로 묶는다. 진료 쪽을 원내 DB 로 떼어내면
- * 이 자리가 <b>원내 → 클라우드로 보내는 유일한 통로</b>가 된다.
- * 그때 나가는 것은 침대 번호와 병동뿐이고, 이름도 진단명도 이 통로를 지나지 않는다.
- * 통로가 하나여야 무엇이 밖으로 나가는지 한 곳만 보면 알 수 있다.
+ * <p>업무 쪽에는 {@link WorkRelationPort#registerEpisode} 로만 알린다.
+ * 원내에서 밖으로 나가는 유일한 쓰기이고, 나가는 것은 침대와 병동뿐이다.
+ *
+ * <p><b>원내를 먼저 쓴다.</b> 두 서버로 갈라지면 한 트랜잭션으로 묶을 수 없어서
+ * 한쪽만 성공하는 경우가 생긴다. 업무 쪽을 못 쓰면 침대가 비어 보여 요청을 못 걸 뿐이지만,
+ * 반대로 하면 누구인지 모르는 침대에 요청이 걸리고 환자 기록은 없다.
+ * 앞의 실패는 눈에 띄고 안전하며, 뒤의 실패는 조용하고 위험하다.
  */
 @Service
 @RequiredArgsConstructor
 public class AdmissionService {
 
     private final EncounterRepository encounterRepository;
-    private final CareEpisodeRepository careEpisodeRepository;
+    private final WorkRelationPort workRelation;
 
     @Transactional
-    public Encounter admit(Patient patient, Department ward, String roomNo, String bedNo,
+    public Encounter admit(Patient patient, Long wardId, String roomNo, String bedNo,
                            OffsetDateTime admittedAt, String diagnosis, boolean mobile) {
 
         Encounter encounter = encounterRepository.save(
-                Encounter.admit(patient, ward, roomNo, bedNo, admittedAt, diagnosis, mobile));
+                Encounter.admit(patient, wardId, roomNo, bedNo, admittedAt, diagnosis, mobile));
 
-        // 업무 쪽이 보는 것은 여기까지다. 진단명과 거동 여부는 넘기지 않는다.
-        careEpisodeRepository.save(CareEpisode.of(
-                encounter.getSubjectRef(), ward, roomNo, bedNo, admittedAt));
+        // 진단명과 거동 여부는 넘기지 않는다
+        workRelation.registerEpisode(encounter.getSubjectRef(), wardId, roomNo, bedNo, admittedAt);
 
         return encounter;
     }

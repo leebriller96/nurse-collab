@@ -1,9 +1,5 @@
 package com.nursecollab.domain.workorder.service;
 
-import com.nursecollab.domain.patient.dto.AlertResponse;
-import com.nursecollab.domain.patient.dto.ChecklistWarning;
-import com.nursecollab.domain.patient.entity.PatientAlert;
-import com.nursecollab.domain.patient.repository.PatientAlertRepository;
 import com.nursecollab.domain.staff.entity.Staff;
 import com.nursecollab.domain.staff.repository.StaffRepository;
 import com.nursecollab.domain.workorder.dto.WorkOrderDetailResponse;
@@ -42,7 +38,6 @@ public class WorkOrderQueryService {
 
     private final WorkOrderRepository requestRepository;
     private final WorkOrderEventRepository eventRepository;
-    private final PatientAlertRepository alertRepository;
     private final StaffRepository staffRepository;
 
     /**

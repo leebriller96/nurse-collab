@@ -53,7 +53,7 @@ class PatientAlertApiTest extends IntegrationTest {
                 "P%07d".formatted(SEQ.getAndIncrement()), "박OO",
                 LocalDate.of(1971, 11, 2), Sex.F, null, null));
         patientId = patient.getId();
-        Encounter encounter = admissionService.admit(patient, ward, "501", "1",
+        Encounter encounter = admissionService.admit(patient, ward.getId(), "501", "1",
                 OffsetDateTime.now().minusDays(3), "요추 추간판탈출증", true);
         encounterId = encounter.getId();
         subjectRef = encounter.getSubjectRef();

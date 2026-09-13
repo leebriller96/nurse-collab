@@ -3,8 +3,7 @@ package com.nursecollab.domain.encounter.service;
 import com.nursecollab.domain.encounter.entity.Encounter;
 import com.nursecollab.domain.encounter.repository.EncounterRepository;
 import com.nursecollab.domain.staff.entity.StaffRole;
-import com.nursecollab.domain.workorder.entity.OrderStatus;
-import com.nursecollab.domain.workorder.repository.WorkOrderRepository;
+import com.nursecollab.domain.phi.port.WorkRelationPort;
 import com.nursecollab.global.error.BusinessException;
 import com.nursecollab.global.error.ErrorCode;
 import com.nursecollab.global.security.LoginStaff;
@@ -28,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class EncounterQueryService {
 
     private final EncounterRepository encounterRepository;
-    private final WorkOrderRepository workOrderRepository;
+    private final WorkRelationPort workRelation;
 
     /**
      * 이 환자를 볼 자격이 있는지 판정하고 재원 건을 돌려준다.
@@ -46,8 +45,7 @@ public class EncounterQueryService {
                 || encounter.getDepartmentId().equals(loginStaff.departmentId())) {
             return encounter;
         }
-        if (!workOrderRepository.existsActiveBySubjectAndToDepartment(
-                encounter.getSubjectRef(), loginStaff.departmentId(), OrderStatus.terminals())) {
+        if (!workRelation.hasActiveOrderTo(encounter.getSubjectRef(), loginStaff.departmentId())) {
             throw new BusinessException(ErrorCode.NOT_RELATED_DEPARTMENT);
         }
         return encounter;

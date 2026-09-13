@@ -57,7 +57,7 @@ class WorkOrderApiTest extends IntegrationTest {
         Patient patient = patientRepository.save(Patient.create(
                 "P%07d".formatted(PATIENT_SEQ.getAndIncrement()), "김OO",
                 LocalDate.of(1958, 3, 11), Sex.M, null, null));
-        Encounter encounter = admissionService.admit(patient, ward, "302", "1",
+        Encounter encounter = admissionService.admit(patient, ward.getId(), "302", "1",
                 OffsetDateTime.now().minusDays(4), "뇌경색", false);
         encounterId = encounter.getId();
         subjectRef = encounter.getSubjectRef();

@@ -69,7 +69,7 @@ class WorkOrderServiceTest extends IntegrationTest {
                 "P%07d".formatted(PATIENT_SEQ.getAndIncrement()), "김OO",
                 LocalDate.of(1958, 3, 11), Sex.M, null, null));
         // 입원 등록은 재원(진료)과 침대(업무) 두 곳에 쓴다. AdmissionService 가 그 유일한 통로다.
-        encounter = admissionService.admit(patient, ward, "302", "1",
+        encounter = admissionService.admit(patient, ward.getId(), "302", "1",
                 OffsetDateTime.now().minusDays(4), "뇌경색", false);
     }
 

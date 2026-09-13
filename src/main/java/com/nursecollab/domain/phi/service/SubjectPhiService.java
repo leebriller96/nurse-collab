@@ -13,8 +13,7 @@ import com.nursecollab.domain.phi.dto.SubjectBrief;
 import com.nursecollab.domain.phi.repository.PhiAccessLogRepository;
 import com.nursecollab.domain.phi.dto.SubjectPhi;
 import com.nursecollab.domain.staff.entity.StaffRole;
-import com.nursecollab.domain.workorder.entity.OrderStatus;
-import com.nursecollab.domain.workorder.repository.WorkOrderRepository;
+import com.nursecollab.domain.phi.port.WorkRelationPort;
 import com.nursecollab.global.audit.AuditLog;
 import com.nursecollab.global.audit.AuditRecorder;
 import jakarta.servlet.http.HttpServletRequest;
@@ -53,7 +52,7 @@ public class SubjectPhiService {
 
     private final EncounterRepository encounterRepository;
     private final PatientAlertRepository alertRepository;
-    private final WorkOrderRepository workOrderRepository;
+    private final WorkRelationPort workRelation;
     private final AuditRecorder auditRecorder;
     private final PhiAccessRecorder phiAccessRecorder;
     private final PhiAccessLogRepository phiAccessLogRepository;
@@ -127,9 +126,8 @@ public class SubjectPhiService {
     public List<SubjectBrief> findBrief(Collection<UUID> subjectRefs, LoginStaff loginStaff) {
         if (subjectRefs == null || subjectRefs.isEmpty()) return List.of();
 
-        List<Encounter> encounters = encounterRepository.findAllBySubjectRefs(subjectRefs).stream()
-                .filter(e -> viewable(e, loginStaff))
-                .toList();
+        List<Encounter> encounters = viewableOnly(
+                encounterRepository.findAllBySubjectRefs(subjectRefs), loginStaff);
         if (encounters.isEmpty()) return List.of();
 
         Map<Long, List<PatientAlert>> alertsByPatient = alertRepository
@@ -192,8 +190,8 @@ public class SubjectPhiService {
     public List<UUID> searchRefs(String namePart, LoginStaff loginStaff) {
         if (namePart == null || namePart.isBlank()) return List.of();
 
-        return encounterRepository.findAdmittedByPatientNameLike(namePart.trim()).stream()
-                .filter(e -> viewable(e, loginStaff))
+        return viewableOnly(encounterRepository.findAdmittedByPatientNameLike(namePart.trim()),
+                loginStaff).stream()
                 .map(Encounter::getSubjectRef)
                 .toList();
     }
@@ -222,7 +220,22 @@ public class SubjectPhiService {
     private boolean viewable(Encounter encounter, LoginStaff loginStaff) {
         if (ownWard(encounter, loginStaff)) return true;
 
-        return workOrderRepository.existsActiveBySubjectAndToDepartment(
-                encounter.getSubjectRef(), loginStaff.departmentId(), OrderStatus.terminals());
+        return workRelation.hasActiveOrderTo(encounter.getSubjectRef(), loginStaff.departmentId());
+    }
+
+    /**
+     * 목록에서 볼 자격이 있는 것만 남긴다.
+     * 한 명씩 물으면 서버가 갈라진 뒤 요청이 사람 수만큼 나간다. 한 번에 묻는다.
+     */
+    private List<Encounter> viewableOnly(List<Encounter> encounters, LoginStaff loginStaff) {
+        List<Encounter> others = encounters.stream().filter(e -> !ownWard(e, loginStaff)).toList();
+        java.util.Set<UUID> related = others.isEmpty() ? java.util.Set.of()
+                : workRelation.subjectsWithActiveOrdersTo(
+                        others.stream().map(Encounter::getSubjectRef).toList(),
+                        loginStaff.departmentId());
+
+        return encounters.stream()
+                .filter(e -> ownWard(e, loginStaff) || related.contains(e.getSubjectRef()))
+                .toList();
     }
 }

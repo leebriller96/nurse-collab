@@ -58,7 +58,7 @@ class PhiAccessApiTest extends IntegrationTest {
                 LocalDate.of(1969, 4, 5), Sex.M, null, null));
         patientId = patient.getId();
 
-        Encounter encounter = admissionService.admit(patient, ward, "307", "1",
+        Encounter encounter = admissionService.admit(patient, ward.getId(), "307", "1",
                 OffsetDateTime.now().minusDays(1), "복막염", true);
         subjectRef = encounter.getSubjectRef();
     }
@@ -128,7 +128,7 @@ class PhiAccessApiTest extends IntegrationTest {
         Patient patient = patientRepository.save(Patient.create(
                 "P%07d".formatted(SEQ.getAndIncrement()), "조OO",
                 LocalDate.of(1974, 8, 8), Sex.F, null, null));
-        UUID ownRef = admissionService.admit(patient, ward, "505", "1",
+        UUID ownRef = admissionService.admit(patient, ward.getId(), "505", "1",
                 OffsetDateTime.now().minusDays(1), "고혈압", true).getSubjectRef();
 
         mvc.perform(get("/api/v1/phi/subjects/" + ownRef)

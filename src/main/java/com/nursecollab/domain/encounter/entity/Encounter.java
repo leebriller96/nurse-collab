@@ -1,6 +1,5 @@
 package com.nursecollab.domain.encounter.entity;
 
-import com.nursecollab.domain.department.entity.Department;
 import com.nursecollab.domain.patient.entity.Patient;
 import com.nursecollab.global.common.BaseTimeEntity;
 import jakarta.persistence.Column;
@@ -85,13 +84,13 @@ public class Encounter extends BaseTimeEntity {
     @Column(name = "is_mobile", nullable = false)
     private boolean mobile = true;
 
-    public static Encounter admit(Patient patient, Department department, String roomNo,
+    public static Encounter admit(Patient patient, Long departmentId, String roomNo,
                                   String bedNo, OffsetDateTime admittedAt,
                                   String diagnosis, boolean mobile) {
         Encounter encounter = new Encounter();
         encounter.subjectRef = UUID.randomUUID();
         encounter.patient = patient;
-        encounter.departmentId = department.getId();
+        encounter.departmentId = departmentId;
         encounter.roomNo = roomNo;
         encounter.bedNo = bedNo;
         encounter.admittedAt = admittedAt;

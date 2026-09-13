@@ -7,8 +7,6 @@ import com.nursecollab.domain.patient.entity.Patient;
 import com.nursecollab.domain.patient.entity.PatientAlert;
 import com.nursecollab.domain.patient.repository.PatientAlertRepository;
 import com.nursecollab.domain.patient.repository.PatientRepository;
-import com.nursecollab.domain.staff.entity.Staff;
-import com.nursecollab.domain.staff.repository.StaffRepository;
 import com.nursecollab.global.audit.Audited;
 import com.nursecollab.global.error.BusinessException;
 import com.nursecollab.global.error.ErrorCode;
@@ -33,7 +31,6 @@ public class PatientAlertService {
 
     private final PatientAlertRepository alertRepository;
     private final PatientRepository patientRepository;
-    private final StaffRepository staffRepository;
     private final EncounterQueryService encounterQueryService;
 
     @Transactional
@@ -44,12 +41,10 @@ public class PatientAlertService {
 
         Patient patient = patientRepository.findById(patientId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ENCOUNTER_NOT_FOUND));
-        Staff actor = staffRepository.findById(loginStaff.staffId())
-                .orElseThrow(() -> new BusinessException(ErrorCode.STAFF_NOT_FOUND));
 
         PatientAlert alert = alertRepository.save(
                 PatientAlert.create(patient, request.alertType(), request.severity(),
-                        request.content(), actor));
+                        request.content(), loginStaff.staffId()));
 
         return AlertResponse.from(alert);
     }

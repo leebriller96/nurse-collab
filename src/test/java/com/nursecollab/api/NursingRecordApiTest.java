@@ -54,7 +54,7 @@ class NursingRecordApiTest extends IntegrationTest {
         Patient patient = patientRepository.save(Patient.create(
                 "P%07d".formatted(PATIENT_SEQ.getAndIncrement()), "이OO",
                 LocalDate.of(1952, 7, 24), Sex.F, null, null));
-        Encounter encounter = admissionService.admit(patient, ward, "302", "2",
+        Encounter encounter = admissionService.admit(patient, ward.getId(), "302", "2",
                 OffsetDateTime.now().minusDays(2), "폐렴", true);
         encounterId = encounter.getId();
         subjectRef = encounter.getSubjectRef();

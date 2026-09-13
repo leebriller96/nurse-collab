@@ -1,7 +1,6 @@
 package com.nursecollab.domain.nursing.entity;
 
 import com.nursecollab.domain.encounter.entity.Encounter;
-import com.nursecollab.domain.staff.entity.Staff;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -69,7 +68,7 @@ public class VitalSign {
     public static VitalSign record(Encounter encounter, OffsetDateTime measuredAt,
                                    BigDecimal temperature, Integer pulse, Integer respiration,
                                    Integer sbp, Integer dbp, Integer spo2, Integer painScore,
-                                   Staff recordedBy) {
+                                   Long recordedById, String recordedByName) {
         VitalSign vital = new VitalSign();
         vital.encounter = encounter;
         vital.measuredAt = measuredAt;
@@ -80,8 +79,8 @@ public class VitalSign {
         vital.dbp = dbp;
         vital.spo2 = spo2;
         vital.painScore = painScore;
-        vital.recordedById = recordedBy.getId();
-        vital.recordedByName = recordedBy.getName();
+        vital.recordedById = recordedById;
+        vital.recordedByName = recordedByName;
         vital.createdAt = OffsetDateTime.now();
         return vital;
     }

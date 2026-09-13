@@ -11,9 +11,7 @@ import com.nursecollab.domain.nursing.entity.NursingNote;
 import com.nursecollab.domain.nursing.entity.VitalSign;
 import com.nursecollab.domain.nursing.repository.NursingNoteRepository;
 import com.nursecollab.domain.nursing.repository.VitalSignRepository;
-import com.nursecollab.domain.staff.entity.Staff;
 import com.nursecollab.domain.staff.entity.StaffRole;
-import com.nursecollab.domain.staff.repository.StaffRepository;
 import com.nursecollab.global.audit.AuditLog;
 import com.nursecollab.global.audit.AuditRecorder;
 import com.nursecollab.global.common.PageResponse;
@@ -44,7 +42,6 @@ public class NursingRecordService {
     private final VitalSignRepository vitalSignRepository;
     private final NursingNoteRepository noteRepository;
     private final EncounterRepository encounterRepository;
-    private final StaffRepository staffRepository;
     private final AuditRecorder auditRecorder;
 
     // ------------------------------------------------------------------
@@ -55,11 +52,11 @@ public class NursingRecordService {
     public VitalSignResponse recordVitalSign(Long encounterId, VitalSignRequest req,
                                              LoginStaff loginStaff) {
         Encounter encounter = wardEncounter(encounterId, loginStaff);
-        Staff recorder = staff(loginStaff.staffId());
 
         VitalSign saved = vitalSignRepository.save(VitalSign.record(
                 encounter, req.measuredAt(), req.temperature(), req.pulse(), req.respiration(),
-                req.sbp(), req.dbp(), req.spo2(), req.painScore(), recorder));
+                req.sbp(), req.dbp(), req.spo2(), req.painScore(),
+                loginStaff.staffId(), loginStaff.name()));
 
         return VitalSignResponse.from(saved);
     }
@@ -81,12 +78,11 @@ public class NursingRecordService {
     public NursingNoteResponse writeNote(Long encounterId, NursingNoteRequest req,
                                          LoginStaff loginStaff) {
         Encounter encounter = wardEncounter(encounterId, loginStaff);
-        Staff recorder = staff(loginStaff.staffId());
 
         NursingNote saved = noteRepository.save(NursingNote.write(
                 encounter, req.noteType(), req.situation(), req.background(),
                 req.assessment(), req.recommendation(), req.content(),
-                req.recordedAt(), recorder));
+                req.recordedAt(), loginStaff.staffId(), loginStaff.name()));
 
         return NursingNoteResponse.of(saved, loginStaff.staffId());
     }
@@ -110,10 +106,9 @@ public class NursingRecordService {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOTE_NOT_FOUND));
 
         wardEncounter(note.getEncounter().getId(), loginStaff);
-        Staff editor = staff(loginStaff.staffId());
 
         Map<String, Object> before = snapshot(note);
-        note.edit(editor, req.situation(), req.background(),
+        note.edit(loginStaff.staffId(), req.situation(), req.background(),
                 req.assessment(), req.recommendation(), req.content());
 
         recordEdit(note, loginStaff, before);
@@ -158,10 +153,5 @@ public class NursingRecordService {
             throw new BusinessException(ErrorCode.NOT_RELATED_DEPARTMENT);
         }
         return encounter;
-    }
-
-    private Staff staff(Long staffId) {
-        return staffRepository.findByIdWithDepartment(staffId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.STAFF_NOT_FOUND));
     }
 }

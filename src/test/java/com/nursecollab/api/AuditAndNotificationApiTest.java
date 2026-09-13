@@ -52,7 +52,7 @@ class AuditAndNotificationApiTest extends IntegrationTest {
         Patient patient = patientRepository.save(Patient.create(
                 "P%07d".formatted(PATIENT_SEQ.getAndIncrement()), "정OO",
                 LocalDate.of(1965, 1, 30), Sex.M, null, null));
-        Encounter encounter = admissionService.admit(patient, ward, "503", "2",
+        Encounter encounter = admissionService.admit(patient, ward.getId(), "503", "2",
                 OffsetDateTime.now().minusDays(1), "당뇨병성 신증", true);
         encounterId = encounter.getId();
         subjectRef = encounter.getSubjectRef();

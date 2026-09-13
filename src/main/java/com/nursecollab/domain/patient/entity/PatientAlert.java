@@ -1,6 +1,5 @@
 package com.nursecollab.domain.patient.entity;
 
-import com.nursecollab.domain.staff.entity.Staff;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -62,13 +61,13 @@ public class PatientAlert {
     private OffsetDateTime createdAt;
 
     public static PatientAlert create(Patient patient, AlertType alertType,
-                                      AlertSeverity severity, String content, Staff createdBy) {
+                                      AlertSeverity severity, String content, Long createdById) {
         PatientAlert alert = new PatientAlert();
         alert.patient = patient;
         alert.alertType = alertType;
         alert.severity = severity;
         alert.content = content;
-        alert.createdById = createdBy.getId();
+        alert.createdById = createdById;
         alert.active = true;
         alert.createdAt = OffsetDateTime.now();
         return alert;
