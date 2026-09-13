@@ -13,10 +13,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * @Audited 가 붙은 요청을 감사 로그로 남긴다.
@@ -30,13 +27,9 @@ import java.util.stream.Collectors;
 public class AuditAspect {
 
     private final AuditRecorder auditRecorder;
-    private final Map<String, AuditTargetResolver> resolvers;
 
-    public AuditAspect(AuditRecorder auditRecorder,
-                       List<AuditTargetResolver> resolvers) {
+    public AuditAspect(AuditRecorder auditRecorder) {
         this.auditRecorder = auditRecorder;
-        this.resolvers = resolvers.stream()
-                .collect(Collectors.toMap(AuditTargetResolver::targetType, Function.identity()));
     }
 
     @Around("@annotation(audited)")
@@ -56,9 +49,6 @@ public class AuditAspect {
 
     private void write(ProceedingJoinPoint joinPoint, Audited audited) {
         Long targetId = targetId(joinPoint, audited.targetIdParam());
-        AuditTargetResolver resolver = resolvers.get(audited.targetType());
-        Long patientId = (resolver == null || targetId == null)
-                ? null : resolver.resolvePatientId(targetId);
 
         HttpServletRequest request = currentRequest();
 
@@ -67,7 +57,9 @@ public class AuditAspect {
                 audited.action(),
                 audited.targetType(),
                 targetId,
-                patientId,
+                // 환자 칸을 채우지 않는다. 대상에서 환자를 찾아내던 해석기가 있었는데,
+                // 업무 쪽이 진료 기록을 읽어야 가능한 일이었다. 환자에 관한 기록은 원내가 남긴다.
+                null,
                 request == null ? null : request.getRemoteAddr(),
                 request == null ? null : request.getHeader("User-Agent"),
                 detailOf(request)));

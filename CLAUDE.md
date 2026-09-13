@@ -279,8 +279,14 @@ chore: Testcontainers 의존성 추가
       안 그러면 제일 남겨야 할 기록이 제일 먼저 사라진다.
     - 직원 정보에 외래키를 걸지 않고 아이디를 문자열로 함께 적는다.
       업무 쪽 DB 가 없어도 이 로그만으로 읽을 수 있어야 한다.
-    - **화면으로 보여주지 않는다.** 보여주려면 클라우드를 거쳐야 하고, 그러면 분리가 깨진다.
-      원내에서 psql 로 직접 읽는다.
+    - A-05 화면이 원내 `/phi/access-logs` 로 읽는다. 처음에는 "보여주려면 클라우드를 거쳐야
+      하니 화면에 띄우지 않는다" 고 적었는데 틀린 판단이었다. 브라우저가 원내에 직접 물으면
+      클라우드는 이 기록을 보지 않는다. 원내망 밖에서 화면이 열리지 않을 뿐이다.
+    - **원내 기록은 원내에만 남긴다.** 간호기록·활력징후·주의사항의 감사와 간호기록 수정 전후를
+      업무 쪽 `audit_log` 에서 여기로 옮겼다(V14 `detail`). 수정 전 내용은 그 자체가 진료정보다.
+      7단계 설명의 `@Audited` · `audit_log.detail` 은 그때의 구조다.
+    - 쓰기는 `saveAndFlush` 로 확정한 뒤 기록한다. 기록은 `REQUIRES_NEW` 라 먼저 커밋되는데,
+      저장이 실패했는데 "기록했다" 가 남으면 기록을 믿을 수 없다.
   - 조회량 제한: 최근 10분에 서로 다른 30명을 넘기면 막는다(`PHI-001`).
     클라우드가 뚫리면 토큰을 새로 발급해 원내에 물어볼 수 있다. 인증 서버가
     클라우드인 이상 이 구멍은 구조적으로 남는다 — **막지는 못하고 좁히고 남긴다.**
@@ -394,7 +400,8 @@ chore: Testcontainers 의존성 추가
 | PUT | `/nursing-notes/{noteId}` | W-07 |
 | GET PATCH POST | `/notifications` `/{id}/read` `/read-all` | C-02 |
 | GET | `/stats/waiting-time` | A-01 |
-| GET | `/audit-logs` | A-05 |
+| GET | `/phi/access-logs` | A-05 (원내) |
+| GET | `/audit-logs` | 업무 쪽 감사. 환자 칸 없음, 지금 화면 없음 |
 | GET POST PUT PATCH | `/staff` `/departments` `/service-items` (+ `/{id}/deactivate`) | A-02~04 |
 
 ### 데모 계정

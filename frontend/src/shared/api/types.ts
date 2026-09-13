@@ -258,9 +258,25 @@ export interface AuditLogEntry {
   action: string;
   targetType: string;
   targetId: number | null;
-  patient: { id: number; patientNo: string; name: string } | null;
   ipAddress: string | null;
   occurredAt: string;
+}
+
+/**
+ * 원내 열람 기록 한 줄 (A-05). 원내 경로에서만 온다.
+ * 누가는 아이디까지만 담긴다. 직원 이름은 업무 쪽에 있다.
+ */
+export interface PhiAccessLogEntry {
+  id: number;
+  occurredAt: string;
+  action: string;
+  granted: boolean;
+  deniedReason: string | null;
+  actor: { id: number; loginId: string; departmentId: number | null };
+  patient: { patientNo: string; name: string } | null;
+  ipAddress: string | null;
+  /** 간호기록 수정처럼 전후 내용이 있는 경우에만 */
+  detail: Record<string, unknown> | null;
 }
 
 export type NotiType = 'ORDER_CREATED' | 'STATUS_CHANGED' | 'MESSAGE';

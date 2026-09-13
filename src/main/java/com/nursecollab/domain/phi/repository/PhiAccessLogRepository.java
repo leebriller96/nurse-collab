@@ -1,6 +1,8 @@
 package com.nursecollab.domain.phi.repository;
 
 import com.nursecollab.domain.phi.entity.PhiAccessLog;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -24,4 +26,26 @@ public interface PhiAccessLogRepository extends JpaRepository<PhiAccessLog, Long
               and l.occurredAt >= :since
             """)
     long countDistinctPatientsSince(Long actorId, OffsetDateTime since);
+
+    /**
+     * 관리자가 보는 열람 기록. 최근 것부터.
+     *
+     * 등록번호로 좁히는 조건을 서버에서 건다. 화면에서 거르면 한 페이지 안에서만 걸러져,
+     * 둘째 페이지에 있는 그 환자의 기록은 "없다" 로 보인다.
+     */
+    @Query(value = """
+            select l from PhiAccessLog l
+            where l.occurredAt >= :from and l.occurredAt < :to
+              and (:patientNo is null or l.patientId in
+                   (select p.id from Patient p where p.patientNo like %:patientNo%))
+            order by l.occurredAt desc
+            """,
+            countQuery = """
+            select count(l) from PhiAccessLog l
+            where l.occurredAt >= :from and l.occurredAt < :to
+              and (:patientNo is null or l.patientId in
+                   (select p.id from Patient p where p.patientNo like %:patientNo%))
+            """)
+    Page<PhiAccessLog> search(OffsetDateTime from, OffsetDateTime to, String patientNo,
+                              Pageable pageable);
 }

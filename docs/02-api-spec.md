@@ -602,28 +602,38 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 
 ## 8-2. 감사 로그 (관리자)
 
-### GET /audit-logs?from=&to=&patientId=&actorId=&page=&size=
+감사 기록은 두 곳에 나뉘어 남는다.
+
+| 경로 | 무엇이 남나 | 사는 곳 |
+|---|---|---|
+| `GET /phi/access-logs?from=&to=&patientNo=&page=&size=` | 환자 열람, 활력징후·간호기록 열람과 작성, 간호기록 수정 전후, 주의사항 — **거절된 시도 포함** | 원내 |
+| `GET /audit-logs?from=&to=&actorId=&page=&size=` | 업무 쪽 행위. 환자 칸이 없다 | 업무 |
+
+A-05 화면은 원내 경로를 읽는다. 간호기록 수정 전 내용은 그 자체가 진료정보라
+업무 쪽에 두면 나눈 의미가 사라진다.
 
 ```json
 {
   "content": [
     {
       "id": 9001,
-      "actor": { "id": 21, "name": "박간호", "departmentName": "MRI실" },
-      "action": "VIEW",
-      "targetType": "ENCOUNTER",
-      "targetId": 1,
-      "patient": { "id": 1, "patientNo": "P0001234", "name": "김OO" },
+      "occurredAt": "2026-09-06T02:47:18+09:00",
+      "action": "NOTE_EDIT",
+      "granted": true,
+      "deniedReason": null,
+      "actor": { "id": 11, "loginId": "ward01", "departmentId": 1 },
+      "patient": { "patientNo": "P0001234", "name": "김OO" },
       "ipAddress": "10.0.0.12",
-      "occurredAt": "2026-09-06T02:47:18+09:00"
+      "detail": { "noteId": 42, "before": { "content": "..." }, "after": { "content": "..." } }
     }
   ]
 }
 ```
 
-수정만 남기는 것이 아니다. **환자 정보를 열어본 것 자체가 기록 대상**이다.
-컨트롤러에 `@Audited` 를 붙이면 AOP 가 자동으로 적재한다.
-
+- 누가는 아이디와 소속 id 까지만 담긴다. 직원 이름은 업무 쪽에 있어서, 기록이 쌓일 때
+  아이디를 문자열로 굳혀 둔다.
+- 등록번호로 좁히는 조건은 서버에서 건다. 화면에서 거르면 한 페이지 안에서만 걸러진다.
+- 관리자만 본다(`403 PERM-003`).
 
 ---
 

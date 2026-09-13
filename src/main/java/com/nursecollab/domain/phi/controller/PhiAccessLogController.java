@@ -1,7 +1,7 @@
-package com.nursecollab.domain.audit.controller;
+package com.nursecollab.domain.phi.controller;
 
-import com.nursecollab.domain.audit.dto.AuditLogResponse;
-import com.nursecollab.domain.audit.service.AuditLogQueryService;
+import com.nursecollab.domain.phi.dto.PhiAccessLogResponse;
+import com.nursecollab.domain.phi.service.PhiAccessLogQueryService;
 import com.nursecollab.global.common.PageResponse;
 import com.nursecollab.global.security.LoginStaff;
 import lombok.RequiredArgsConstructor;
@@ -16,23 +16,24 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDate;
 
+/** A-05 환자 정보 열람 기록. 원내 경로로만 열린다. */
 @RestController
-@RequestMapping("/api/v1/audit-logs")
+@RequestMapping("/api/v1/phi/access-logs")
 @RequiredArgsConstructor
-public class AuditLogController {
+public class PhiAccessLogController {
 
-    private final AuditLogQueryService auditLogQueryService;
+    private final PhiAccessLogQueryService queryService;
 
     @GetMapping
-    public ResponseEntity<PageResponse<AuditLogResponse>> search(
+    public ResponseEntity<PageResponse<PhiAccessLogResponse>> search(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false) Long actorId,
+            @RequestParam(required = false) String patientNo,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "30") int size,
             @AuthenticationPrincipal LoginStaff loginStaff) {
 
-        return ResponseEntity.ok(auditLogQueryService.search(
-                from, to, actorId, PageRequest.of(page, size), loginStaff));
+        return ResponseEntity.ok(queryService.search(
+                from, to, patientNo, PageRequest.of(page, size), loginStaff));
     }
 }

@@ -6,7 +6,6 @@ import com.nursecollab.domain.nursing.dto.VitalSignRequest;
 import com.nursecollab.domain.nursing.dto.VitalSignResponse;
 import com.nursecollab.domain.nursing.entity.NoteType;
 import com.nursecollab.domain.nursing.service.NursingRecordService;
-import com.nursecollab.global.audit.Audited;
 import com.nursecollab.global.common.PageResponse;
 import com.nursecollab.global.security.LoginStaff;
 import jakarta.validation.Valid;
@@ -34,7 +33,6 @@ public class NursingRecordController {
     private final NursingRecordService nursingRecordService;
 
     @PostMapping("/encounters/{encounterId}/vital-signs")
-    @Audited(action = "CREATE", targetType = "ENCOUNTER", targetIdParam = "encounterId")
     public ResponseEntity<VitalSignResponse> recordVitalSign(
             @PathVariable Long encounterId,
             @Valid @RequestBody VitalSignRequest request,
@@ -43,7 +41,6 @@ public class NursingRecordController {
     }
 
     @GetMapping("/encounters/{encounterId}/vital-signs")
-    @Audited(action = "VIEW", targetType = "ENCOUNTER", targetIdParam = "encounterId")
     public ResponseEntity<PageResponse<VitalSignResponse>> findVitalSigns(
             @PathVariable Long encounterId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) OffsetDateTime from,
@@ -56,7 +53,6 @@ public class NursingRecordController {
     }
 
     @PostMapping("/encounters/{encounterId}/nursing-notes")
-    @Audited(action = "CREATE", targetType = "ENCOUNTER", targetIdParam = "encounterId")
     public ResponseEntity<NursingNoteResponse> writeNote(
             @PathVariable Long encounterId,
             @Valid @RequestBody NursingNoteRequest request,
@@ -65,7 +61,6 @@ public class NursingRecordController {
     }
 
     @GetMapping("/encounters/{encounterId}/nursing-notes")
-    @Audited(action = "VIEW", targetType = "ENCOUNTER", targetIdParam = "encounterId")
     public ResponseEntity<PageResponse<NursingNoteResponse>> findNotes(
             @PathVariable Long encounterId,
             @RequestParam(required = false) NoteType noteType,

@@ -80,6 +80,34 @@ class NursingRecordApiTest extends IntegrationTest {
     }
 
     @Test
+    void 기록을_고치면_고치기_전_내용이_원내_기록에_남는다() throws Exception {
+        // 수정 전 내용은 그 자체가 진료정보다. 업무 쪽 감사 로그가 아니라 원내에 남아야 한다.
+        String created = mvc.perform(post("/api/v1/encounters/" + encounterId + "/nursing-notes")
+                        .header("Authorization", bearer("ward01"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"noteType":"GENERAL","content":"처음 적은 내용"}"""))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        long noteId = om.readTree(created).get("id").asLong();
+
+        mvc.perform(put("/api/v1/nursing-notes/" + noteId)
+                        .header("Authorization", bearer("ward01"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"noteType":"GENERAL","content":"고친 내용"}"""))
+                .andExpect(status().isOk());
+
+        String detail = jdbcTemplate.queryForObject(
+                "select detail::text from phi_access_log where action = 'NOTE_EDIT' "
+                        + "and subject_ref = ? order by id desc limit 1",
+                String.class, subjectRef);
+        org.assertj.core.api.Assertions.assertThat(detail)
+                .contains("처음 적은 내용")
+                .contains("고친 내용");
+    }
+
+    @Test
     void 남이_쓴_기록은_고칠_수_없다_NN_001() throws Exception {
         long noteId = writeNote("ward01").get("id").asLong();
 

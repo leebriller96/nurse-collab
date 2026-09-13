@@ -16,6 +16,7 @@ import org.hibernate.type.SqlTypes;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -77,24 +78,35 @@ public class PhiAccessLog {
     @Column(name = "occurred_at", nullable = false)
     private OffsetDateTime occurredAt;
 
+    /** 간호기록 수정처럼 전후 내용을 남겨야 하는 경우. 수정 전 내용은 그 자체가 진료정보다. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private Map<String, Object> detail;
+
     public static PhiAccessLog granted(Long actorId, String loginId, Long deptId,
                                        UUID subjectRef, Long patientId, String action,
                                        String ip, String userAgent) {
+        return granted(actorId, loginId, deptId, subjectRef, patientId, action, ip, userAgent, null);
+    }
+
+    public static PhiAccessLog granted(Long actorId, String loginId, Long deptId,
+                                       UUID subjectRef, Long patientId, String action,
+                                       String ip, String userAgent, Map<String, Object> detail) {
         return log(actorId, loginId, deptId, subjectRef, patientId, action,
-                true, null, ip, userAgent);
+                true, null, ip, userAgent, detail);
     }
 
     public static PhiAccessLog denied(Long actorId, String loginId, Long deptId,
                                       UUID subjectRef, String action, String reason,
                                       String ip, String userAgent) {
         return log(actorId, loginId, deptId, subjectRef, null, action,
-                false, reason, ip, userAgent);
+                false, reason, ip, userAgent, null);
     }
 
     private static PhiAccessLog log(Long actorId, String loginId, Long deptId,
                                     UUID subjectRef, Long patientId, String action,
                                     boolean granted, String deniedReason,
-                                    String ip, String userAgent) {
+                                    String ip, String userAgent, Map<String, Object> detail) {
         PhiAccessLog entry = new PhiAccessLog();
         entry.actorId = actorId;
         entry.actorLoginId = loginId;
@@ -108,6 +120,7 @@ public class PhiAccessLog {
         // 길이를 넘기면 INSERT 가 통째로 실패한다. 기록을 못 남기느니 잘라서 남긴다.
         entry.userAgent = userAgent == null || userAgent.length() <= 300
                 ? userAgent : userAgent.substring(0, 300);
+        entry.detail = detail;
         entry.occurredAt = OffsetDateTime.now();
         return entry;
     }

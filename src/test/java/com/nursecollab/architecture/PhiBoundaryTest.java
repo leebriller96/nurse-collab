@@ -45,6 +45,11 @@ class PhiBoundaryTest {
             "com.nursecollab.domain.notification..",
             "com.nursecollab.domain.stats..",
             "com.nursecollab.domain.master..",
+            // 처음 이 목록에서 빠져 있었다. 그 사이 업무 쪽 감사 조회가 환자 저장소를 읽어
+            // 이름을 붙이고 있었고, 테스트는 초록이었다. 목록 밖은 검사하지 않는다.
+            "com.nursecollab.domain.audit..",
+            "com.nursecollab.global.audit..",
+            "com.nursecollab.infra.realtime..",
     };
 
     private static final JavaClasses CLASSES = new ClassFileImporter()

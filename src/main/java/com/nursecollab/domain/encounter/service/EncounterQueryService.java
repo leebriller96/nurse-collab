@@ -2,6 +2,7 @@ package com.nursecollab.domain.encounter.service;
 
 import com.nursecollab.domain.encounter.entity.Encounter;
 import com.nursecollab.domain.encounter.repository.EncounterRepository;
+import com.nursecollab.domain.phi.service.PhiAccessRecorder;
 import com.nursecollab.domain.staff.entity.StaffRole;
 import com.nursecollab.domain.phi.port.WorkRelationPort;
 import com.nursecollab.global.error.BusinessException;
@@ -28,6 +29,7 @@ public class EncounterQueryService {
 
     private final EncounterRepository encounterRepository;
     private final WorkRelationPort workRelation;
+    private final PhiAccessRecorder phiAccessRecorder;
 
     /**
      * 이 환자를 볼 자격이 있는지 판정하고 재원 건을 돌려준다.
@@ -36,8 +38,10 @@ public class EncounterQueryService {
      * 그런데 접근 판정은 재원 기준이라 여기서 잇는다.
      * 판정을 부르는 쪽마다 다시 구현하면 한쪽만 고쳐지는 날이 오고,
      * 그때 남의 병동 환자에게 주의사항을 붙일 수 있게 된다.
+     *
+     * @param action 막혔을 때 원내 기록에 무엇을 하려다 막혔는지 남긴다
      */
-    public Encounter requireViewableByPatient(Long patientId, LoginStaff loginStaff) {
+    public Encounter requireViewableByPatient(Long patientId, LoginStaff loginStaff, String action) {
         Encounter encounter = encounterRepository.findAdmittedByPatientId(patientId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ENCOUNTER_NOT_FOUND));
 
@@ -46,6 +50,7 @@ public class EncounterQueryService {
             return encounter;
         }
         if (!workRelation.hasActiveOrderTo(encounter.getSubjectRef(), loginStaff.departmentId())) {
+            phiAccessRecorder.denied(loginStaff, encounter.getSubjectRef(), action, "NOT_RELATED");
             throw new BusinessException(ErrorCode.NOT_RELATED_DEPARTMENT);
         }
         return encounter;

@@ -1,5 +1,6 @@
 package com.nursecollab.domain.patient.service;
 
+import com.nursecollab.domain.encounter.entity.Encounter;
 import com.nursecollab.domain.patient.dto.AlertResponse;
 import com.nursecollab.domain.encounter.service.EncounterQueryService;
 import com.nursecollab.domain.patient.dto.AlertCreateRequest;
@@ -7,7 +8,7 @@ import com.nursecollab.domain.patient.entity.Patient;
 import com.nursecollab.domain.patient.entity.PatientAlert;
 import com.nursecollab.domain.patient.repository.PatientAlertRepository;
 import com.nursecollab.domain.patient.repository.PatientRepository;
-import com.nursecollab.global.audit.Audited;
+import com.nursecollab.domain.phi.service.PhiAccessRecorder;
 import com.nursecollab.global.error.BusinessException;
 import com.nursecollab.global.error.ErrorCode;
 import com.nursecollab.global.security.LoginStaff;
@@ -23,6 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * 이것이 업무 항목의 확인 항목과 만나 "이 검사 전에 확인이 필요합니다" 가 된다.
  * 이 프로젝트에서 가장 특징적인 화면이 여기에 기대고 있다.
+ *
+ * <p>누가 남기고 내렸는지는 원내 접근 기록에 남는다. 저장을 먼저 확정하고 남긴다 —
+ * 기록은 따로 커밋되므로, 순서가 바뀌면 실패한 저장이 "남겼다" 로 기록된다.
  */
 @Service
 @RequiredArgsConstructor
@@ -32,19 +36,21 @@ public class PatientAlertService {
     private final PatientAlertRepository alertRepository;
     private final PatientRepository patientRepository;
     private final EncounterQueryService encounterQueryService;
+    private final PhiAccessRecorder phiAccessRecorder;
 
     @Transactional
-    @Audited(action = "CREATE", targetType = "PATIENT_ALERT")
     public AlertResponse add(Long patientId, AlertCreateRequest request, LoginStaff loginStaff) {
         // 환자 조회와 같은 판정을 거친다. 남의 병동 환자에게 붙일 수 있으면 안 된다.
-        encounterQueryService.requireViewableByPatient(patientId, loginStaff);
+        Encounter encounter =
+                encounterQueryService.requireViewableByPatient(patientId, loginStaff, "ALERT_CREATE");
 
         Patient patient = patientRepository.findById(patientId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ENCOUNTER_NOT_FOUND));
 
-        PatientAlert alert = alertRepository.save(
+        PatientAlert alert = alertRepository.saveAndFlush(
                 PatientAlert.create(patient, request.alertType(), request.severity(),
                         request.content(), loginStaff.staffId()));
+        phiAccessRecorder.granted(loginStaff, encounter.getSubjectRef(), patientId, "ALERT_CREATE");
 
         return AlertResponse.from(alert);
     }
@@ -54,12 +60,15 @@ public class PatientAlertService {
      * 이 주의사항을 보고 판단한 지난 요청이 있다. 지우면 그 판단의 근거가 사라진다.
      */
     @Transactional
-    @Audited(action = "UPDATE", targetType = "PATIENT_ALERT")
     public void deactivate(Long alertId, LoginStaff loginStaff) {
         PatientAlert alert = alertRepository.findById(alertId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.ALERT_NOT_FOUND));
 
-        encounterQueryService.requireViewableByPatient(alert.getPatient().getId(), loginStaff);
+        Long patientId = alert.getPatient().getId();
+        Encounter encounter =
+                encounterQueryService.requireViewableByPatient(patientId, loginStaff, "ALERT_DEACTIVATE");
         alert.deactivate();
+        alertRepository.flush();
+        phiAccessRecorder.granted(loginStaff, encounter.getSubjectRef(), patientId, "ALERT_DEACTIVATE");
     }
 }

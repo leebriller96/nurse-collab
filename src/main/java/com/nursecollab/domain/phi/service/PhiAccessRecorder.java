@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -35,6 +36,14 @@ public class PhiAccessRecorder {
     public void granted(LoginStaff staff, UUID subjectRef, Long patientId, String action) {
         save(PhiAccessLog.granted(staff.staffId(), staff.loginId(), staff.departmentId(),
                 subjectRef, patientId, action, ip(), userAgent()));
+    }
+
+    /** 무엇이 바뀌었는지까지 남긴다. 간호기록 수정 전후가 여기 들어간다. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void granted(LoginStaff staff, UUID subjectRef, Long patientId, String action,
+                        Map<String, Object> detail) {
+        save(PhiAccessLog.granted(staff.staffId(), staff.loginId(), staff.departmentId(),
+                subjectRef, patientId, action, ip(), userAgent(), detail));
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

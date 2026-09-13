@@ -152,6 +152,29 @@ try {
     (await page.getByText(/[김이박정최]OO/).count()) > 0,
     '원내망이 돌아오면 이름도 돌아온다',
   );
+
+  // ── 열람 기록도 원내에 있다 ────────────────────────────
+  //
+  // 끊겼을 때 빈 표를 보여주면 "아무도 열지 않았다" 로 읽힌다.
+  // 감사 화면에서 그렇게 읽히는 것이 제일 나쁘다.
+  await login('admin01');
+  await page.route('**/api/v1/phi/**', (route) => route.abort('failed'));
+  await page.goto(`${APP}/admin/audit-logs`);
+  await page.getByText(/원내망에서만 조회됩니다|해당 기간에 기록이 없습니다/)
+    .first().waitFor({ timeout: 15000 }).catch(() => {});
+  record(
+    (await page.getByText(/원내망에서만 조회됩니다/).count()) > 0,
+    '열람 기록 화면도 끊기면 빈 표가 아니라 이유를 말한다',
+  );
+
+  await page.unroute('**/api/v1/phi/**');
+  await page.reload();
+  await page.getByText('환자 열람').first().waitFor({ timeout: 15000 }).catch(() => {});
+  // 방금 mri01 이 이 환자를 열었다. 그 줄이 원내 기록에서 읽혀야 한다.
+  record(
+    (await page.locator('tr', { hasText: 'mri01' }).filter({ hasText: '환자 열람' }).count()) > 0,
+    '원내망이 돌아오면 누가 열었는지 보인다',
+  );
 } finally {
   await browser.close();
 }

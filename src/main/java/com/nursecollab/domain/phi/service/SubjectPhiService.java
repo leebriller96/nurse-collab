@@ -14,17 +14,12 @@ import com.nursecollab.domain.phi.repository.PhiAccessLogRepository;
 import com.nursecollab.domain.phi.dto.SubjectPhi;
 import com.nursecollab.domain.staff.entity.StaffRole;
 import com.nursecollab.domain.phi.port.WorkRelationPort;
-import com.nursecollab.global.audit.AuditLog;
-import com.nursecollab.global.audit.AuditRecorder;
-import jakarta.servlet.http.HttpServletRequest;
 import com.nursecollab.global.error.BusinessException;
 import com.nursecollab.global.error.ErrorCode;
 import com.nursecollab.global.security.LoginStaff;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.context.request.RequestContextHolder;
-import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.time.Duration;
 import java.time.OffsetDateTime;
@@ -53,7 +48,6 @@ public class SubjectPhiService {
     private final EncounterRepository encounterRepository;
     private final PatientAlertRepository alertRepository;
     private final WorkRelationPort workRelation;
-    private final AuditRecorder auditRecorder;
     private final PhiAccessRecorder phiAccessRecorder;
     private final PhiAccessLogRepository phiAccessLogRepository;
     private final PatientAlertService patientAlertService;
@@ -75,12 +69,10 @@ public class SubjectPhiService {
     private static final long RATE_LIMIT_PATIENTS = 30;
 
     /**
-     * 한 사람을 연다. 누가 언제 열었는지 감사 로그에 남는다.
+     * 한 사람을 연다. 누가 언제 열었는지 원내 접근 기록에 남는다.
      *
-     * 여기만 {@code @Audited} 를 쓰지 않는다. 그 AOP 는 대상 식별자를 {@code Long} 으로
-     * 꺼내는데 이 조회의 열쇠는 UUID 다. 억지로 맞추면 target_id 가 늘 비고,
-     * 감사 로그에서 제일 중요한 "누구를 열었나" 가 사라진다.
-     * 그래서 환자 id 를 직접 넣어 기록한다.
+     * 전에는 업무 쪽 감사 로그에도 한 줄씩 겹쳐 적었다. 거기엔 환자 id 가 실리므로
+     * 업무 쪽이 "누가 어느 환자를 열었나" 를 쥐고 있게 된다. 원내에만 남긴다.
      */
     public SubjectPhi findOne(UUID subjectRef, LoginStaff loginStaff) {
         Encounter encounter = requireViewable(subjectRef, loginStaff, "VIEW");
@@ -93,7 +85,6 @@ public class SubjectPhiService {
 
         // 원내 기록이 먼저다. 이것이 남지 않으면 무엇이 나갔는지 알 수 없다.
         phiAccessRecorder.granted(loginStaff, subjectRef, patientId, "VIEW");
-        recordView(patientId, loginStaff);
 
         return SubjectPhi.of(encounter, alertRepository.findActiveByPatientId(patientId));
     }
@@ -102,18 +93,6 @@ public class SubjectPhiService {
         return phiAccessLogRepository.countDistinctPatientsSince(
                 loginStaff.staffId(), OffsetDateTime.now().minus(RATE_WINDOW))
                 >= RATE_LIMIT_PATIENTS;
-    }
-
-    private void recordView(Long patientId, LoginStaff loginStaff) {
-        HttpServletRequest request =
-                RequestContextHolder.getRequestAttributes() instanceof ServletRequestAttributes attrs
-                        ? attrs.getRequest() : null;
-
-        auditRecorder.record(AuditLog.of(
-                loginStaff.staffId(), "VIEW", "PATIENT", patientId, patientId,
-                request == null ? null : request.getRemoteAddr(),
-                request == null ? null : request.getHeader("User-Agent"),
-                null));
     }
 
     /**
@@ -169,7 +148,7 @@ public class SubjectPhiService {
     @Transactional
     public AlertResponse addAlert(UUID subjectRef, AlertCreateRequest request,
                                   LoginStaff loginStaff) {
-        Encounter encounter = requireViewable(subjectRef, loginStaff, "VIEW");
+        Encounter encounter = requireViewable(subjectRef, loginStaff, "ALERT_CREATE");
         return patientAlertService.add(encounter.getPatient().getId(), request, loginStaff);
     }
 

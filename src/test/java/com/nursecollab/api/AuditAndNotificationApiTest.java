@@ -45,6 +45,7 @@ class AuditAndNotificationApiTest extends IntegrationTest {
 
     private Long encounterId;
     private UUID subjectRef;
+    private String patientNo;
 
     @BeforeEach
     void setUp() {
@@ -56,6 +57,7 @@ class AuditAndNotificationApiTest extends IntegrationTest {
                 OffsetDateTime.now().minusDays(1), "당뇨병성 신증", true);
         encounterId = encounter.getId();
         subjectRef = encounter.getSubjectRef();
+        patientNo = patient.getPatientNo();
     }
 
     // ── 접근 기록 ───────────────────────────────────────────
@@ -92,18 +94,43 @@ class AuditAndNotificationApiTest extends IntegrationTest {
     }
 
     @Test
-    void 환자를_열어보면_접근_기록에_남는다() throws Exception {
-        // @Audited + AOP 가 자동으로 적재한다. 이게 이 기능의 전부라
-        // 조용히 안 쌓이면 아무도 모른다. 실제로 개발 중에 그랬다.
+    void 환자를_열어보면_원내_접근_기록에_남는다() throws Exception {
+        // 열람 기록은 업무 쪽 감사 로그가 아니라 원내에 남는다. 진료정보가 실제로
+        // 나간 곳이 원내이기 때문이다. 조용히 안 쌓이면 아무도 모른다.
         mvc.perform(get("/api/v1/phi/subjects/" + subjectRef)
                         .header("Authorization", bearer("ward01")))
                 .andExpect(status().isOk());
 
-        mvc.perform(get("/api/v1/audit-logs")
+        mvc.perform(get("/api/v1/phi/access-logs")
+                        .param("from", LocalDate.now().toString())
+                        .param("patientNo", patientNo)
+                        .header("Authorization", bearer("admin01")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].action").value("VIEW"))
+                .andExpect(jsonPath("$.content[0].granted").value(true))
+                .andExpect(jsonPath("$.content[0].patient.name").value("정OO"));
+    }
+
+    @Test
+    void 일반_간호사는_원내_접근_기록을_볼_수_없다() throws Exception {
+        mvc.perform(get("/api/v1/phi/access-logs").header("Authorization", bearer("ward01")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("PERM-003"));
+    }
+
+    @Test
+    void 업무_쪽_감사_로그에는_환자_칸이_없다() throws Exception {
+        // 업무 쪽이 환자 테이블을 읽어 이름을 붙이던 자리였다
+        mvc.perform(get("/api/v1/phi/subjects/" + subjectRef)
+                        .header("Authorization", bearer("ward01")))
+                .andExpect(status().isOk());
+
+        String body = mvc.perform(get("/api/v1/audit-logs")
                         .param("from", LocalDate.now().toString())
                         .header("Authorization", bearer("admin01")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content[0].action").value("VIEW"));
+                .andReturn().getResponse().getContentAsString();
+        assertThat(body).doesNotContain("\"patient\"").doesNotContain("정OO");
     }
 
     // ── 알림함 ──────────────────────────────────────────────
