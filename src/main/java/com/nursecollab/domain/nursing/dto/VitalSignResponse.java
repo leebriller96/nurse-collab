@@ -30,6 +30,6 @@ public record VitalSignResponse(
                 vital.getDbp(),
                 vital.getSpo2(),
                 vital.getPainScore(),
-                new RecorderInfo(vital.getRecordedBy().getId(), vital.getRecordedBy().getName()));
+                new RecorderInfo(vital.getRecordedById(), vital.getRecordedByName()));
     }
 }

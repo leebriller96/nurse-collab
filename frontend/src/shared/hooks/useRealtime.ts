@@ -2,18 +2,23 @@ import { useEffect, useRef, useState } from 'react';
 import { Client } from '@stomp/stompjs';
 import { useQueryClient } from '@tanstack/react-query';
 import { tokenStore } from '@/shared/api/client';
-import type { TransferPriority, TransferStatus } from '@/shared/api/types';
+import type { OrderPriority, OrderStatus } from '@/shared/api/types';
 
 export interface RealtimeEvent {
-  eventType: 'TRANSFER_CREATED' | 'TRANSFER_STATUS_CHANGED' | 'MESSAGE_CREATED';
+  eventType: 'ORDER_CREATED' | 'ORDER_STATUS_CHANGED' | 'MESSAGE_CREATED';
   requestId: number;
   requestNo: string;
-  fromStatus: TransferStatus | null;
-  toStatus: TransferStatus | null;
-  priority: TransferPriority;
-  patientName: string;
-  roomNo: string;
-  examName: string;
+  fromStatus: OrderStatus | null;
+  toStatus: OrderStatus | null;
+  priority: OrderPriority;
+  /**
+   * 대상 재원 건의 가명. 환자가 없는 업무에서는 비어 온다.
+   * 이름은 실시간 방송에도 싣지 않는다 — 이 채널을 구독하는 브라우저가
+   * 원내망 밖에 있을 수도 있다.
+   */
+  subjectRef: string | null;
+  roomNo: string | null;
+  itemName: string;
   actorId: number;
   actorName: string;
   actorDepartmentName: string;

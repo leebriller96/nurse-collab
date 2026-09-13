@@ -11,8 +11,8 @@ import com.nursecollab.domain.staff.repository.StaffRepository;
 import com.nursecollab.global.error.BusinessException;
 import com.nursecollab.global.error.ErrorCode;
 import com.nursecollab.global.security.JwtProperties;
+import com.nursecollab.support.TestKeys;
 import com.nursecollab.global.security.JwtTokenProvider;
-import com.nursecollab.global.security.RefreshTokenStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -53,7 +53,7 @@ class AuthServiceTest {
     void setUp() {
         passwordEncoder = new BCryptPasswordEncoder();
         tokenProvider = new JwtTokenProvider(new JwtProperties(
-                "test-secret-key-for-unit-test-0123456789-abcdefgh",
+                TestKeys.devPrivate(), TestKeys.devPublic(),
                 Duration.ofMinutes(30), Duration.ofDays(14)));
         authService = new AuthService(staffRepository, passwordEncoder,
                 tokenProvider, refreshTokenStore);

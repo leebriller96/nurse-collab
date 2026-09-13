@@ -37,7 +37,7 @@ async function measure({ loginId, viewport, apiPattern, path, label, duringSelec
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.getByRole('button', { name: new RegExp(loginId) }).click();
-  await page.waitForURL(/\/(ward|exam|admin)\//, { timeout: 15000 });
+  await page.waitForURL(/\/(ward|service|admin)\//, { timeout: 15000 });
   if (path) await page.goto(`${APP}${path}`);
   await page.waitForLoadState('networkidle');
 
@@ -80,7 +80,7 @@ try {
     label: '병동 환자 보드',
     loginId: 'ward01',
     viewport: { width: 390, height: 844 },
-    apiPattern: '**/api/v1/encounters**',
+    apiPattern: '**/api/v1/care-episodes**',
     duringSelector: '[role="status"] .space-y-2 > div',
     afterSelector: 'ul > li:first-child',
   });
@@ -90,7 +90,7 @@ try {
     label: '검사실 들어온 요청',
     loginId: 'mri01',
     viewport: { width: 1280, height: 720 },
-    apiPattern: '**/api/v1/transfer-requests**',
+    apiPattern: '**/api/v1/work-orders**',
     duringSelector: '[role="status"] .overflow-hidden',
     afterSelector: '.overflow-x-auto',
   });

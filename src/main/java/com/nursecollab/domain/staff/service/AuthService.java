@@ -10,7 +10,6 @@ import com.nursecollab.domain.staff.repository.StaffRepository;
 import com.nursecollab.global.error.BusinessException;
 import com.nursecollab.global.error.ErrorCode;
 import com.nursecollab.global.security.JwtTokenProvider;
-import com.nursecollab.global.security.RefreshTokenStore;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import lombok.RequiredArgsConstructor;

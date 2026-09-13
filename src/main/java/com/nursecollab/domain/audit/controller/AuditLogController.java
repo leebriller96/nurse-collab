@@ -27,13 +27,12 @@ public class AuditLogController {
     public ResponseEntity<PageResponse<AuditLogResponse>> search(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false) Long patientId,
             @RequestParam(required = false) Long actorId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "30") int size,
             @AuthenticationPrincipal LoginStaff loginStaff) {
 
         return ResponseEntity.ok(auditLogQueryService.search(
-                from, to, patientId, actorId, PageRequest.of(page, size), loginStaff));
+                from, to, actorId, PageRequest.of(page, size), loginStaff));
     }
 }

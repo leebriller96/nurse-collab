@@ -44,9 +44,9 @@ X-Request-Id: {UUID}        -- 선택. 로그 추적용
 {
   "timestamp": "2026-09-04T22:31:05+09:00",
   "status": 409,
-  "code": "TR-002",
+  "code": "ORD-002",
   "message": "다른 사용자가 먼저 처리했습니다. 화면을 새로고침해 주세요.",
-  "path": "/api/v1/transfer-requests/101/transitions"
+  "path": "/api/v1/work-orders/101/transitions"
 }
 ```
 
@@ -59,7 +59,7 @@ X-Request-Id: {UUID}        -- 선택. 로그 추적용
   "status": 400,
   "code": "VAL-001",
   "message": "입력값을 확인해 주세요.",
-  "path": "/api/v1/transfer-requests/101/transitions",
+  "path": "/api/v1/work-orders/101/transitions",
   "fieldErrors": [
     { "field": "toStatus", "reason": "변경할 상태는 필수입니다." }
   ]
@@ -99,16 +99,18 @@ X-Request-Id: {UUID}        -- 선택. 로그 추적용
 | PERM-001 | 403 | 요청에 관여하지 않는 파트의 접근 |
 | PERM-002 | 403 | 상대 파트가 처리해야 할 전이를 시도 |
 | PERM-003 | 403 | 역할 권한 부족 (통계·감사로그 등) |
-| TR-000 | 404 | 요청 없음 |
-| TR-001 | 409 | 허용되지 않는 상태 전이 |
-| TR-002 | 409 | 낙관적 락 충돌 (동시 처리) |
-| TR-003 | 400 | 보류/취소 사유 누락 |
-| TR-004 | 409 | 이미 종료된 요청 |
-| TR-005 | 400 | 접수 시 예정시각 누락 |
+| ORD-000 | 404 | 요청 없음 |
+| ORD-001 | 409 | 허용되지 않는 상태 전이 |
+| ORD-002 | 409 | 낙관적 락 충돌 (동시 처리) |
+| ORD-003 | 400 | 보류/취소 사유 누락 |
+| ORD-004 | 409 | 이미 종료된 요청 |
+| ORD-005 | 400 | 접수 시 예정시각 누락 (이송만 요구한다) |
+| ORD-006 | 400 | 환자가 필요한 업무인데 재원 정보가 없음 |
+| ORD-007 | 400 | 환자를 지정할 수 없는 업무에 대상을 보냄 |
 | ENC-000 | 404 | 재원 없음 |
 | ALT-000 | 404 | 주의사항 없음 |
 | ENC-001 | 422 | 퇴원한 재원 건에 대한 요청 |
-| EXM-001 | 404 | 검사 종류 없음 |
+| SVC-001 | 404 | 업무 항목 없음 |
 | STF-001 | 404 | 직원 없음 |
 | SYS-001 | 500 | 서버 내부 오류 |
 
@@ -173,7 +175,7 @@ PERM-003 은 역할 자체가 모자란 경우다. 일반 간호사가 통계를
 ]
 ```
 
-### GET /exam-types
+### GET /service-items
 
 | 파라미터 | 타입 | 설명 |
 |---|---|---|
@@ -271,7 +273,7 @@ PERM-003 은 역할 자체가 모자란 경우다. 일반 간호사가 통계를
 ```
 
 - 진단명, 활력징후, 상세 간호기록은 **응답 자체에서 빠진다.** 마스킹이 아니라 미포함이다.
-- `checklistWarnings` 는 `exam_type.required_alerts` 와 환자 alert 를 교차 계산한 결과다.
+- `checklistWarnings` 는 `service_item.required_alerts` 와 환자 alert 를 교차 계산한 결과다.
 - 조회 시점에 `audit_log` 에 VIEW 기록이 남는다.
 - 접근 판정은 소속이 아니라 **관계**로 한다. 검사실은 "우리 파트로 온 진행중 요청이 있을 때" 만 볼 수 있고,
   요청이 끝나면 접근 권한도 함께 사라진다. 관계가 없으면 `403 PERM-001`.
@@ -302,13 +304,13 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 
 ## 4. 이송 요청 (핵심)
 
-### POST /transfer-requests
+### POST /work-orders
 
 ```json
 // Request
 {
   "encounterId": 501,
-  "examTypeId": 21,
+  "serviceItemId": 21,
   "priority": "URGENT",
   "desiredAt": "2026-09-04T15:00:00+09:00",
   "note": "휠체어 이송 필요, 보호자 동반"
@@ -316,7 +318,7 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 ```
 
 ```json
-// Response 201  (Location: /api/v1/transfer-requests/101)
+// Response 201  (Location: /api/v1/work-orders/101)
 {
   "id": 101,
   "requestNo": "TR20260904-0001",
@@ -327,10 +329,10 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 }
 ```
 
-- `toDepartmentId` 는 클라이언트가 보내지 않는다. `examTypeId` 로 서버가 결정한다.
+- `toDepartmentId` 는 클라이언트가 보내지 않는다. `serviceItemId` 로 서버가 결정한다.
 - 생성 즉시 대상 검사실 파트에 WebSocket 알림이 발송된다.
 
-### GET /transfer-requests
+### GET /work-orders
 
 | 파라미터 | 타입 | 설명 |
 |---|---|---|
@@ -376,7 +378,7 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 **`unreadMessageCount` 는 뺐다.** `request_message` 에 읽음 상태가 없어서 계산할 수 없다.
 누가 어디까지 읽었는지를 담는 테이블이 필요하므로 Phase 3 으로 미룬다.
 
-### GET /transfer-requests/{id}
+### GET /work-orders/{id}
 
 ```json
 {
@@ -386,7 +388,7 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
   "priority": "URGENT",
   "encounter": { "encounterId": 501, "roomNo": "302", "bedNo": "1", "isMobile": false },
   "patient": { "patientNo": "P0001234", "name": "김OO", "age": 68, "sex": "M" },
-  "examType": { "id": 21, "name": "뇌 MRI", "defaultDuration": 40, "prepInstruction": "검사 4시간 전부터 금식" },
+  "serviceItem": { "id": 21, "name": "뇌 MRI", "defaultDuration": 40, "prepInstruction": "검사 4시간 전부터 금식" },
   "fromDepartment": { "id": 3, "name": "3병동", "phone": "1303" },
   "toDepartment": { "id": 7, "name": "MRI실", "phone": "1707" },
   "requestedBy": { "id": 12, "name": "김간호" },
@@ -400,7 +402,11 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
   "checklistWarnings": [
     { "alertType": "METAL_IMPLANT", "message": "MRI 금기 가능성. 시행 전 확인 필요." }
   ],
-  "availableTransitions": ["READY", "ON_HOLD", "CANCELLED"],
+  "availableTransitions": [
+    { "status": "READY",     "label": "준비완료" },
+    { "status": "ON_HOLD",   "label": "보류" },
+    { "status": "CANCELLED", "label": "취소" }
+  ],
   "version": 3
 }
 ```
@@ -409,7 +415,17 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 현재 상태 + 호출자 파트 + 역할을 서버가 계산해서 "지금 누를 수 있는 버튼 목록"을 내려준다.
 프론트는 이 배열만 보고 버튼을 렌더링하면 된다. 상태 전이 규칙을 프론트에 중복 구현하지 않는다.
 
-### POST /transfer-requests/{id}/transitions
+**이름까지 서버가 준다.** 상태값만 내려보내면 화면이 `IN_PROGRESS` 를 무엇이라 부를지
+스스로 정해야 하는데, 그 이름이 종류마다 다르다 (검사중 / 조제중 / 수리중).
+화면이 그 표를 따로 들면 종류를 더할 때 두 곳을 고쳐야 하고 한쪽만 고쳐지는 날이 온다.
+현재 상태의 이름은 `statusLabel` 로 함께 내려간다.
+
+**이 응답에는 환자 정보가 하나도 없다.**
+이름도, 진단명도, 주의사항도, 확인 경고도 없다. 있는 것은 `episode` 아래의
+침대 번호와 가명(`subjectRef`)뿐이다. 사람은 화면이 `/phi` 로 따로 물어 채운다.
+환자가 없는 업무(장비 수리)에서는 `episode` 자체가 없다.
+
+### POST /work-orders/{id}/transitions
 
 상태 변경 전용 단일 엔드포인트.
 
@@ -429,7 +445,11 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
   "id": 101,
   "status": "ACCEPTED",
   "scheduledAt": "2026-09-04T15:30:00+09:00",
-  "availableTransitions": ["READY", "ON_HOLD", "CANCELLED"],
+  "availableTransitions": [
+    { "status": "READY", "label": "준비완료" },
+    { "status": "ON_HOLD", "label": "보류" },
+    { "status": "CANCELLED", "label": "취소" }
+  ],
   "version": 4
 }
 ```
@@ -437,7 +457,7 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 **왜 `/accept`, `/ready`, `/start` 로 나누지 않는가**
 
 1. 상태가 9개인데 엔드포인트가 9개로 늘어나면 권한 검증 코드가 9곳에 흩어진다
-2. 이력(`transfer_event`) 기록 로직이 중복된다
+2. 이력(`work_order_event`) 기록 로직이 중복된다
 3. 상태를 추가할 때마다 API 문서와 프론트 코드를 같이 고쳐야 한다
 4. 하나로 두면 전이 검증 → 권한 검증 → 상태 변경 → 이력 적재 → 알림 발송이 **한 흐름**으로 정리된다
 
@@ -445,12 +465,12 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 `toStatus` 기준으로 검증 규칙을 분기하면 관리 가능한 수준이다.
 
 **필수 규칙**
-- `version` 미포함 또는 불일치 → `409 TR-002`
+- `version` 미포함 또는 불일치 → `409 ORD-002`
 - `ON_HOLD`, `CANCELLED` 인데 `reason` 없음 → `400 TR-003`
-- 허용되지 않는 전이 → `409 TR-001`
+- 허용되지 않는 전이 → `409 ORD-001`
 - `ACCEPTED` 인데 `scheduledAt` 없음 → `400`
 
-### GET /transfer-requests/{id}/events
+### GET /work-orders/{id}/events
 
 ```json
 [
@@ -464,8 +484,8 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 
 ## 5. 요청 내 대화
 
-### GET /transfer-requests/{id}/messages — 200 (오름차순)
-### POST /transfer-requests/{id}/messages
+### GET /work-orders/{id}/messages — 200 (오름차순)
+### POST /work-orders/{id}/messages
 
 ```json
 // Request
@@ -478,7 +498,11 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 
 ## 6. 간호기록
 
-### POST /encounters/{encounterId}/vital-signs
+전부 원내 경로(`/phi`) 아래다. 두 서버로 갈라지면 중계 서버가 경로 앞머리만 보고
+원내로 보낼지 정하기 때문이다. 열쇠도 재원 id 가 아니라 가명(`subjectRef`)이다.
+주소는 브라우저 기록과 중계 서버 로그에 남는다.
+
+### POST /phi/subjects/{subjectRef}/vital-signs
 
 ```json
 {
@@ -488,9 +512,9 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 }
 ```
 
-### GET /encounters/{encounterId}/vital-signs?from=&to=&page=&size=
+### GET /phi/subjects/{subjectRef}/vital-signs?from=&to=&page=&size=
 
-### POST /encounters/{encounterId}/nursing-notes
+### POST /phi/subjects/{subjectRef}/nursing-notes
 
 ```json
 {
@@ -503,13 +527,13 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 }
 ```
 
-### GET /encounters/{encounterId}/nursing-notes?noteType=&page=&size=
+### GET /phi/subjects/{subjectRef}/nursing-notes?noteType=&page=&size=
 
-### PUT /nursing-notes/{noteId}
+### PUT /phi/nursing-notes/{noteId}
 
 작성자 본인이 24시간 안에만 고칠 수 있다. 삭제는 없다.
 시간이 지난 기록은 고치는 대신 정정 기록을 새로 남긴다.
-고치기 전 내용은 별도 이력 테이블 없이 `audit_log.detail` 에 before/after 로 남는다.
+고치기 전 내용은 별도 이력 테이블 없이 원내 `phi_access_log.detail` 에 before/after 로 남는다.
 
 | 코드 | HTTP | 상황 |
 |---|---|---|
@@ -557,7 +581,7 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 비밀번호는 생성할 때만 받는다. 수정에서 다루면 관리자가 남의 비밀번호를 바꿀 수 있게 된다.
 초기화가 필요하면 별도 엔드포인트로 분리한다(Phase 3).
 
-### POST /exam-types · PUT /exam-types/{id} · PATCH /exam-types/{id}/deactivate
+### POST /service-items · PUT /service-items/{id} · PATCH /service-items/{id}/deactivate
 
 ```json
 {
@@ -582,28 +606,145 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 
 ## 8-2. 감사 로그 (관리자)
 
-### GET /audit-logs?from=&to=&patientId=&actorId=&page=&size=
+감사 기록은 두 곳에 나뉘어 남는다.
+
+| 경로 | 무엇이 남나 | 사는 곳 |
+|---|---|---|
+| `GET /phi/access-logs?from=&to=&patientNo=&page=&size=` | 환자 열람, 활력징후·간호기록 열람과 작성, 간호기록 수정 전후, 주의사항 — **거절된 시도 포함** | 원내 |
+| `GET /audit-logs?from=&to=&actorId=&page=&size=` | 업무 쪽 행위. 환자 칸이 없다 | 업무 |
+
+A-05 화면은 원내 경로를 읽는다. 간호기록 수정 전 내용은 그 자체가 진료정보라
+업무 쪽에 두면 나눈 의미가 사라진다.
 
 ```json
 {
   "content": [
     {
       "id": 9001,
-      "actor": { "id": 21, "name": "박간호", "departmentName": "MRI실" },
-      "action": "VIEW",
-      "targetType": "ENCOUNTER",
-      "targetId": 1,
-      "patient": { "id": 1, "patientNo": "P0001234", "name": "김OO" },
+      "occurredAt": "2026-09-06T02:47:18+09:00",
+      "action": "NOTE_EDIT",
+      "granted": true,
+      "deniedReason": null,
+      "actor": { "id": 11, "loginId": "ward01", "departmentId": 1 },
+      "patient": { "patientNo": "P0001234", "name": "김OO" },
       "ipAddress": "10.0.0.12",
-      "occurredAt": "2026-09-06T02:47:18+09:00"
+      "detail": { "noteId": 42, "before": { "content": "..." }, "after": { "content": "..." } }
     }
   ]
 }
 ```
 
-수정만 남기는 것이 아니다. **환자 정보를 열어본 것 자체가 기록 대상**이다.
-컨트롤러에 `@Audited` 를 붙이면 AOP 가 자동으로 적재한다.
+- 누가는 아이디와 소속 id 까지만 담긴다. 직원 이름은 업무 쪽에 있어서, 기록이 쌓일 때
+  아이디를 문자열로 굳혀 둔다.
+- 등록번호로 좁히는 조건은 서버에서 건다. 화면에서 거르면 한 페이지 안에서만 걸러진다.
+- 관리자만 본다(`403 PERM-003`).
 
+---
+
+## 6-1. 원내 전용 — `/api/v1/phi`
+
+환자 정보는 업무 응답에 실리지 않는다. 화면이 가명을 들고 여기로 다시 묻는다.
+
+경로를 나눠 둔 이유는 **나중에 다른 서버가 되기 때문**이다.
+지금은 같은 앱이 둘 다 들고 있지만, 원내 게이트웨이는 사설망 주소로만 열린다.
+경로가 갈려 있어야 무엇이 원내에만 있어야 하는지 한눈에 보인다.
+
+접근 판정은 업무 쪽과 똑같다. "소속이 검사실이니까" 가 아니라
+**"우리 파트로 온 진행중 요청이 이 대상에 걸려 있으니까"** 로 본다.
+가명을 손에 넣어도 그것만으로는 아무것도 열리지 않는다.
+
+| 메서드 | 경로 | 용도 |
+|---|---|---|
+| GET | `/phi/subjects/{subjectRef}` | 가명 하나를 사람으로. 이 호출이 감사 로그에 남는다 |
+| POST | `/phi/subjects/brief` | 목록 한 화면을 한 번에. 몸통에 가명 배열 |
+| GET | `/phi/subjects/{subjectRef}/alerts` | 지금 붙어 있는 주의사항 |
+| POST | `/phi/subjects/{subjectRef}/alerts` | 주의사항 남기기 |
+| PATCH | `/phi/alerts/{alertId}/deactivate` | 내리기 (지우지 않는다) |
+| GET | `/phi/subjects/{subjectRef}/checklist?required=` | 이 업무 전에 확인할 것 |
+| GET | `/phi/subjects/search?name=` | 이름으로 가명 찾기. 나가는 것은 가명뿐이다 |
+
+### `/encounters` 는 없어졌다
+
+병동 보드와 환자 상세가 이 경로로 재원 목록을 받았고, 그 응답에 이름과 진단명이
+실려 있었다. 그래서 **원내망 밖에서 이 화면만 이름이 그대로 보였다.**
+다른 화면은 사라지는데 이 화면만 아니면, 어디까지가 원내인지 아무도 기억하지 못한다.
+
+이제 화면 한 장을 두 곳에서 받아 합친다.
+
+| 화면 | 업무 쪽 | 원내 |
+|---|---|---|
+| W-01 병동 보드 | `GET /care-episodes` — 침대·진행중 요청 수 | `POST /phi/subjects/brief` |
+| W-02 환자 상세 | `GET /care-episodes/{ref}` — 침대·진행중 요청 | `GET /phi/subjects/{ref}` |
+
+`/care-episodes` 응답에는 사람이 없다. 감사 로그도 남기지 않는다 —
+환자 정보를 열어본 것이 아니기 때문이다.
+
+### 목록 조회가 POST 인 이유
+
+큐 한 화면이면 가명이 스무 개 넘게 붙는다. 주소창에 담으면 길이 제한에 걸리고
+중계 서버 접근 로그에 그대로 쌓인다. 가명이라 사람을 알아볼 수는 없지만
+굳이 흘려 둘 이유도 없다.
+
+### 목록은 일부만 돌려줄 수 있다
+
+볼 자격이 없는 가명은 예외를 던지지 않고 빠뜨린다.
+큐 한 화면에 섞여 들어온 남의 요청 하나 때문에 화면 전체가 못 뜨면
+간호사는 자기 일까지 못 본다. 대신 그 줄은 이름이 비어 있게 된다.
+
+### 확인 항목을 부르는 쪽이 들고 오는 이유
+
+무엇을 확인해야 하는지는 업무 쪽(업무 항목의 `requiredAlerts`)이 알고,
+그 사람에게 그 항목이 있는지는 원내가 안다. 겹치는 지점이 경고다.
+원내는 업무 항목이 무엇인지 모르고, 알 이유도 없다.
+
+### 이름으로 찾기
+
+업무 목록에는 이름이 없으므로 `keyword` 로 이름을 찾을 수 없다.
+화면이 먼저 `/phi/subjects/search` 로 가명 목록을 받아
+`GET /work-orders?subjectRefs=...` 로 넘긴다.
+원내에 닿지 못하면 **이름 검색만** 안 되고 요청번호 검색은 그대로 된다.
+
+### 닿지 못했을 때
+
+화면은 빈칸을 보여주지 않고 "원내망에서만 조회됩니다" 라고 말한다.
+특히 확인 경고는 감추지 않는다 — "경고가 없다" 와 "경고를 못 받았다" 를
+같게 보여주면 금기 환자를 그냥 검사실로 보내게 된다.
+
+## 6-2. 원내가 업무 쪽에 묻는 것 — `/api/v1/work-relations`
+
+화면이 부르는 경로가 아니다. **원내 서버가 업무 서버에** 묻는다.
+원내가 업무 쪽에서 알아야 하는 것은 두 가지뿐이다(`WorkRelationPort`).
+
+| 메서드 | 경로 | 묻는 것 |
+|---|---|---|
+| POST | `/work-relations/active-subjects` | 이 가명들 중 우리 파트로 온 진행중 요청이 있는 것 |
+| POST | `/work-relations/episodes` — 204 | 침대가 찼다. 원내에서 밖으로 나가는 유일한 쓰기 |
+
+```json
+// POST /work-relations/active-subjects
+{ "departmentId": 4, "subjectRefs": ["6f1c...", "a93e..."] }
+// 200
+{ "subjectRefs": ["6f1c..."] }
+
+// POST /work-relations/episodes
+{ "subjectRef": "6f1c...", "departmentId": 1, "roomNo": "302", "bedNo": "1",
+  "admittedAt": "2026-09-10T09:00:00+09:00" }
+```
+
+- **원내는 사용자의 토큰을 그대로 싣는다.** 원내 서버 자신의 자격증명을 따로 두면
+  그 자격증명 하나로 모든 파트에 대해 물을 수 있게 된다. 사용자 토큰이면 그 사람이
+  물을 수 있는 만큼만 물을 수 있다.
+- 그래서 `departmentId` 는 토큰의 소속과 같아야 한다. 다르면 `403 PERM-001`.
+  남의 파트에 무엇이 걸려 있는지는 이 통로로 알아낼 수 없다.
+- 침대 등록은 담당 병동 직원이나 관리자만 한다.
+  **같은 가명을 다시 보내면 아무것도 하지 않고 204** 를 준다. 가명은 원내가 새로 만든
+  무작위 값이라 겹칠 일이 없고, 다시 온 것은 재시도다.
+- 이름도 진단명도 몸통에 없다. 나가는 것은 가명·병동·병실·병상·입원 시각뿐이다.
+
+**업무 서버에 닿지 못하면** 원내는 `503 PHI-002` 를 준다. "관계가 없다" 로 치지 않는다 —
+그러면 검사실에서 방금 접수한 환자의 주의사항이 "볼 권한 없음" 으로 보인다.
+담당 병동이 자기 환자를 여는 것은 이 질문을 거치지 않으므로, 업무 서버가 멈춰도
+병동은 자기 환자의 기록을 계속 쓸 수 있다.
 
 ---
 
@@ -617,7 +758,7 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
     {
       "id": 900,
       "notiType": "STATUS_CHANGED",
-      "refType": "TRANSFER_REQUEST",
+      "refType": "WORK_ORDER",
       "refId": 101,
       "title": "MRI실에서 요청을 접수했습니다",
       "body": "302호 김OO / 뇌 MRI / 15:30 예정",
@@ -714,7 +855,7 @@ CONNECT 헤더 : Authorization: Bearer {accessToken}
 **중요: 재접속 시 유실 보정**
 
 WebSocket 은 끊길 수 있다. 병원 와이파이면 더 자주 끊긴다.
-재연결 직후 무조건 `GET /transfer-requests?direction=INBOUND` 를 다시 호출해서
+재연결 직후 무조건 `GET /work-orders?direction=INBOUND` 를 다시 호출해서
 현재 상태로 화면을 덮어쓴다. 실시간 메시지는 "빠른 갱신"일 뿐, **진실의 원천은 REST 조회**다.
 
 ---

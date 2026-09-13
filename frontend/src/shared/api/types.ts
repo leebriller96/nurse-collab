@@ -1,12 +1,39 @@
-export type DeptType = 'WARD' | 'EXAM' | 'OR' | 'ICU' | 'ER' | 'ADMIN';
+export type DeptType =
+  | 'WARD' | 'EXAM' | 'OR' | 'ICU' | 'ER'
+  | 'LAB' | 'PHARMACY' | 'BIOMED'
+  | 'ADMIN';
 export type StaffRole = 'NURSE' | 'HEAD_NURSE' | 'ADMIN';
 export type Sex = 'M' | 'F';
 
-export type TransferStatus =
-  | 'REQUESTED' | 'ACCEPTED' | 'READY' | 'IN_TRANSIT'
-  | 'IN_PROGRESS' | 'RETURNED' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED';
+export type OrderType = 'TRANSFER' | 'SPECIMEN' | 'PHARMACY' | 'EQUIPMENT';
 
-export type TransferPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
+export type OrderStatus =
+  // 공통
+  | 'REQUESTED' | 'ACCEPTED' | 'IN_PROGRESS' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED'
+  // 이송
+  | 'READY' | 'IN_TRANSIT' | 'RETURNED'
+  // 검체
+  | 'COLLECTED' | 'RESULTED'
+  // 약제
+  | 'DISPENSED' | 'DELIVERED'
+  // 의공
+  | 'AWAITING_PARTS';
+
+/**
+ * 지금 누를 수 있는 버튼 하나. 서버가 만들어 준다.
+ *
+ * 이름도 필수 입력 여부도 업무 종류마다 다르다. 화면이 그 표를 따로 들면
+ * 종류를 더할 때 서버와 화면 두 곳을 고쳐야 하고 한쪽만 고쳐지는 날이 온다.
+ */
+export interface TransitionOption {
+  status: OrderStatus;
+  label: string;
+  actionLabel: string;
+  reasonRequired: boolean;
+  scheduleRequired: boolean;
+}
+
+export type OrderPriority = 'ROUTINE' | 'URGENT' | 'EMERGENCY';
 export type AlertSeverity = 'INFO' | 'WARN' | 'CRITICAL';
 export type AlertType =
   | 'METAL_IMPLANT' | 'CONTRAST_ALLERGY' | 'DRUG_ALLERGY' | 'ISOLATION'
@@ -44,19 +71,32 @@ export interface AlertResponse extends AlertSummary {
   createdAt: string;
 }
 
-export interface EncounterSummary {
-  encounterId: number;
-  patientNo: string;
-  name: string;
-  birthDate: string;
-  age: number;
-  sex: Sex;
+/**
+ * 병동 보드 카드의 업무 쪽 절반. 사람은 여기 없다.
+ * 이름·진단명·주의사항은 화면이 /phi 로 따로 물어 채운다.
+ */
+export interface CareEpisodeSummary {
+  subjectRef: string;
   roomNo: string;
   bedNo: string;
   admittedAt: string;
-  diagnosis: string | null;
-  alertSummary: AlertSummary[];
   activeRequestCount: number;
+}
+
+/** 침대 하나의 상세. 진행중 요청을 펼쳐서 준다 */
+export interface CareEpisodeDetail {
+  subjectRef: string;
+  roomNo: string;
+  bedNo: string;
+  admittedAt: string;
+  activeRequests: {
+    id: number;
+    requestNo: string;
+    itemName: string;
+    status: OrderStatus;
+    statusLabel: string;
+    scheduledAt: string | null;
+  }[];
 }
 
 export interface PageResponse<T> {
@@ -67,24 +107,36 @@ export interface PageResponse<T> {
   totalPages: number;
 }
 
-export interface ExamType {
+export interface ServiceItem {
   id: number;
   code: string;
   name: string;
+  orderType: OrderType;
+  orderTypeLabel: string;
+  /** 거짓이면 대상 환자를 고르지 않는다 (장비 수리) */
+  patientRequired: boolean;
   department: { id: number; name: string };
   defaultDuration: number;
   prepInstruction: string | null;
   requiredAlerts: AlertType[];
 }
 
-export interface TransferSummary {
+export interface OrderSummary {
   id: number;
   requestNo: string;
-  status: TransferStatus;
-  priority: TransferPriority;
-  patient: { patientNo: string; name: string; age: number; sex: Sex };
-  roomNo: string;
-  examName: string;
+  orderType: OrderType;
+  status: OrderStatus;
+  /** 이 종류에서 이 상태를 부르는 이름 (검사중 / 조제중 / 수리중) */
+  statusLabel: string;
+  priority: OrderPriority;
+  /**
+   * 대상 재원 건의 가명. 환자가 없는 업무에서는 비어 있다.
+   * 이름은 이 응답에 없다. 이 열쇠로 원내에 따로 물어 채운다.
+   */
+  subjectRef: string | null;
+  roomNo: string | null;
+  bedNo: string | null;
+  itemName: string;
   counterpartDepartment: DepartmentSummary;
   requestedAt: string;
   scheduledAt: string | null;
@@ -108,38 +160,28 @@ export interface ChecklistWarning {
   message: string;
 }
 
-export interface EncounterFullView {
-  encounterId: number;
-  patient: { id: number; patientNo: string; name: string; birthDate: string; age: number; sex: Sex };
-  department: DepartmentSummary;
-  roomNo: string;
-  bedNo: string;
-  admittedAt: string;
-  diagnosis: string | null;
-  isMobile: boolean;
-  alerts: AlertResponse[];
-  activeRequests: {
-    id: number;
-    requestNo: string;
-    examName: string;
-    status: TransferStatus;
-    scheduledAt: string | null;
-  }[];
-}
 
-export interface TransferDetail {
+export interface OrderDetail {
   id: number;
   requestNo: string;
-  status: TransferStatus;
-  priority: TransferPriority;
-  encounter: { encounterId: number; roomNo: string; bedNo: string; isMobile: boolean };
-  patient: { patientNo: string; name: string; age: number; sex: Sex };
-  examType: {
+  orderType: OrderType;
+  orderTypeLabel: string;
+  status: OrderStatus;
+  statusLabel: string;
+  priority: OrderPriority;
+  /**
+   * 대상 재원 건. 환자가 없는 업무에서는 없다.
+   * 여기에는 침대와 병동만 있다. 이름·진단명·주의사항은 원내에서 따로 받는다.
+   */
+  episode: { subjectRef: string; roomNo: string; bedNo: string } | null;
+  serviceItem: {
     id: number;
     code: string;
     name: string;
     defaultDuration: number;
     prepInstruction: string | null;
+    /** 이 업무 전에 확인할 항목. 이것을 들고 원내에 물어 경고를 받는다 */
+    requiredAlerts: AlertType[];
   };
   fromDepartment: DepartmentSummary;
   toDepartment: DepartmentSummary;
@@ -151,16 +193,14 @@ export interface TransferDetail {
   completedAt: string | null;
   note: string | null;
   holdReason: string | null;
-  alerts: AlertResponse[];
-  checklistWarnings: ChecklistWarning[];
-  availableTransitions: TransferStatus[];
+  availableTransitions: TransitionOption[];
   version: number;
 }
 
-export interface TransferEvent {
+export interface OrderEvent {
   id: number;
-  fromStatus: TransferStatus | null;
-  toStatus: TransferStatus;
+  fromStatus: OrderStatus | null;
+  toStatus: OrderStatus;
   actor: { id: number; name: string; departmentName: string };
   occurredAt: string;
   reason: string | null;
@@ -175,9 +215,9 @@ export interface Message {
 
 export interface TransitionResponse {
   id: number;
-  status: TransferStatus;
+  status: OrderStatus;
   scheduledAt: string | null;
-  availableTransitions: TransferStatus[];
+  availableTransitions: TransitionOption[];
   version: number;
 }
 
@@ -205,7 +245,8 @@ export interface NursingNote {
   recommendation: string | null;
   content: string | null;
   recordedAt: string;
-  recordedBy: { id: number; name: string; departmentName: string };
+  /** 이름은 쓸 때 굳혀 둔 값이다. 그때 그 사람의 이름이어야 한다 */
+  recordedBy: { id: number; name: string };
   createdAt: string;
   /** 서버가 계산해 내려준다. 24시간 규칙을 화면에서 다시 구현하지 않는다. */
   editable: boolean;
@@ -217,12 +258,28 @@ export interface AuditLogEntry {
   action: string;
   targetType: string;
   targetId: number | null;
-  patient: { id: number; patientNo: string; name: string } | null;
   ipAddress: string | null;
   occurredAt: string;
 }
 
-export type NotiType = 'TRANSFER_REQUESTED' | 'STATUS_CHANGED' | 'MESSAGE';
+/**
+ * 원내 열람 기록 한 줄 (A-05). 원내 경로에서만 온다.
+ * 누가는 아이디까지만 담긴다. 직원 이름은 업무 쪽에 있다.
+ */
+export interface PhiAccessLogEntry {
+  id: number;
+  occurredAt: string;
+  action: string;
+  granted: boolean;
+  deniedReason: string | null;
+  actor: { id: number; loginId: string; departmentId: number | null };
+  patient: { patientNo: string; name: string } | null;
+  ipAddress: string | null;
+  /** 간호기록 수정처럼 전후 내용이 있는 경우에만 */
+  detail: Record<string, unknown> | null;
+}
+
+export type NotiType = 'ORDER_CREATED' | 'STATUS_CHANGED' | 'MESSAGE';
 
 export interface NotificationItem {
   id: number;

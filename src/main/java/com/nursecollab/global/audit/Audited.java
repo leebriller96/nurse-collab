@@ -18,7 +18,7 @@ public @interface Audited {
     /** VIEW / CREATE / UPDATE / DELETE / LOGIN */
     String action();
 
-    /** ENCOUNTER / TRANSFER_REQUEST / NURSING_NOTE 등 */
+    /** ENCOUNTER / WORK_ORDER / NURSING_NOTE 등 */
     String targetType();
 
     /** 대상 식별자가 담긴 경로 변수 이름 */

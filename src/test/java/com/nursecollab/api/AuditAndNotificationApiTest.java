@@ -2,7 +2,7 @@ package com.nursecollab.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nursecollab.domain.encounter.entity.Encounter;
-import com.nursecollab.domain.encounter.repository.EncounterRepository;
+import com.nursecollab.domain.encounter.service.AdmissionService;
 import com.nursecollab.domain.patient.entity.Patient;
 import com.nursecollab.domain.patient.entity.Sex;
 import com.nursecollab.domain.patient.repository.PatientRepository;
@@ -16,6 +16,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,9 +41,11 @@ class AuditAndNotificationApiTest extends IntegrationTest {
     @Autowired private ObjectMapper om;
     @Autowired private StaffRepository staffRepository;
     @Autowired private PatientRepository patientRepository;
-    @Autowired private EncounterRepository encounterRepository;
+    @Autowired private AdmissionService admissionService;
 
     private Long encounterId;
+    private UUID subjectRef;
+    private String patientNo;
 
     @BeforeEach
     void setUp() {
@@ -50,8 +53,11 @@ class AuditAndNotificationApiTest extends IntegrationTest {
         Patient patient = patientRepository.save(Patient.create(
                 "P%07d".formatted(PATIENT_SEQ.getAndIncrement()), "정OO",
                 LocalDate.of(1965, 1, 30), Sex.M, null, null));
-        encounterId = encounterRepository.save(Encounter.admit(patient, ward, "503", "2",
-                OffsetDateTime.now().minusDays(1), "당뇨병성 신증", true)).getId();
+        Encounter encounter = admissionService.admit(patient, ward.getId(), "503", "2",
+                OffsetDateTime.now().minusDays(1), "당뇨병성 신증", true);
+        encounterId = encounter.getId();
+        subjectRef = encounter.getSubjectRef();
+        patientNo = patient.getPatientNo();
     }
 
     // ── 접근 기록 ───────────────────────────────────────────
@@ -88,34 +94,64 @@ class AuditAndNotificationApiTest extends IntegrationTest {
     }
 
     @Test
-    void 환자를_열어보면_접근_기록에_남는다() throws Exception {
-        // @Audited + AOP 가 자동으로 적재한다. 이게 이 기능의 전부라
-        // 조용히 안 쌓이면 아무도 모른다. 실제로 개발 중에 그랬다.
-        mvc.perform(get("/api/v1/encounters/" + encounterId)
+    void 환자를_열어보면_원내_접근_기록에_남는다() throws Exception {
+        // 열람 기록은 업무 쪽 감사 로그가 아니라 원내에 남는다. 진료정보가 실제로
+        // 나간 곳이 원내이기 때문이다. 조용히 안 쌓이면 아무도 모른다.
+        mvc.perform(get("/api/v1/phi/subjects/" + subjectRef)
                         .header("Authorization", bearer("ward01")))
                 .andExpect(status().isOk());
 
-        mvc.perform(get("/api/v1/audit-logs")
+        mvc.perform(get("/api/v1/phi/access-logs")
+                        .param("from", LocalDate.now().toString())
+                        .param("patientNo", patientNo)
+                        .header("Authorization", bearer("admin01")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].action").value("VIEW"))
+                .andExpect(jsonPath("$.content[0].granted").value(true))
+                .andExpect(jsonPath("$.content[0].patient.name").value("정OO"));
+    }
+
+    @Test
+    void 일반_간호사는_원내_접근_기록을_볼_수_없다() throws Exception {
+        mvc.perform(get("/api/v1/phi/access-logs").header("Authorization", bearer("ward01")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("PERM-003"));
+    }
+
+    @Test
+    void 업무_쪽_감사_로그에는_환자_칸이_없다() throws Exception {
+        // 업무 쪽이 환자 테이블을 읽어 이름을 붙이던 자리였다
+        mvc.perform(get("/api/v1/phi/subjects/" + subjectRef)
+                        .header("Authorization", bearer("ward01")))
+                .andExpect(status().isOk());
+
+        String body = mvc.perform(get("/api/v1/audit-logs")
                         .param("from", LocalDate.now().toString())
                         .header("Authorization", bearer("admin01")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content[0].action").value("VIEW"));
+                .andReturn().getResponse().getContentAsString();
+        assertThat(body).doesNotContain("\"patient\"").doesNotContain("정OO");
     }
 
     // ── 알림함 ──────────────────────────────────────────────
 
     @Test
     void 알림은_받는_사람에게만_간다() throws Exception {
-        long before = unreadCountOf("ct01");
+        // 절대 개수가 아니라 이 요청으로 늘어난 만큼을 본다.
+        // 다른 테스트가 같은 계정에 알림을 남길 수 있어서, 0 을 기대하면
+        // 이 테스트의 성패가 실행 순서에 달리게 된다.
+        long ctBefore = unreadCountOf("ct01");
+        long wardBefore = unreadCountOf("ward01");
+        long mriBefore = unreadCountOf("mri01");
 
         // MRI 로 보낸 요청이므로 MRI실만 받아야 한다
         createRequestAndFindNotification();
 
-        assertThat(unreadCountOf("mri01")).isPositive();
+        assertThat(unreadCountOf("mri01")).isGreaterThan(mriBefore);
         // CT실은 이 요청과 아무 관계가 없다
-        assertThat(unreadCountOf("ct01")).isEqualTo(before);
+        assertThat(unreadCountOf("ct01")).isEqualTo(ctBefore);
         // 행위자 본인에게는 자기가 한 일을 알리지 않는다
-        assertThat(unreadCountOf("ward01")).isZero();
+        assertThat(unreadCountOf("ward01")).isEqualTo(wardBefore);
     }
 
     @Test
@@ -151,24 +187,24 @@ class AuditAndNotificationApiTest extends IntegrationTest {
 
     /** MRI실로 요청을 보내 mri01 에게 알림이 쌓이게 하고 그 알림 id 를 준다 */
     private long createRequestAndFindNotification() throws Exception {
-        // MRI 검사를 골라야 mri01 이 받는다. 수행 파트는 검사 종류가 정한다.
-        var exams = om.readTree(mvc.perform(get("/api/v1/exam-types")
+        // MRI 검사를 골라야 mri01 이 받는다. 수행 파트는 업무 항목이 정한다.
+        var exams = om.readTree(mvc.perform(get("/api/v1/service-items")
                         .header("Authorization", bearer("ward01")))
                 .andReturn().getResponse().getContentAsString());
-        long examTypeId = -1;
+        long serviceItemId = -1;
         for (var e : exams) {
             if (e.get("code").asText().startsWith("MRI")) {
-                examTypeId = e.get("id").asLong();
+                serviceItemId = e.get("id").asLong();
                 break;
             }
         }
 
-        mvc.perform(post("/api/v1/transfer-requests")
+        mvc.perform(post("/api/v1/work-orders")
                         .header("Authorization", bearer("ward01"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"encounterId":%d,"examTypeId":%d,"priority":"ROUTINE"}"""
-                                .formatted(encounterId, examTypeId)))
+                                {"subjectRef":"%s","serviceItemId":%d,"priority":"ROUTINE"}"""
+                                .formatted(subjectRef, serviceItemId)))
                 .andExpect(status().isCreated());
 
         String body = mvc.perform(get("/api/v1/notifications")

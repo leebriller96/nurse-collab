@@ -13,20 +13,48 @@ DBMS: PostgreSQL 16
 | 조직 | `department` | 파트(병동, MRI실, 수술실 등) |
 | 조직 | `staff` | 간호사·관리자 계정 |
 | 환자 | `patient` | 환자 기본정보 (변하지 않는 것) |
-| 환자 | `encounter` | 재원 정보 (입원할 때마다 새로 생김) |
+| 환자 | `encounter` | 재원 정보 (입원할 때마다 새로 생김). **가명 대응표가 여기에만 있다** |
+| 업무 | `care_episode` | 업무 흐름이 보는 침대 정보. 사람을 가리키는 것이 없다 |
 | 환자 | `patient_alert` | 파트별 주의사항 (금속물, 알레르기 등) |
-| 이송 | `exam_type` | 검사 종류 마스터 |
-| 이송 | `transfer_request` | 이송 요청 (핵심 테이블) |
-| 이송 | `transfer_event` | 상태 변경 이력 |
+| 업무 | `service_item` | 업무 항목 마스터 (검사·검체·약제·장비) |
+| 업무 | `work_order` | 부서 간 업무 요청 (핵심 테이블) |
+| 업무 | `work_order_event` | 상태 변경 이력 |
 | 소통 | `request_message` | 요청 단위 대화 스레드 |
 | 소통 | `notification` | 개인별 알림함 |
 | 기록 | `vital_sign` | 활력징후 |
 | 기록 | `nursing_note` | 간호기록 (SBAR) |
-| 감사 | `audit_log` | 접근·변경 감사 추적 |
+| 감사 | `audit_log` | 업무 쪽 접근·변경 추적 |
+| 감사 | `phi_access_log` | **원내 자체** 접근 기록. 거절된 시도까지 남긴다 |
 
 ---
 
 ## 2. 설계 핵심 4가지
+
+### (0) 진료정보와 업무정보를 갈라 둔다
+
+`work_order` 는 환자를 `subject_ref` 라는 **불투명한 UUID** 로만 가리킨다.
+그 열쇠를 사람으로 되돌리는 대응표는 `encounter` 에만 있다.
+
+| 사는 곳 | 테이블 |
+|---|---|
+| 진료 (원내) | `patient`, `encounter`, `patient_alert`, `vital_sign`, `nursing_note`, `phi_access_log` |
+| 업무 | `care_episode`, `work_order`, `work_order_event`, `department`, `staff`, `service_item`, `notification`, `audit_log` |
+
+양쪽은 서로를 **외래키로 잇지 않는다**(V11, V13). 두 DB 로 갈라 놓아야 하기 때문이다.
+`encounter.department_id` 나 `nursing_note.recorded_by` 처럼 상대를 가리키는 컬럼은 남지만,
+DB 가 무결성을 보장해 주지 않는다는 뜻이다. 화면에 이름이 필요한 곳은 두 가지로 나뉜다.
+
+- **기록한 사람의 이름**은 쓸 때 함께 굳힌다. 기록에 찍힌 이름은 그때 그 사람의 이름이어야 한다.
+- **병동 이름**은 굳히지 않는다. 전동하면 바뀌는 값이라 굳히면 어긋난다. 화면이 찾아 채운다.
+
+가명은 **사람이 아니라 재원 건**에 붙는다. 같은 사람이 3년 뒤 다시 입원하면
+다른 열쇠를 받는다. 사람에 붙이면 업무 데이터만 보고도 "이 사람이 네 번 입원했다" 를
+알 수 있고, 그건 가명정보라고 부르기 어렵다.
+
+병실·병상이 업무 쪽(`care_episode`)에 있는 이유는 침대가 사람을 가리키지 않기 때문이다.
+이것까지 진료 쪽에 두면 원내망 밖에서 병동 보드가 통째로 비어 업무 자체가 돌아가지 않는다.
+반대로 진단명과 거동 여부는 이송 준비물을 정하는 값이더라도 업무 쪽으로 넘기지 않는다.
+그건 그 사람의 건강 상태다. 자세한 판정 근거는 `06-hospital-scale.md` 3장에 있다.
 
 ### (1) patient 와 encounter 를 분리한다
 
@@ -40,8 +68,8 @@ DBMS: PostgreSQL 16
 
 ### (2) 상태는 컬럼, 이력은 별도 테이블
 
-`transfer_request.status` 에 현재 상태를 두고,
-상태가 바뀔 때마다 `transfer_event` 에 한 줄씩 쌓는다.
+`work_order.status` 에 현재 상태를 두고,
+상태가 바뀔 때마다 `work_order_event` 에 한 줄씩 쌓는다.
 
 - 현재 상태 조회 = 빠름 (컬럼 하나)
 - "누가 언제 왜 보류시켰나" 추적 = 가능 (이력 테이블)
@@ -213,29 +241,39 @@ COMMENT ON TABLE patient_alert IS
 '파트별로 보여줄 주의사항. alert_type 을 파트 유형과 매핑해서 필요한 것만 노출한다';
 
 -- ---------------------------------------------------------
--- 6. 이송 : 검사 종류 마스터
+-- 6. 업무 : 업무 항목 마스터
 -- ---------------------------------------------------------
-CREATE TABLE exam_type (
+-- order_type 이 이 항목의 흐름을 정한다. 규칙표는 OrderType 안에 있고
+-- DB 는 어느 종류인지만 들고 있는다. (V9)
+CREATE TABLE service_item (
     id                  BIGSERIAL    PRIMARY KEY,
     code                VARCHAR(20)  NOT NULL UNIQUE,  -- 예: MRI_BRAIN
     name                VARCHAR(100) NOT NULL,         -- 예: 뇌 MRI
-    department_id       BIGINT       NOT NULL REFERENCES department(id), -- 담당 검사실
+    order_type          VARCHAR(20)  NOT NULL,         -- 업무 종류 (V9)
+    department_id       BIGINT       NOT NULL REFERENCES department(id), -- 수행 파트
     default_duration    INT          NOT NULL DEFAULT 30, -- 예상 소요시간(분)
     prep_instruction    TEXT,                          -- 사전 준비사항 (금식 등)
-    required_alerts     VARCHAR(200),                  -- 이 검사에 필수 확인할 alert_type 목록(CSV)
+    required_alerts     VARCHAR(200),                  -- 이 업무 전에 확인할 alert_type 목록(CSV)
     is_active           BOOLEAN      NOT NULL DEFAULT TRUE
 );
 
-COMMENT ON TABLE exam_type IS '검사 종류. required_alerts 로 파트별 필수 확인 항목을 정의한다';
+COMMENT ON TABLE service_item IS
+'부서가 제공하는 업무 항목. required_alerts 로 파트별 필수 확인 항목을 정의한다';
+COMMENT ON COLUMN service_item.order_type IS
+'TRANSFER/SPECIMEN/PHARMACY/EQUIPMENT';
 
 -- ---------------------------------------------------------
--- 7. 이송 : 요청 (핵심 테이블)
+-- 7. 업무 : 요청 (핵심 테이블)
 -- ---------------------------------------------------------
-CREATE TABLE transfer_request (
+CREATE TABLE work_order (
     id                  BIGSERIAL    PRIMARY KEY,
     request_no          VARCHAR(30)  NOT NULL UNIQUE, -- 요청번호 (예: TR20260904-0001)
-    encounter_id        BIGINT       NOT NULL REFERENCES encounter(id),
-    exam_type_id        BIGINT       NOT NULL REFERENCES exam_type(id),
+    order_type          VARCHAR(20)  NOT NULL,          -- 업무 종류 (V9)
+    -- 재원이 아니라 가명을 본다 (V11). 업무 쪽 테이블 중 진료 쪽을 참조하는 것은
+    -- 이제 하나도 없다. 끊어 두었으므로 진료 쪽을 원내 DB 로 통째로 옮길 수 있다.
+    -- 장비 수리처럼 환자가 없는 업무가 있어 NULL 을 허용한다.
+    subject_ref         UUID                  REFERENCES care_episode(subject_ref),
+    service_item_id     BIGINT       NOT NULL REFERENCES service_item(id),
     from_department_id  BIGINT       NOT NULL REFERENCES department(id), -- 요청 파트(병동)
     to_department_id    BIGINT       NOT NULL REFERENCES department(id), -- 수행 파트(검사실)
 
@@ -257,19 +295,19 @@ CREATE TABLE transfer_request (
 );
 
 -- 검사실 화면: "우리 파트로 온 진행중 요청" 조회가 가장 빈번함
-CREATE INDEX idx_tr_to_dept_status ON transfer_request(to_department_id, status, requested_at DESC);
+CREATE INDEX idx_wo_to_dept_status ON work_order(to_department_id, status, requested_at DESC);
 -- 병동 화면: "우리가 보낸 요청" 조회
-CREATE INDEX idx_tr_from_dept      ON transfer_request(from_department_id, status);
-CREATE INDEX idx_tr_encounter      ON transfer_request(encounter_id);
+CREATE INDEX idx_wo_from_dept      ON work_order(from_department_id, status);
+CREATE INDEX idx_wo_encounter      ON work_order(encounter_id);
 
-COMMENT ON TABLE transfer_request IS '파트 간 환자 이송/검사 요청. 이 시스템의 심장';
+COMMENT ON TABLE work_order IS '부서 간 업무 요청. 이 시스템의 심장';
 
 -- ---------------------------------------------------------
--- 8. 이송 : 상태 변경 이력
+-- 8. 업무 : 상태 변경 이력
 -- ---------------------------------------------------------
-CREATE TABLE transfer_event (
+CREATE TABLE work_order_event (
     id              BIGSERIAL    PRIMARY KEY,
-    request_id      BIGINT       NOT NULL REFERENCES transfer_request(id),
+    order_id        BIGINT       NOT NULL REFERENCES work_order(id),
     from_status     VARCHAR(20),                    -- 최초 생성 시 NULL
     to_status       VARCHAR(20)  NOT NULL,
     actor_id        BIGINT       NOT NULL REFERENCES staff(id),
@@ -278,9 +316,9 @@ CREATE TABLE transfer_event (
     occurred_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_te_request ON transfer_event(request_id, occurred_at);
+CREATE INDEX idx_woe_order ON work_order_event(order_id, occurred_at);
 
-COMMENT ON TABLE transfer_event IS
+COMMENT ON TABLE work_order_event IS
 '상태 전이 이력. 대기시간 통계는 이 테이블만으로 계산 가능하다';
 
 -- ---------------------------------------------------------
@@ -288,7 +326,7 @@ COMMENT ON TABLE transfer_event IS
 -- ---------------------------------------------------------
 CREATE TABLE request_message (
     id              BIGSERIAL    PRIMARY KEY,
-    request_id      BIGINT       NOT NULL REFERENCES transfer_request(id),
+    order_id        BIGINT       NOT NULL REFERENCES work_order(id),
     sender_id       BIGINT       NOT NULL REFERENCES staff(id),
     content         VARCHAR(1000) NOT NULL,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
@@ -305,8 +343,8 @@ COMMENT ON TABLE request_message IS
 CREATE TABLE notification (
     id              BIGSERIAL    PRIMARY KEY,
     recipient_id    BIGINT       NOT NULL REFERENCES staff(id),
-    noti_type       VARCHAR(30)  NOT NULL,          -- TRANSFER_REQUESTED/STATUS_CHANGED/MESSAGE
-    ref_type        VARCHAR(30)  NOT NULL,          -- TRANSFER_REQUEST 등
+    noti_type       VARCHAR(30)  NOT NULL,          -- ORDER_CREATED/STATUS_CHANGED/MESSAGE
+    ref_type        VARCHAR(30)  NOT NULL,          -- WORK_ORDER 등
     ref_id          BIGINT       NOT NULL,
     title           VARCHAR(100) NOT NULL,
     body            VARCHAR(300),
@@ -365,7 +403,7 @@ CREATE TABLE audit_log (
     id              BIGSERIAL,
     actor_id        BIGINT,                         -- 행위자 (비로그인 시 NULL)
     action          VARCHAR(30)  NOT NULL,          -- VIEW/CREATE/UPDATE/DELETE/LOGIN
-    target_type     VARCHAR(50)  NOT NULL,          -- PATIENT/TRANSFER_REQUEST 등
+    target_type     VARCHAR(50)  NOT NULL,          -- PATIENT/WORK_ORDER 등
     target_id       BIGINT,
     patient_id      BIGINT,                         -- 환자정보 접근 추적용 (중요)
     ip_address      INET,
@@ -398,8 +436,8 @@ SELECT
     d.name AS 검사실,
     COUNT(*) AS 요청건수,
     ROUND(AVG(EXTRACT(EPOCH FROM (e.occurred_at - r.requested_at)) / 60)) AS 평균대기분
-FROM transfer_request r
-JOIN transfer_event e
+FROM work_order r
+JOIN work_order_event e
       ON e.request_id = r.id
      AND e.to_status  = 'ACCEPTED'
 JOIN department d ON d.id = r.to_department_id

@@ -12,7 +12,6 @@ public interface VitalSignRepository extends JpaRepository<VitalSign, Long> {
 
     @Query(value = """
             select v from VitalSign v
-            join fetch v.recordedBy
             where v.encounter.id = :encounterId
               and (cast(:from as timestamp) is null or v.measuredAt >= :from)
               and (cast(:to as timestamp) is null or v.measuredAt < :to)

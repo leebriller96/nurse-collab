@@ -28,15 +28,17 @@ public enum ErrorCode {
     ENCOUNTER_NOT_FOUND("ENC-000", HttpStatus.NOT_FOUND, "재원 정보를 찾을 수 없습니다."),
     ALERT_NOT_FOUND("ALT-000", HttpStatus.NOT_FOUND, "주의사항을 찾을 수 없습니다."),
     DISCHARGED_ENCOUNTER("ENC-001", HttpStatus.UNPROCESSABLE_ENTITY, "퇴원한 환자에 대해서는 요청할 수 없습니다."),
-    EXAM_TYPE_NOT_FOUND("EXM-001", HttpStatus.NOT_FOUND, "검사 종류를 찾을 수 없습니다."),
+    SERVICE_ITEM_NOT_FOUND("SVC-001", HttpStatus.NOT_FOUND, "업무 항목을 찾을 수 없습니다."),
 
-    // 이송 요청
-    REQUEST_NOT_FOUND("TR-000", HttpStatus.NOT_FOUND, "요청을 찾을 수 없습니다."),
-    INVALID_TRANSITION("TR-001", HttpStatus.CONFLICT, "현재 상태에서는 변경할 수 없습니다. 화면을 새로고침해 주세요."),
-    VERSION_CONFLICT("TR-002", HttpStatus.CONFLICT, "다른 사용자가 먼저 처리했습니다. 화면을 새로고침해 주세요."),
-    REASON_REQUIRED("TR-003", HttpStatus.BAD_REQUEST, "보류 또는 취소 시 사유는 필수입니다."),
-    ALREADY_FINISHED("TR-004", HttpStatus.CONFLICT, "이미 종료된 요청입니다."),
-    SCHEDULE_REQUIRED("TR-005", HttpStatus.BAD_REQUEST, "접수 시 예정 시각은 필수입니다."),
+    // 업무 요청
+    REQUEST_NOT_FOUND("ORD-000", HttpStatus.NOT_FOUND, "요청을 찾을 수 없습니다."),
+    INVALID_TRANSITION("ORD-001", HttpStatus.CONFLICT, "현재 상태에서는 변경할 수 없습니다. 화면을 새로고침해 주세요."),
+    VERSION_CONFLICT("ORD-002", HttpStatus.CONFLICT, "다른 사용자가 먼저 처리했습니다. 화면을 새로고침해 주세요."),
+    REASON_REQUIRED("ORD-003", HttpStatus.BAD_REQUEST, "보류 또는 취소 시 사유는 필수입니다."),
+    ALREADY_FINISHED("ORD-004", HttpStatus.CONFLICT, "이미 종료된 요청입니다."),
+    SCHEDULE_REQUIRED("ORD-005", HttpStatus.BAD_REQUEST, "접수 시 예정 시각은 필수입니다."),
+    PATIENT_REQUIRED("ORD-006", HttpStatus.BAD_REQUEST, "이 업무는 대상 환자가 필요합니다."),
+    PATIENT_NOT_ALLOWED("ORD-007", HttpStatus.BAD_REQUEST, "이 업무에는 대상 환자를 지정할 수 없습니다."),
 
     // 간호기록
     NOTE_NOT_FOUND("NN-000", HttpStatus.NOT_FOUND, "간호기록을 찾을 수 없습니다."),
@@ -50,6 +52,13 @@ public enum ErrorCode {
 
     // 알림
     NOTIFICATION_NOT_FOUND("NTF-000", HttpStatus.NOT_FOUND, "알림을 찾을 수 없습니다."),
+
+    // 원내 조회
+    PHI_RATE_LIMITED("PHI-001", HttpStatus.TOO_MANY_REQUESTS,
+            "짧은 시간에 너무 많은 환자 정보를 열었습니다. 잠시 후 다시 시도해 주세요."),
+    // "관계 없음" 과 구별한다. 같게 보이면 끊긴 것이 권한 문제로 읽힌다.
+    WORK_RELATION_UNAVAILABLE("PHI-002", HttpStatus.SERVICE_UNAVAILABLE,
+            "업무 서버에 닿지 못해 이 환자와의 관계를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요."),
 
     // 기타
     STAFF_NOT_FOUND("STF-001", HttpStatus.NOT_FOUND, "직원 정보를 찾을 수 없습니다."),

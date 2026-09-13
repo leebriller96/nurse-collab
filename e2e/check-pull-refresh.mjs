@@ -85,7 +85,7 @@ try {
   // ── 놓으면 실제로 다시 받아온다
   let refetched = false;
   page.on('request', (r) => {
-    if (r.url().includes('/api/v1/encounters')) refetched = true;
+    if (r.url().includes('/api/v1/care-episodes')) refetched = true;
   });
   await drag(200, 220);
   await page.waitForTimeout(1200);

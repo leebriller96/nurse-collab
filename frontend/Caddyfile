@@ -27,6 +27,13 @@
 		-Server
 	}
 
+	# 환자 정보는 원내 서버로 보낸다. 원내 것은 전부 경로가 /api/v1/phi 로 시작하므로 이 한 줄이면 된다.
+	# 한 서버 구성에서는 PHI_UPSTREAM 이 비어 있어 백엔드가 둘 다 받는다.
+	# 경로가 더 구체적이라 Caddy 가 아래 /api/* 보다 이것을 먼저 고른다.
+	handle /api/v1/phi/* {
+		reverse_proxy {$PHI_UPSTREAM:backend:8080}
+	}
+
 	# reverse_proxy 는 X-Forwarded-For / -Proto 를 알아서 붙인다.
 	# 이 헤더가 없으면 감사 로그의 접속 IP 가 전부 이 컨테이너 주소로 남는다.
 	handle /api/* {

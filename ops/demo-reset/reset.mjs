@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 
 /**
  * 공개 데모의 데이터를 처음 상태로 되돌리고 시연용 요청을 다시 심는다.
@@ -8,72 +8,134 @@ import { readFileSync } from 'node:fs';
  * 며칠이면 검사실 큐가 장난 데이터로 찬다. 매일 새벽에 한 번 되돌린다.
  *
  * 지울 것과 남길 것을 목록으로 관리하지 않는다. 데이터를 전부 비우고
- * Flyway 시드 파일(V3, V5)을 그대로 다시 실행한다. 이유가 두 가지다.
+ * ops/demo-reset/seed/ 의 시드를 처음부터 다시 넣는다. 이유가 두 가지다.
  *   - 방문자가 admin01 의 역할을 간호사로 바꿔 두면 "남길 목록" 방식으로는
  *     그 상태가 영구히 남는다. 아무도 관리자 화면에 못 들어간다.
  *   - 시드에 행을 추가할 때마다 목록을 같이 고쳐야 하는데, 잊으면 조용히 어긋난다.
  *
  * 요청 데이터는 SQL 로 꽂지 않고 실제 API 로 만든다. 직접 꽂으면
- * transfer_event 와 audit_log 가 비어서 통계·이력 화면이 텅 빈 채로 나온다.
+ * work_order_event 가 비어서 통계·이력 화면이 텅 빈 채로 나온다.
+ *
+ * **DB 가 둘일 수 있다.** 업무 서버와 원내 서버로 갈라 띄우면 업무 DB 와 원내 DB 가 따로다.
+ * 시드도 seed/work, seed/phi 로 나뉘고 각자 자기 DB 에 들어간다. 원내 접속 정보를 주지 않으면
+ * 둘 다 같은 DB 에 넣는다 — 한 서버로 띄울 때다.
  *
  * 환경변수
- *   API_BASE         기본 http://localhost:8080
- *   MIGRATION_DIR    V3/V5 시드 파일이 있는 경로
- *   PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE
+ *   API_BASE         업무 서버. 기본 http://localhost:8080
+ *   SEED_DIR         work/ 와 phi/ 가 들어 있는 경로
+ *   PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE   업무 DB
  *   PG_VIA_DOCKER    값이 있으면 psql 대신 그 이름의 컨테이너에 docker exec 한다 (로컬용)
+ *   PHI_PGHOST PHI_PGPORT PHI_PGUSER PHI_PGPASSWORD PHI_PGDATABASE PHI_PG_VIA_DOCKER
+ *                    원내 DB. 하나도 없으면 업무 DB 와 같다고 본다.
  *   RESET_AT         "04:00" 형식. 지정하면 매일 그 시각에 반복한다. 없으면 한 번만.
  */
 
 const API = `${process.env.API_BASE ?? 'http://localhost:8080'}/api/v1`;
-const MIGRATION_DIR = process.env.MIGRATION_DIR ?? '/app/sql';
-const VIA_DOCKER = process.env.PG_VIA_DOCKER;
+const SEED_DIR = process.env.SEED_DIR ?? '/app/seed';
 
 const tokens = {};
 
 // ── psql 실행 ───────────────────────────────────────────────
 
+const env = process.env;
+
+const WORK_DB = {
+  host: env.PGHOST ?? 'localhost',
+  port: env.PGPORT ?? '5432',
+  user: env.PGUSER ?? 'nursecollab',
+  password: env.PGPASSWORD,
+  database: env.PGDATABASE ?? 'nursecollab',
+  viaDocker: env.PG_VIA_DOCKER,
+};
+
+const phiConfigured = ['PHI_PGHOST', 'PHI_PGDATABASE', 'PHI_PG_VIA_DOCKER'].some((k) => env[k]);
+
+const PHI_DB = phiConfigured
+  ? {
+      host: env.PHI_PGHOST ?? 'localhost',
+      port: env.PHI_PGPORT ?? '5432',
+      user: env.PHI_PGUSER ?? WORK_DB.user,
+      password: env.PHI_PGPASSWORD ?? WORK_DB.password,
+      database: env.PHI_PGDATABASE ?? WORK_DB.database,
+      viaDocker: env.PHI_PG_VIA_DOCKER,
+    }
+  : WORK_DB;
+
 /**
  * 로컬에서는 psql 이 깔려 있지 않은 경우가 많아 컨테이너에 docker exec 한다.
  * 배포에서는 이미지 안에 psql 이 있고 도커 소켓을 줄 이유가 없으므로 직접 부른다.
+ *
+ * 변수(vars)는 psql -v 로 넘긴다. 원내 시드가 업무 DB 의 id 를 조인으로 찾을 수 없어서다.
  */
-function runSql(sql) {
-  const env = { ...process.env };
+function runSql(db, sql, vars = {}) {
   const args = [
-    '-v', 'ON_ERROR_STOP=1',
-    '-U', env.PGUSER ?? 'nursecollab',
-    '-d', env.PGDATABASE ?? 'nursecollab',
+    '-v', 'ON_ERROR_STOP=1', '-At',
+    '-U', db.user,
+    '-d', db.database,
+    ...Object.entries(vars).flatMap(([k, v]) => ['-v', `${k}=${v}`]),
   ];
 
-  const [command, argv] = VIA_DOCKER
-    ? ['docker', ['exec', '-i', VIA_DOCKER, 'psql', ...args]]
-    : ['psql', ['-h', env.PGHOST ?? 'localhost', '-p', env.PGPORT ?? '5432', ...args]];
+  const [command, argv] = db.viaDocker
+    ? ['docker', ['exec', '-i', db.viaDocker, 'psql', ...args]]
+    : ['psql', ['-h', db.host, '-p', db.port, ...args]];
 
-  execFileSync(command, argv, { input: sql, env, stdio: ['pipe', 'pipe', 'inherit'] });
+  const childEnv = { ...env, PGPASSWORD: db.password ?? '' };
+  return execFileSync(command, argv, {
+    input: sql, env: childEnv, stdio: ['pipe', 'pipe', 'inherit'],
+  }).toString();
 }
 
 /**
  * -f 를 쓰지 않고 내용을 읽어 stdin 으로 넘긴다.
  * docker exec 로 부를 때 -f 의 경로는 컨테이너 안을 가리키기 때문이다.
  */
-const runFile = (path) => runSql(readFileSync(path, 'utf8'));
+function runSeeds(db, dir, vars) {
+  // 파일 이름을 손으로 적지 않는다. 시드를 하나 더한 날 여기를 같이 고치지 않으면
+  // 그 데이터만 초기화 때마다 조용히 사라진다. 이름 순서가 곧 적재 순서다.
+  const files = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
+  if (files.length === 0) throw new Error(`시드 파일이 없다: ${dir}`);
+  for (const file of files) runSql(db, readFileSync(`${dir}/${file}`, 'utf8'), vars);
+  return files;
+}
 
 // ── 1. 비우고 시드 다시 심기 ────────────────────────────────
 
 /**
  * flyway_schema_history 는 건드리지 않는다. 지우면 다음 기동 때
  * Flyway 가 마이그레이션을 처음부터 다시 돌리려다 실패한다.
+ *
+ * 비우는 목록은 AppBoundary 의 테이블 표와 같다. 한 DB 에 한쪽 목록만 건다 —
+ * 갈라진 DB 에서 상대 쪽 테이블 이름을 부르면 없는 테이블이라 실패한다.
  */
 function wipe() {
-  runSql(`
+  runSql(WORK_DB, `
     truncate table
-      audit_log, nursing_note, vital_sign, notification, request_message,
-      transfer_event, transfer_request, request_no_sequence,
-      patient_alert, encounter, exam_type, staff, patient, department
+      audit_log, notification, request_message, work_order_event, work_order,
+      request_no_sequence, care_episode, service_item, staff, department
     restart identity cascade;
   `);
-  runFile(`${MIGRATION_DIR}/V3__seed_master_data.sql`);
-  runFile(`${MIGRATION_DIR}/V5__seed_demo_patients.sql`);
-  console.log('  비우고 시드 재적재 완료');
+  runSql(PHI_DB, `
+    truncate table
+      phi_access_log, nursing_note, vital_sign, patient_alert, encounter, patient
+    restart identity cascade;
+  `);
+
+  const work = runSeeds(WORK_DB, `${SEED_DIR}/work`);
+
+  // 원내 시드가 필요로 하는 업무 쪽 id. 원내 서버도 이 값을 토큰으로만 안다.
+  const ids = Object.fromEntries(runSql(WORK_DB, `
+    select 'dept_' || lower(code) || '=' || id from department where code in ('W03', 'W05')
+    union all
+    select login_id || '_id=' || id from staff where login_id = 'ward01';
+  `).trim().split('\n').map((line) => line.split('=')));
+
+  for (const key of ['dept_w03', 'dept_w05', 'ward01_id']) {
+    if (!ids[key]) throw new Error(`원내 시드에 넘길 값이 없다: ${key}`);
+  }
+
+  const phi = runSeeds(PHI_DB, `${SEED_DIR}/phi`, ids);
+  const where = phiConfigured ? '업무 DB · 원내 DB' : '한 DB';
+  console.log(`  비우고 시드 재적재 완료 (${where}: work/${work.join(', ')} · phi/${phi.join(', ')})`);
 }
 
 // ── 2. 시연용 요청 만들기 ───────────────────────────────────
@@ -102,21 +164,50 @@ async function call(who, method, path, body) {
   return text ? JSON.parse(text) : null;
 }
 
-/** 상태를 한 칸씩 민다. 전이마다 누를 수 있는 쪽이 정해져 있어 행위자를 함께 받는다. */
-async function advance(requestId, steps) {
-  for (const [who, toStatus] of steps) {
-    const current = await call(who, 'GET', `/transfer-requests/${requestId}`);
-    const payload = { toStatus, version: current.version };
-    if (toStatus === 'ACCEPTED') {
-      // 접수에는 예정 시각이 반드시 있어야 한다
-      payload.scheduledAt = new Date(Date.now() + 40 * 60000).toISOString();
+/**
+ * 목표 상태까지 한 칸씩 민다.
+ *
+ * 경로를 여기 적어 두지 않는다. 업무 종류마다 흐름이 다른데 그 표를 베껴 두면
+ * 서버 규칙을 고칠 때 이 파일도 같이 고쳐야 하고, 안 고치면 시연 데이터만
+ * 조용히 어긋난다. 대신 **서버가 내려주는 availableTransitions 를 따라 걷는다.**
+ * 사유·예정시각이 필요한지도 서버가 버튼마다 알려준다.
+ *
+ * 보류와 취소는 앞으로 가는 길이 아니므로 후보에서 뺀다.
+ */
+const SIDEWAYS = ['ON_HOLD', 'CANCELLED'];
+
+async function advance(requestId, targetStatus, requester, performer) {
+  if (!targetStatus || targetStatus === 'REQUESTED') return;
+
+  // 흐름이 가장 긴 이송이 여섯 걸음이다. 넉넉히 잡되 무한히 돌지 않게 막는다.
+  for (let step = 0; step < 10; step += 1) {
+    const view = await call(requester, 'GET', `/work-orders/${requestId}`);
+    if (view.status === targetStatus) return;
+
+    let moved = false;
+    // 수행 쪽을 먼저 본다. 대부분의 한 걸음은 수행 파트가 누른다.
+    for (const who of [performer, requester]) {
+      const mine = await call(who, 'GET', `/work-orders/${requestId}`);
+      const next = mine.availableTransitions.find((o) => !SIDEWAYS.includes(o.status));
+      if (!next) continue;
+
+      const payload = { toStatus: next.status, version: mine.version };
+      if (next.scheduleRequired) {
+        payload.scheduledAt = new Date(Date.now() + 40 * 60000).toISOString();
+      }
+      if (next.reasonRequired) payload.reason = '시연용';
+      await call(who, 'POST', `/work-orders/${requestId}/transitions`, payload);
+      moved = true;
+      break;
     }
-    await call(who, 'POST', `/transfer-requests/${requestId}/transitions`, payload);
+    if (!moved) throw new Error(`${requestId}: ${targetStatus} 로 갈 길이 없다`);
   }
+  throw new Error(`${requestId}: ${targetStatus} 에 닿지 못했다`);
 }
 
-// 오늘 아침의 이송 요청들.
-// [요청한 간호사, 병실, 병상, 검사, 우선순위, 어디까지 진행됐나]
+// 오늘 아침의 업무 요청들.
+// [요청한 간호사, 병실, 병상, 업무 항목, 우선순위, 어디까지 진행됐나]
+// 병실·병상이 비어 있으면 환자가 없는 업무다 (장비 수리).
 const PLAN = [
   ['ward01', '302', '1', 'MRI_BRAIN', 'EMERGENCY', 'COMPLETED'],
   ['ward02', '501', '1', 'MRI_LSPINE', 'ROUTINE', 'COMPLETED'],
@@ -129,53 +220,70 @@ const PLAN = [
   ['ward01', '305', '1', 'MRI_BRAIN', 'URGENT', 'ACCEPTED'],
   ['ward02', '501', '1', 'CT_CHEST', 'ROUTINE', 'REQUESTED'],
   ['ward01', '302', '2', 'MRI_LSPINE', 'ROUTINE', 'REQUESTED'],
+
+  // 검체 — 환자는 움직이지 않는다. 채취는 병동이 한다.
+  ['ward01', '302', '1', 'LAB_CBC', 'ROUTINE', 'COMPLETED'],
+  ['ward02', '501', '1', 'LAB_CHEM', 'ROUTINE', 'RESULTED'],
+  ['ward01', '305', '1', 'LAB_CULTURE', 'URGENT', 'IN_PROGRESS'],
+  ['ward02', '503', '2', 'LAB_CBC', 'ROUTINE', 'REQUESTED'],
+
+  // 약제 — 약제부가 조제해 올려보내고 병동이 받았는지 확인한다.
+  ['ward01', '302', '2', 'PHM_IV', 'ROUTINE', 'COMPLETED'],
+  ['ward02', '501', '1', 'PHM_ABX', 'URGENT', 'DISPENSED'],
+  ['ward01', '305', '1', 'PHM_IV', 'ROUTINE', 'ACCEPTED'],
+
+  // 의공 — 환자가 없다. 시연에서 이 두 줄이 일반화를 보여 준다.
+  ['ward01', null, null, 'BME_PUMP', 'URGENT', 'IN_PROGRESS'],
+  ['ward02', null, null, 'BME_MONITOR', 'ROUTINE', 'REQUESTED'],
 ];
 
-const performerOf = (examCode) => (examCode.startsWith('MRI') ? 'mri01' : 'ct01');
-
-const pathTo = (target, requester, performer) => {
-  const all = [
-    [performer, 'ACCEPTED'],
-    [performer, 'READY'],
-    [requester, 'IN_TRANSIT'],
-    [performer, 'IN_PROGRESS'],
-    [performer, 'RETURNED'],
-    [requester, 'COMPLETED'],
-  ];
-  const idx = all.findIndex(([, s]) => s === target);
-  return idx === -1 ? [] : all.slice(0, idx + 1);
-};
-
 async function seed() {
-  for (const id of ['ward01', 'ward02', 'mri01', 'ct01']) {
+  // 수행 파트 담당자까지 미리 받아 둔다. 종류가 넷이라 누가 누를지는 흐름이 정한다.
+  for (const id of ['admin01', 'ward01', 'ward02', 'mri01', 'ct01',
+                    'lab01', 'pharm01', 'bme01']) {
     await login(id);
   }
 
-  const encounters = {
-    ward01: await call('ward01', 'GET', '/encounters'),
-    ward02: await call('ward02', 'GET', '/encounters'),
+  // 업무 요청을 걸려면 침대(가명)만 알면 된다. 이름은 필요 없다.
+  const episodes = {
+    ward01: await call('ward01', 'GET', '/care-episodes'),
+    ward02: await call('ward02', 'GET', '/care-episodes'),
   };
-  const exams = await call('ward01', 'GET', '/exam-types');
+  const items = await call('ward01', 'GET', '/service-items');
 
-  const encOf = (who, roomNo, bedNo) => {
-    const list = encounters[who].content ?? encounters[who];
+  // 수행 파트의 담당자를 이름으로 적어 두지 않는다. 부서를 늘릴 때마다 여기를
+  // 같이 고쳐야 하고, 빠뜨리면 그 부서 요청만 첫 걸음에서 멈춘다.
+  const staff = await call('admin01', 'GET', '/staff');
+  const performerOf = (item) => {
+    const found = staff.find(
+      (p) => p.active && p.role === 'NURSE' && p.department.id === item.department.id,
+    );
+    if (!found) throw new Error(`수행 담당자 없음: ${item.department.name}`);
+    return found.loginId;
+  };
+
+  // 업무 요청에는 가명만 넘긴다. 재원 id 도 이름도 업무 쪽으로 가지 않는다.
+  const subjectOf = (who, roomNo, bedNo) => {
+    const list = episodes[who];
     const found = list.find((e) => e.roomNo === roomNo && e.bedNo === bedNo);
     if (!found) throw new Error(`재원 없음: ${roomNo}-${bedNo}`);
-    return found.encounterId ?? found.id;
+    return found.subjectRef;
   };
-  const examOf = (code) => {
-    const found = exams.find((e) => e.code === code);
-    if (!found) throw new Error(`검사 종류 없음: ${code}`);
-    return found.id;
+  const itemOf = (code) => {
+    const found = items.find((e) => e.code === code);
+    if (!found) throw new Error(`업무 항목 없음: ${code}`);
+    return found;
   };
 
-  for (const [requester, room, bed, examCode, priority, target] of PLAN) {
-    const created = await call(requester, 'POST', '/transfer-requests', {
-      encounterId: encOf(requester, room, bed),
-      examTypeId: examOf(examCode),
+  for (const [requester, room, bed, itemCode, priority, target] of PLAN) {
+    const item = itemOf(itemCode);
+    const created = await call(requester, 'POST', '/work-orders', {
+      // 환자를 붙일 수 없는 업무에 붙이면 서버가 ORD-007 로 막는다
+      subjectRef: item.patientRequired ? subjectOf(requester, room, bed) : null,
+      serviceItemId: item.id,
       priority,
     });
-    await advance(created.id, pathTo(target, requester, performerOf(examCode)));
+    await advance(created.id, target, requester, performerOf(item));
   }
   console.log(`  요청 ${PLAN.length}건 생성 완료`);
 }
@@ -184,17 +292,17 @@ async function seed() {
 
 /**
  * 방금 만든 요청은 대기시간이 몇 초라 "평균 대기 0분" 이 나온다.
- * 지난 4시간에 걸쳐 들어온 것으로 민다.
+ * 지난 4시간에 걸쳐 들어온 것으로 민다. 업무 DB 만 건드린다.
  *
  * 고정 시각(예: 07시)에 맞추면 그 시각 전에 돌렸을 때 요청이 미래로 가고,
  * 대기시간 계산이 음수가 돼 화면에 전부 0분으로 찍힌다. now() 기준이어야 한다.
  */
 function backdate() {
-  runSql(`
+  runSql(WORK_DB, `
     with ordered as (
-      select id, row_number() over (order by id) - 1 as n from transfer_request
+      select id, row_number() over (order by id) - 1 as n from work_order
     )
-    update transfer_request r
+    update work_order r
        set requested_at = now() - interval '4 hour' + (o.n * interval '20 minute')
       from ordered o
      where o.id = r.id;
@@ -202,29 +310,29 @@ function backdate() {
     -- 각 요청의 이력을 요청 시각 뒤로 순서대로 배치한다.
     -- 첫 전이(접수)는 6~24분 뒤, 그 뒤는 한 칸당 7~13분 뒤.
     with ordered as (
-      select e.id, e.request_id,
-             row_number() over (partition by e.request_id order by e.id) as k
-        from transfer_event e
+      select e.id, e.order_id,
+             row_number() over (partition by e.order_id order by e.id) as k
+        from work_order_event e
     )
-    update transfer_event e
+    update work_order_event e
        set occurred_at = r.requested_at
                        + interval '1 minute' * (6 + (r.id * 7) % 19)
                        + interval '1 minute' * ((o.k - 1) * (7 + (r.id * 3) % 7))
       from ordered o
-      join transfer_request r on r.id = o.request_id
+      join work_order r on r.id = o.order_id
      where o.id = e.id;
 
-    update transfer_request r
+    update work_order r
        set completed_at = last_event.at
-      from (select request_id, max(occurred_at) as at
-              from transfer_event where to_status = 'COMPLETED' group by request_id) last_event
-     where last_event.request_id = r.id;
+      from (select order_id, max(occurred_at) as at
+              from work_order_event where to_status = 'COMPLETED' group by order_id) last_event
+     where last_event.order_id = r.id;
 
-    update transfer_request r
+    update work_order r
        set scheduled_at = accepted.at + interval '30 minute'
-      from (select request_id, min(occurred_at) as at
-              from transfer_event where to_status = 'ACCEPTED' group by request_id) accepted
-     where accepted.request_id = r.id;
+      from (select order_id, min(occurred_at) as at
+              from work_order_event where to_status = 'ACCEPTED' group by order_id) accepted
+     where accepted.order_id = r.id;
   `);
   console.log('  시각 보정 완료');
 }

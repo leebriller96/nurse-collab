@@ -1,8 +1,6 @@
 package com.nursecollab.domain.audit.service;
 
 import com.nursecollab.domain.audit.dto.AuditLogResponse;
-import com.nursecollab.domain.patient.entity.Patient;
-import com.nursecollab.domain.patient.repository.PatientRepository;
 import com.nursecollab.domain.staff.entity.Staff;
 import com.nursecollab.domain.staff.entity.StaffRole;
 import com.nursecollab.domain.staff.repository.StaffRepository;
@@ -27,8 +25,11 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * 감사 로그 조회.
- * "누가 어떤 환자 정보를 열어봤는가" 에 답할 수 있어야 한다. 관리자만 본다.
+ * 업무 쪽 감사 로그 조회. 관리자만 본다.
+ *
+ * 환자 정보 열람 기록은 여기 없다. 원내(phi_access_log)에 남고 A-05 화면도 그쪽을 읽는다.
+ * 전에는 이 서비스가 환자 저장소를 읽어 이름을 붙였는데, 업무 쪽이 진료정보를 읽는
+ * 유일한 자리였다. 경계 테스트의 업무 쪽 목록에 이 패키지가 빠져 있어서 잡히지 않았다.
  */
 @Service
 @RequiredArgsConstructor
@@ -37,10 +38,8 @@ public class AuditLogQueryService {
 
     private final AuditLogRepository auditLogRepository;
     private final StaffRepository staffRepository;
-    private final PatientRepository patientRepository;
 
-    public PageResponse<AuditLogResponse> search(LocalDate from, LocalDate to,
-                                                 Long patientId, Long actorId,
+    public PageResponse<AuditLogResponse> search(LocalDate from, LocalDate to, Long actorId,
                                                  Pageable pageable, LoginStaff loginStaff) {
         if (loginStaff.role() != StaffRole.ADMIN) {
             throw new BusinessException(ErrorCode.INSUFFICIENT_ROLE);
@@ -56,38 +55,27 @@ public class AuditLogQueryService {
         Page<AuditLog> page = auditLogRepository.search(
                 fromDate.atStartOfDay(zone).toOffsetDateTime(),
                 toDate.plusDays(1).atStartOfDay(zone).toOffsetDateTime(),
-                patientId, actorId, pageable);
+                null, actorId, pageable);
 
         if (page.getContent().isEmpty()) {
             return new PageResponse<>(List.of(), page.getNumber(), page.getSize(),
                     page.getTotalElements(), page.getTotalPages());
         }
 
-        // 행마다 직원과 환자를 따로 조회하면 페이지 크기만큼 쿼리가 나간다. 한 번에 모은다.
+        // 행마다 직원을 따로 조회하면 페이지 크기만큼 쿼리가 나간다. 한 번에 모은다.
         Map<Long, Staff> actors = staffRepository
-                .findAllById(distinctIds(page, AuditLog::getActorId))
+                .findAllById(page.getContent().stream()
+                        .map(AuditLog::getActorId)
+                        .filter(Objects::nonNull)
+                        .distinct()
+                        .toList())
                 .stream().collect(Collectors.toMap(Staff::getId, Function.identity()));
-
-        Map<Long, Patient> patients = patientRepository
-                .findAllById(distinctIds(page, AuditLog::getPatientId))
-                .stream().collect(Collectors.toMap(Patient::getId, Function.identity()));
 
         return PageResponse.of(page.map(log -> {
             Staff actor = actors.get(log.getActorId());
-            Patient patient = patients.get(log.getPatientId());
             return AuditLogResponse.of(log,
                     actor == null ? null : new AuditLogResponse.ActorInfo(
-                            actor.getId(), actor.getName(), actor.getDepartment().getName()),
-                    patient == null ? null : new AuditLogResponse.PatientInfo(
-                            patient.getId(), patient.getPatientNo(), patient.getName()));
+                            actor.getId(), actor.getName(), actor.getDepartment().getName()));
         }));
-    }
-
-    private List<Long> distinctIds(Page<AuditLog> page, Function<AuditLog, Long> extractor) {
-        return page.getContent().stream()
-                .map(extractor)
-                .filter(Objects::nonNull)
-                .distinct()
-                .toList();
     }
 }

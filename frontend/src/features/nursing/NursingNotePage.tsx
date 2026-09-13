@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api, messageOf } from '@/shared/api/client';
-import type { EncounterFullView, NoteType, NursingNote, PageResponse } from '@/shared/api/types';
+import { messageOf } from '@/shared/api/client';
+import type { NoteType, NursingNote, PageResponse } from '@/shared/api/types';
 import { useToast } from '@/shared/ui/toast';
+import { phi, useSubject } from '@/shared/api/phi';
 
 const SBAR_FIELDS = [
   { key: 'situation', label: '지금 상황', hint: '22시경 어지러움 호소' },
@@ -33,8 +34,7 @@ const emptySbar = (): Record<SbarKey, string> =>
  * 를 빠짐없이 넘기기 위한 형식이다. 칸을 나눠 두면 빠뜨리기 어려워진다.
  */
 export default function NursingNotePage() {
-  const { id } = useParams();
-  const encounterId = Number(id);
+  const { subjectRef } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -45,15 +45,28 @@ export default function NursingNotePage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const encounter = useQuery({
-    queryKey: ['encounter', encounterId],
-    queryFn: async () => (await api.get<EncounterFullView>(`/encounters/${encounterId}`)).data,
-  });
+  // 기록도 사람도 원내에서 받는다. 사람을 먼저 받아 두면 원내가 끊겼는지 한 번에 안다.
+  const { subject, unavailable: phiDown } = useSubject(subjectRef);
+
+  /*
+    이 화면은 통째로 진료 기록이다. 앞의 목록들처럼 일부만 비는 것이 아니라
+    아무것도 그릴 수 없다. 빈 목록을 보여주면 "기록이 없다" 로 읽히므로
+    화면 대신 이유를 띄운다.
+  */
+  const phiBlocked = phiDown ? (
+    <div className="p-6 text-center">
+      <p className="text-sm font-semibold text-amber-900">원내망에서만 조회됩니다</p>
+      <p className="mt-1 text-sm text-amber-800">
+        간호기록은 병원 안에서만 볼 수 있습니다. 기록이 없다는 뜻이 아닙니다.
+      </p>
+    </div>
+  ) : null;
 
   const notes = useQuery({
-    queryKey: ['nursing-notes', encounterId],
+    queryKey: ['nursing-notes', subjectRef],
+    enabled: !!subject,
     queryFn: async () =>
-      (await api.get<PageResponse<NursingNote>>(`/encounters/${encounterId}/nursing-notes`,
+      (await phi.get<PageResponse<NursingNote>>(`/subjects/${subjectRef}/nursing-notes`,
         { params: { page: 0, size: 30 } })).data,
   });
 
@@ -73,14 +86,14 @@ export default function NursingNotePage() {
         recordedAt: new Date().toISOString(),
       };
       if (editingId) {
-        await api.put(`/nursing-notes/${editingId}`, body);
+        await phi.put(`/nursing-notes/${editingId}`, body);
       } else {
-        await api.post(`/encounters/${encounterId}/nursing-notes`, body);
+        await phi.post(`/subjects/${subjectRef}/nursing-notes`, body);
       }
     },
     onSuccess: (_data, _vars, wasEditing: boolean) => {
       reset();
-      void queryClient.invalidateQueries({ queryKey: ['nursing-notes', encounterId] });
+      void queryClient.invalidateQueries({ queryKey: ['nursing-notes', subjectRef] });
       toast.show(wasEditing ? '기록을 고쳤습니다' : '기록을 남겼습니다', { tone: 'success' });
     },
     // 저장하고 나면 editingId 가 지워져서 무엇을 했는지 알 수 없다. 미리 기억해 둔다.
@@ -106,6 +119,20 @@ export default function NursingNotePage() {
     ? content.trim() !== ''
     : SBAR_FIELDS.some((f) => sbar[f.key].trim() !== '');
 
+  if (phiBlocked) {
+    return (
+      <div className="pb-28">
+        <header className="sticky top-0 z-10 flex items-center gap-2 bg-slate-100/95 px-4 py-3 backdrop-blur">
+          <button type="button" onClick={() => navigate(-1)} className="text-slate-500">
+            ←
+          </button>
+          <h1 className="text-lg font-bold text-slate-900">간호기록</h1>
+        </header>
+        {phiBlocked}
+      </div>
+    );
+  }
+
   return (
     <div className="pb-28">
       <header className="sticky top-0 z-10 flex items-center gap-2 bg-slate-100/95 px-4 py-3 backdrop-blur">
@@ -113,9 +140,9 @@ export default function NursingNotePage() {
           ←
         </button>
         <h1 className="text-lg font-bold text-slate-900">간호기록</h1>
-        {encounter.data && (
+        {subject && (
           <span className="text-sm text-slate-500">
-            {encounter.data.roomNo}-{encounter.data.bedNo} {encounter.data.patient.name}
+            {subject.name}
           </span>
         )}
       </header>

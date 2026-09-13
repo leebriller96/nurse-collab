@@ -1,23 +1,24 @@
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import LoginPage from '@/features/auth/LoginPage';
 import WardBoardPage from '@/features/encounter/WardBoardPage';
-import EncounterDetailPage from '@/features/encounter/EncounterDetailPage';
-import ExamQueuePage from '@/features/transfer/ExamQueuePage';
-import WardRequestsPage from '@/features/transfer/WardRequestsPage';
-import TransferCreatePage from '@/features/transfer/TransferCreatePage';
-import TransferDetailPage from '@/features/transfer/TransferDetailPage';
+import SubjectDetailPage from '@/features/encounter/SubjectDetailPage';
+import ServiceQueuePage from '@/features/workorder/ServiceQueuePage';
+import WardRequestsPage from '@/features/workorder/WardRequestsPage';
+import OrderCreatePage from '@/features/workorder/OrderCreatePage';
+import OrderDetailPage from '@/features/workorder/OrderDetailPage';
 import WardLayout from '@/layouts/WardLayout';
-import ExamLayout from '@/layouts/ExamLayout';
+import ServiceLayout from '@/layouts/ServiceLayout';
 import AdminLayout from '@/layouts/AdminLayout';
 import StatsPage from '@/features/stats/StatsPage';
 import VitalSignPage from '@/features/nursing/VitalSignPage';
 import NursingNotePage from '@/features/nursing/NursingNotePage';
 import AuditLogPage from '@/features/audit/AuditLogPage';
 import NotificationPage from '@/features/notification/NotificationPage';
-import TransferHistoryPage from '@/features/transfer/TransferHistoryPage';
+import OrderHistoryPage from '@/features/workorder/OrderHistoryPage';
 import MasterAdminPage from '@/features/master/MasterAdminPage';
-import ExamSchedulePage from '@/features/transfer/ExamSchedulePage';
+import ServiceSchedulePage from '@/features/workorder/ServiceSchedulePage';
 import { useAuth } from '@/shared/hooks/useAuth';
+import { homeFor } from '@/shared/lib/home';
 
 function RequireAuth() {
   const { staff, loading } = useAuth();
@@ -27,13 +28,12 @@ function RequireAuth() {
   return staff ? <Outlet /> : <Navigate to="/login" replace />;
 }
 
-/** 로그인한 사람의 소속 파트 유형이 홈을 정한다 */
+/** 로그인한 사람의 소속 파트 유형이 홈을 정한다. 판정은 homeFor 한 곳에만 있다. */
 function Home() {
   const { staff, loading } = useAuth();
   if (loading) return null;
   if (!staff) return <Navigate to="/login" replace />;
-  if (staff.department.deptType === 'ADMIN') return <Navigate to="/admin/stats" replace />;
-  return <Navigate to={staff.department.deptType === 'EXAM' ? '/exam/queue' : '/ward/board'} replace />;
+  return <Navigate to={homeFor(staff.department.deptType)} replace />;
 }
 
 export default function Router() {
@@ -45,14 +45,15 @@ export default function Router() {
 
         <Route path="/ward" element={<WardLayout />}>
           <Route path="board" element={<WardBoardPage />} />
-          <Route path="encounters/:id" element={<EncounterDetailPage />} />
-          <Route path="encounters/:id/vitals" element={<VitalSignPage />} />
-          <Route path="encounters/:id/notes" element={<NursingNotePage />} />
+          {/* 환자를 가리키는 것은 가명뿐이다. 재원 id 는 주소에 드러나지 않는다. */}
+          <Route path="subjects/:subjectRef" element={<SubjectDetailPage />} />
+          <Route path="subjects/:subjectRef/vitals" element={<VitalSignPage />} />
+          <Route path="subjects/:subjectRef/notes" element={<NursingNotePage />} />
           <Route path="requests" element={<WardRequestsPage />} />
-          <Route path="requests/new" element={<TransferCreatePage />} />
-          <Route path="requests/:id" element={<TransferDetailPage />} />
+          <Route path="requests/new" element={<OrderCreatePage />} />
+          <Route path="requests/:id" element={<OrderDetailPage />} />
           <Route path="notifications" element={<NotificationPage />} />
-          <Route path="history" element={<TransferHistoryPage />} />
+          <Route path="history" element={<OrderHistoryPage />} />
         </Route>
 
         {/* 통계는 수간호사 이상만 볼 수 있다. 서버가 403 으로 막지만
@@ -63,12 +64,12 @@ export default function Router() {
           <Route path="master" element={<MasterAdminPage />} />
         </Route>
 
-        <Route path="/exam" element={<ExamLayout />}>
-          <Route path="queue" element={<ExamQueuePage />} />
-          <Route path="schedule" element={<ExamSchedulePage />} />
-          <Route path="requests/:id" element={<TransferDetailPage />} />
+        <Route path="/service" element={<ServiceLayout />}>
+          <Route path="queue" element={<ServiceQueuePage />} />
+          <Route path="schedule" element={<ServiceSchedulePage />} />
+          <Route path="requests/:id" element={<OrderDetailPage />} />
           <Route path="notifications" element={<NotificationPage />} />
-          <Route path="history" element={<TransferHistoryPage />} />
+          <Route path="history" element={<OrderHistoryPage />} />
           <Route path="stats" element={<StatsPage />} />
         </Route>
       </Route>

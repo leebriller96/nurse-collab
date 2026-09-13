@@ -42,3 +42,9 @@ application-local.yml
 boot.log
 vite.log
 preview.log
+
+# 운영용 서명 키. 개발용 키쌍(src/main/resources/keys/)은 일부러 저장소에 둔다 —
+# 그 키로 운영에 뜨는 것은 JwtKeyGuard 가 막는다.
+/keys/
+/ci-keys/
+*jwt-private.pem

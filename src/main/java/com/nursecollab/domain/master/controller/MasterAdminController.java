@@ -2,13 +2,13 @@ package com.nursecollab.domain.master.controller;
 
 import com.nursecollab.domain.department.dto.DepartmentResponse;
 import com.nursecollab.domain.master.dto.DepartmentUpsertRequest;
-import com.nursecollab.domain.master.dto.ExamTypeUpsertRequest;
+import com.nursecollab.domain.master.dto.ServiceItemUpsertRequest;
 import com.nursecollab.domain.master.dto.StaffAdminResponse;
 import com.nursecollab.domain.master.dto.StaffCreateRequest;
 import com.nursecollab.domain.master.dto.StaffUpdateRequest;
 import com.nursecollab.domain.master.service.MasterAdminService;
 import com.nursecollab.domain.staff.entity.StaffRole;
-import com.nursecollab.domain.transfer.dto.ExamTypeResponse;
+import com.nursecollab.domain.workorder.dto.ServiceItemResponse;
 import com.nursecollab.global.error.BusinessException;
 import com.nursecollab.global.error.ErrorCode;
 import com.nursecollab.global.security.LoginStaff;
@@ -95,28 +95,28 @@ public class MasterAdminController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/exam-types")
-    public ResponseEntity<ExamTypeResponse> createExamType(
-            @Valid @RequestBody ExamTypeUpsertRequest request,
+    @PostMapping("/service-items")
+    public ResponseEntity<ServiceItemResponse> createServiceItem(
+            @Valid @RequestBody ServiceItemUpsertRequest request,
             @AuthenticationPrincipal LoginStaff loginStaff) {
         requireAdmin(loginStaff);
-        return ResponseEntity.ok(masterAdminService.createExamType(request));
+        return ResponseEntity.ok(masterAdminService.createServiceItem(request));
     }
 
-    @PutMapping("/exam-types/{id}")
-    public ResponseEntity<ExamTypeResponse> updateExamType(
+    @PutMapping("/service-items/{id}")
+    public ResponseEntity<ServiceItemResponse> updateServiceItem(
             @PathVariable Long id,
-            @Valid @RequestBody ExamTypeUpsertRequest request,
+            @Valid @RequestBody ServiceItemUpsertRequest request,
             @AuthenticationPrincipal LoginStaff loginStaff) {
         requireAdmin(loginStaff);
-        return ResponseEntity.ok(masterAdminService.updateExamType(id, request));
+        return ResponseEntity.ok(masterAdminService.updateServiceItem(id, request));
     }
 
-    @PatchMapping("/exam-types/{id}/deactivate")
-    public ResponseEntity<Void> deactivateExamType(
+    @PatchMapping("/service-items/{id}/deactivate")
+    public ResponseEntity<Void> deactivateServiceItem(
             @PathVariable Long id, @AuthenticationPrincipal LoginStaff loginStaff) {
         requireAdmin(loginStaff);
-        masterAdminService.deactivateExamType(id);
+        masterAdminService.deactivateServiceItem(id);
         return ResponseEntity.noContent().build();
     }
 

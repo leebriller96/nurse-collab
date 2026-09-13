@@ -21,7 +21,7 @@ async function login(page, loginId) {
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.getByRole('button', { name: new RegExp(loginId) }).click();
-  await page.waitForURL(/\/(ward|exam|admin)\//, { timeout: 15000 });
+  await page.waitForURL(/\/(ward|service|admin)\//, { timeout: 15000 });
 }
 
 /** 값이 다 들어온 뒤에 찍는다. 로딩 중 화면이 찍히면 README 가 비어 보인다. */
@@ -54,7 +54,7 @@ async function main() {
     await shot(desk.page, 'exam-queue');
 
     await desk.page.getByRole('link', { name: '일정' }).click();
-    await desk.page.waitForURL(/\/exam\/schedule/);
+    await desk.page.waitForURL(/\/service\/schedule/);
     await shot(desk.page, 'exam-schedule');
 
     await login(desk.page, 'admin01');
@@ -71,7 +71,7 @@ async function main() {
 
     // 요청 등록. 검사를 고르면 그 환자에게 확인이 필요한 항목이 바로 뜬다.
     await phone.page.getByRole('link', { name: /김OO/ }).first().click();
-    await phone.page.waitForURL(/\/ward\/encounters\/\d+$/);
+    await phone.page.waitForURL(/\/ward\/subjects\/[0-9a-f-]{36}$/);
     await phone.page.getByRole('link', { name: /이송 요청/ }).click();
     await phone.page.waitForURL(/\/ward\/requests\/new/);
     await phone.page.getByRole('button', { name: /뇌 MRI/ }).click();

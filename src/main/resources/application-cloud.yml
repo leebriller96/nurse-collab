@@ -1,0 +1,13 @@
+# 업무 서버 (SPRING_PROFILES_ACTIVE=cloud 또는 prod,cloud).
+#
+# 인증을 맡고 업무 요청·알림·통계를 든다. 진료 테이블은 모른다.
+# 원내 서버가 사용자 토큰을 실어 /api/v1/work-relations 로 묻는다.
+
+app:
+  role: cloud
+
+spring:
+  flyway:
+    # V14 까지는 합친 이력과 같고, V15 가 진료 테이블을 걷어낸다.
+    # V15 는 방금 만든 DB 에서만 돈다. 쓰던 합친 DB 에 붙이면 거절한다.
+    locations: classpath:db/migration,classpath:db/split/cloud

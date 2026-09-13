@@ -23,8 +23,13 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 애플리케이션이 root 로 돌 이유가 없다
-RUN useradd --system --create-home --shell /usr/sbin/nologin app
+# 애플리케이션이 root 로 돌 이유가 없다.
+#
+# uid 를 못박는 이유: 서명 키를 파일로 붙여 주는데, 바인드 마운트는 호스트의
+# 소유자/권한을 그대로 들고 온다. uid 가 빌드마다 달라지면 "권한 없음" 으로
+# 기동이 실패하고, 원인이 키 내용이 아니라 파일 권한이라는 것을 알아채기 어렵다.
+# 이 번호는 docs/05-deployment.md 의 chown 안내와 같아야 한다.
+RUN groupadd --gid 10001 app     && useradd --uid 10001 --gid 10001 --create-home --shell /usr/sbin/nologin app
 USER app
 
 COPY --from=build /build/build/libs/*.jar app.jar

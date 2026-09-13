@@ -1,0 +1,30 @@
+# 원내 서버 (SPRING_PROFILES_ACTIVE=onprem 또는 prod,onprem).
+#
+# 진료정보만 든다. 토큰은 검증만 하고, Redis 도 실시간 채널도 감사 로그도 없다.
+# 업무 쪽에 물을 것은 업무 서버 주소로 HTTP 로 묻는다.
+
+app:
+  role: onprem
+  work-api:
+    # 비어 있으면 AppRoleEnvironmentGuard 가 기동을 막는다
+    base-url: ${WORK_API_BASE_URL:}
+
+jwt:
+  # 원내는 발급하지 않는다. 환경변수로 개인키가 들어오면 가드가 막는다.
+  private-key: ${JWT_PRIVATE_KEY_FILE:}
+
+spring:
+  flyway:
+    # V14 까지는 합친 이력과 같고, V15 가 업무 쪽 테이블을 걷어낸다.
+    locations: classpath:db/migration,classpath:db/split/onprem
+  autoconfigure:
+    # 갱신 토큰은 업무 서버가 들고 있다. 원내에는 Redis 가 없다.
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisReactiveAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+management:
+  health:
+    redis:
+      enabled: false
