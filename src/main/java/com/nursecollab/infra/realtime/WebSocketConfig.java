@@ -1,6 +1,5 @@
-package com.nursecollab.global.config;
+package com.nursecollab.infra.realtime;
 
-import com.nursecollab.global.security.StompAuthChannelInterceptor;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.ChannelRegistration;

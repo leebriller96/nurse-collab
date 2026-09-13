@@ -30,35 +30,33 @@ COMMENT ON COLUMN work_order.hold_from_status IS
 com.nursecollab
 ├── NurseCollabApplication.java
 │
-├── global/                          # 도메인과 무관한 공통 기반
+├── global/                          # 원내와 업무 양쪽이 함께 쓰는 기반만 둔다
 │   ├── config/
 │   │   ├── SecurityConfig.java
-│   │   ├── WebSocketConfig.java
-│   │   ├── JpaConfig.java           # Auditing 활성화
-│   │   └── RedisConfig.java
+│   │   └── JpaConfig.java           # Auditing 활성화
 │   ├── security/
 │   │   ├── JwtTokenProvider.java
 │   │   ├── JwtAuthenticationFilter.java
-│   │   ├── JwtProperties.java           # 시크릿 / 만료시간 설정
+│   │   ├── JwtProperties.java           # 키 파일 / 만료시간 설정
 │   │   ├── LoginStaff.java              # @AuthenticationPrincipal 로 받는 인증 주체
-│   │   ├── RefreshTokenStore.java       # 갱신 토큰 Redis 보관 (로그아웃 / 회전)
 │   │   └── SecurityErrorResponder.java  # 필터 단계 401 / 403 응답
 │   ├── error/
 │   │   ├── ErrorCode.java           # 에러코드 + 메시지 + HTTP 상태 일괄 관리
 │   │   ├── BusinessException.java
 │   │   ├── ErrorResponse.java
 │   │   └── GlobalExceptionHandler.java
-│   ├── audit/
+│   ├── audit/                       # 업무 쪽 전용 (경계 테스트의 업무 목록에 있다)
 │   │   ├── Audited.java             # @Audited 어노테이션
 │   │   ├── AuditAspect.java         # AOP 로 audit_log 자동 적재
-│   │   └── AuditLog.java
+│   │   ├── AuditLog.java
+│   │   └── SchedulingConfig.java    # 파티션 정리 때문에 켠다. 이유가 여기 있으므로 여기 둔다
 │   └── common/
 │       ├── BaseTimeEntity.java      # createdAt / updatedAt 공통
 │       └── PageResponse.java
 │
 ├── domain/
 │   ├── department/                  # 파트 마스터
-│   ├── staff/                       # 계정 + 인증
+│   ├── staff/                       # 계정 + 인증 (RefreshTokenStore — 갱신 토큰 Redis 보관)
 │   ├── patient/                     # 환자, 주의사항(alert)
 │   ├── encounter/                   # 재원 + 파트별 뷰 조립
 │   ├── transfer/                    # ★ 이송 요청 (이 프로젝트의 심장)
@@ -80,10 +78,17 @@ com.nursecollab
 │   └── stats/                       # 대기시간 통계 (집계는 SQL 로)
 │
 └── infra/
-    ├── realtime/
+    ├── realtime/                    # 업무 쪽 전용
+    │   ├── WebSocketConfig.java
+    │   ├── StompAuthChannelInterceptor.java
     │   └── RealtimeNotifier.java    # STOMP 발송 담당
     └── storage/
 ```
+
+**`global` 에는 양쪽이 함께 쓰는 것만 둔다.** 원내 서버는 토큰을 검증만 하고
+Redis 도 실시간 채널도 없이 뜬다. 갱신 토큰 저장소나 WebSocket 설정이 `global` 에 있으면
+원내가 뜰 때 함께 올라오려다 실패한다. 한 서버일 때는 아무 문제가 없어서 갈라 띄우는 날에야 드러난다.
+그래서 쓰는 쪽 패키지로 옮겨 두고, 경계 테스트(`PhiBoundaryTest`)가 패키지 단위로 지킨다.
 
 **핵심 원칙**
 - `domain` 은 `global` 을 참조해도 되지만, `global` 이 `domain` 을 참조하면 안 된다

@@ -13,7 +13,6 @@ import com.nursecollab.global.error.ErrorCode;
 import com.nursecollab.global.security.JwtProperties;
 import com.nursecollab.support.TestKeys;
 import com.nursecollab.global.security.JwtTokenProvider;
-import com.nursecollab.global.security.RefreshTokenStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

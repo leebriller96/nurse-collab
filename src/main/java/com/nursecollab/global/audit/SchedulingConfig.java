@@ -1,4 +1,4 @@
-package com.nursecollab.global.config;
+package com.nursecollab.global.audit;
 
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableScheduling;
