@@ -1,0 +1,220 @@
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { api } from '@/shared/api/client';
+import { useAuth } from '@/shared/hooks/useAuth';
+import type { PageResponse, OrderStatus, OrderSummary } from '@/shared/api/types';
+import { PriorityBadge, StatusBadge } from '@/shared/ui/badges';
+import LoadFailed from '@/shared/ui/LoadFailed';
+import { useUrlParam } from '@/shared/hooks/useUrlParam';
+import { TableSkeleton } from '@/shared/ui/Skeleton';
+import OrderSubject from '@/features/workorder/OrderSubject';
+import { useSubjectBriefs } from '@/shared/api/phi';
+import { searchSubjectRefs } from '@/shared/api/phi';
+
+const FINISHED: OrderStatus[] = ['COMPLETED', 'CANCELLED'];
+
+const localDate = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+const stamp = (iso: string) =>
+  new Date(iso).toLocaleString('ko-KR', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+/**
+ * E-04 지난 요청 조회.
+ *
+ * 큐와 현황은 오늘 진행중인 것만 보여준다.
+ * 어제 무슨 일이 있었는지 확인할 곳이 따로 있어야 한다.
+ */
+export default function OrderHistoryPage() {
+  const { staff } = useAuth();
+  const navigate = useNavigate();
+
+  // 조회 조건은 주소에 담는다. 한 건을 열어 보고 돌아왔을 때 조건이 살아 있어야 한다.
+  const [from, setFrom] = useUrlParam('from', localDate(new Date(Date.now() - 13 * 86400000)));
+  const [to, setTo] = useUrlParam('to', localDate(new Date()));
+  const [query, setQuery] = useUrlParam('q');
+  const [finished, setFinished] = useUrlParam('finished', '1');
+  const [pageParam, setPageParam] = useUrlParam('page', '0');
+
+  const onlyFinished = finished === '1';
+  const page = Number(pageParam) || 0;
+
+  // 입력 중인 글자까지 주소에 넣으면 한 자 칠 때마다 조회가 나간다.
+  // 찾기를 누른 것만 주소로 올린다.
+  const [keyword, setKeyword] = useState(query);
+
+  const inbound = staff?.department.deptType === 'EXAM';
+
+  /**
+   * 이름으로 찾으려면 원내에 먼저 물어야 한다.
+   *
+   * 업무 쪽에는 이름이 없다. 여기서 가명 목록을 받아 그것으로 거른다.
+   * 원내에 닿지 못하면 이름 검색만 안 되고 요청번호 검색은 그대로 된다 —
+   * 조회가 통째로 실패하는 것보다 낫다.
+   */
+  const nameMatches = useQuery({
+    queryKey: ['phi', 'search', query],
+    queryFn: () => searchSubjectRefs(query),
+    enabled: !!query,
+    retry: 1,
+  });
+  const nameSearchDown = !!query && nameMatches.isError;
+
+  const { data, isPending, isError, error, refetch } = useQuery({
+    queryKey: ['transfer-history', from, to, query, nameMatches.data, onlyFinished, page],
+    // 가명을 받아오는 중에 조회하면 이름으로 찾은 것이 빠진 결과가 잠깐 보인다.
+    enabled: !query || !nameMatches.isPending,
+    queryFn: async () =>
+      (await api.get<PageResponse<OrderSummary>>('/work-orders', {
+        params: {
+          direction: inbound ? 'INBOUND' : 'OUTBOUND',
+          from, to, page, size: 30,
+          ...(query ? { keyword: query } : {}),
+          ...(nameMatches.data?.length ? { subjectRefs: nameMatches.data } : {}),
+          ...(onlyFinished ? { status: FINISHED } : {}),
+        },
+        paramsSerializer: { indexes: null },
+      })).data,
+  });
+
+  // 목록의 가명들을 한 번에 사람으로 되돌린다. 업무 응답에는 이름이 없다.
+  // 원내에 닿지 못하면 이름 자리만 비고 업무 흐름은 그대로 돈다.
+  const briefs = useSubjectBriefs((data?.content ?? []).map((r) => r.subjectRef));
+
+  const detailPath = inbound ? '/service/requests' : '/ward/requests';
+
+  return (
+    <div className="mx-auto max-w-5xl p-6">
+      <div className="mb-5">
+        <h1 className="text-xl font-bold text-slate-900">지난 요청</h1>
+        <p className="text-sm text-slate-500">
+          {inbound ? '우리 검사실로 들어온' : '우리 병동이 보낸'} 요청을 기간으로 찾습니다.
+        </p>
+      </div>
+
+      <form
+        className="mb-4 flex flex-wrap items-center gap-2 text-sm"
+        onSubmit={(e) => {
+          e.preventDefault();
+          // 조건이 바뀌면 첫 쪽으로 돌아간다. 3쪽을 보다 검색하면 결과가 없을 수 있다.
+          setQuery(keyword.trim(), { page: '' });
+        }}
+      >
+        <input
+          type="date" value={from} max={to}
+          onChange={(e) => setFrom(e.target.value, { page: '' })}
+          className="rounded-lg border border-slate-300 px-2 py-1.5"
+        />
+        <span className="text-slate-400">~</span>
+        <input
+          type="date" value={to} min={from}
+          onChange={(e) => setTo(e.target.value, { page: '' })}
+          className="rounded-lg border border-slate-300 px-2 py-1.5"
+        />
+        <input
+          value={keyword}
+          onChange={(e) => setKeyword(e.target.value)}
+          placeholder="환자명 또는 요청번호"
+          className="w-52 rounded-lg border border-slate-300 px-3 py-1.5"
+        />
+        <button type="submit" className="rounded-lg bg-slate-800 px-4 py-1.5 font-semibold text-white">
+          찾기
+        </button>
+        {/*
+          이름 검색이 막혔다는 것을 말해 준다. 아무 말 없이 요청번호로만 찾으면
+          "그 환자 요청이 없다" 로 읽힌다. 없는 것과 못 찾는 것은 다르다.
+        */}
+        {nameSearchDown && (
+          <span className="text-xs text-amber-700">
+            환자명 검색은 원내망에서만 됩니다 (요청번호로는 찾을 수 있습니다)
+          </span>
+        )}
+        <label className="ml-2 flex items-center gap-1.5 text-slate-600">
+          <input
+            type="checkbox"
+            checked={onlyFinished}
+            onChange={(e) => setFinished(e.target.checked ? '1' : '0', { page: '' })}
+          />
+          끝난 것만
+        </label>
+      </form>
+
+      {isPending && <TableSkeleton rows={4} />}
+      {isError && <LoadFailed error={error} onRetry={() => void refetch()} compact />}
+
+      {data && (
+        <>
+          <p className="mb-2 text-sm text-slate-500">{data.totalElements}건</p>
+          <div className="overflow-x-auto rounded-xl bg-white shadow-sm ring-1 ring-slate-200">
+            <table className="w-full min-w-[820px] text-sm">
+              <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs text-slate-500">
+                <tr>
+                  <th className="px-3 py-2.5 font-medium">요청 시각</th>
+                  <th className="px-3 py-2.5 font-medium">요청번호</th>
+                  <th className="px-3 py-2.5 font-medium">환자</th>
+                  <th className="px-3 py-2.5 font-medium">검사</th>
+                  <th className="px-3 py-2.5 font-medium">{inbound ? '병동' : '검사실'}</th>
+                  <th className="px-3 py-2.5 font-medium">소요</th>
+                  <th className="px-3 py-2.5 font-medium">결과</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {data.content.map((row) => (
+                  <tr
+                    key={row.id}
+                    onClick={() => navigate(`${detailPath}/${row.id}`)}
+                    className="cursor-pointer hover:bg-slate-50"
+                  >
+                    <td className="whitespace-nowrap px-3 py-2.5 tabular-nums text-slate-500">
+                      {stamp(row.requestedAt)}
+                    </td>
+                    <td className="px-3 py-2.5 font-mono text-xs text-slate-600">{row.requestNo}</td>
+                    <td className="px-3 py-2.5">
+                      <OrderSubject row={row} brief={briefs.byRef.get(row.subjectRef ?? '')} unavailable={briefs.unavailable} />
+                    </td>
+                    <td className="px-3 py-2.5 text-slate-700">{row.itemName}</td>
+                    <td className="px-3 py-2.5 text-slate-700">{row.counterpartDepartment.name}</td>
+                    <td className="px-3 py-2.5 tabular-nums text-slate-700">{row.waitingMinutes}분</td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <StatusBadge status={row.status} label={row.statusLabel} />
+                        {row.priority !== 'ROUTINE' && <PriorityBadge priority={row.priority} />}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {data.content.length === 0 && (
+              <p className="px-4 py-12 text-center text-sm text-slate-500">
+                조건에 맞는 요청이 없습니다.
+              </p>
+            )}
+          </div>
+
+          {data.totalPages > 1 && (
+            <div className="mt-4 flex items-center justify-center gap-3 text-sm">
+              <button
+                type="button" disabled={page === 0}
+                onClick={() => setPageParam(String(page - 1))}
+                className="rounded-lg px-3 py-1.5 text-slate-600 disabled:text-slate-300"
+              >
+                이전
+              </button>
+              <span className="tabular-nums text-slate-500">{page + 1} / {data.totalPages}</span>
+              <button
+                type="button" disabled={page + 1 >= data.totalPages}
+                onClick={() => setPageParam(String(page + 1))}
+                className="rounded-lg px-3 py-1.5 text-slate-600 disabled:text-slate-300"
+              >
+                다음
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

@@ -13,8 +13,6 @@ public interface NursingNoteRepository extends JpaRepository<NursingNote, Long> 
 
     @Query(value = """
             select n from NursingNote n
-            join fetch n.recordedBy s
-            join fetch s.department
             where n.encounter.id = :encounterId
               and (:noteType is null or n.noteType = :noteType)
             order by n.recordedAt desc
@@ -28,8 +26,6 @@ public interface NursingNoteRepository extends JpaRepository<NursingNote, Long> 
 
     @Query("""
             select n from NursingNote n
-            join fetch n.recordedBy s
-            join fetch s.department
             join fetch n.encounter
             where n.id = :id
             """)

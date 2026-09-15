@@ -47,7 +47,7 @@ try {
 
   // ── 실제로 쓰는 기능이 CSP 에 막히지 않는지
   await page.getByRole('button', { name: /mri01/ }).click();
-  await page.waitForURL(/\/exam\/queue/, { timeout: 15000 });
+  await page.waitForURL(/\/service\/queue/, { timeout: 15000 });
   await page.waitForLoadState('networkidle');
   record(true, '로그인과 목록 조회');
 

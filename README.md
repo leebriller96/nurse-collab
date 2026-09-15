@@ -2,7 +2,8 @@
 
 [![CI](https://github.com/leebriller96/nurse-collab/actions/workflows/ci.yml/badge.svg)](https://github.com/leebriller96/nurse-collab/actions/workflows/ci.yml)
 
-**병동과 검사실 사이의 환자 이송을 전화 대신 시스템으로 처리하는 협업 도구.**
+**병동과 다른 파트 사이의 업무 요청을 전화 대신 시스템으로 처리하는 협업 도구.**
+이송(검사실)으로 시작해 검체 · 약제 · 의공까지 같은 흐름으로 다룬다.
 
 MRI·CT 검사를 위해 환자를 병동에서 검사실로 보내는 일은 지금도 대부분 전화로 이뤄진다.
 언제 걸었는지, 누가 받았는지, 무엇을 주의하라고 말했는지는 아무 데도 남지 않는다.
@@ -57,18 +58,70 @@ EMR 을 대체하지 않는다. **EMR 옆에 붙는 협업 레이어**로 만들
 
 이 프로젝트에서 실제로 고민한 지점들이다. 기능 목록보다 이쪽이 핵심이다.
 
-### 1. 상태 전이 규칙은 한 곳에만 있다
+### 1. 환자 정보는 업무 흐름과 갈려 있다
 
-이송 요청은 9개 상태를 오간다. 전이할 수 있는 조합, 그 전이를 누를 수 있는 쪽,
-사유나 예정시각이 필수인지가 전부 `TransferStatus.RULES` 테이블 하나에 들어 있다.
+업무 응답(`/work-orders`)에는 **이름도 진단명도 주의사항도 없다.**
+환자는 `subjectRef` 라는 불투명한 UUID 로만 가리키고,
+그것을 사람으로 되돌리는 것은 원내 전용 경로(`/phi`)뿐이다.
 
-```java
-new Rule(REQUESTED, ACCEPTED,  ActorSide.PERFORMER, false, true),   // 접수는 검사실이, 예정시각 필수
-new Rule(READY,     IN_TRANSIT, ActorSide.REQUESTER, false, false), // 출발은 병동이
+```jsonc
+// GET /work-orders/1  — 업무 쪽 응답에 있는 것 전부
+{
+  "requestNo": "TR20260912-0001",
+  "status": "ACCEPTED", "statusLabel": "접수됨",
+  "episode": { "subjectRef": "6d1f…", "roomNo": "302", "bedNo": "1" },
+  "serviceItem": { "name": "뇌 MRI", "requiredAlerts": ["METAL_IMPLANT"] }
+}
 ```
 
+**합치는 곳은 서버가 아니라 브라우저다.** 서버에서 합치면 업무 쪽이 이름을
+지나가며 보게 되고, 나눈 의미가 절반 날아간다.
+
+그래서 이런 모습이 된다 — **원내망을 벗어나면 업무는 그대로 돌고 사람만 사라진다.**
+이때 빈칸으로 두지 않고 "원내망에서만 조회됩니다" 라고 말한다.
+특히 확인 경고는 감추지 않는다. "경고가 없다" 와 "경고를 못 받았다" 를 같게
+보여주면 금기 환자를 그냥 검사실로 보내게 된다.
+
+가명은 사람이 아니라 **재원 건**에 붙는다. 같은 사람이 3년 뒤 다시 입원하면
+다른 열쇠를 받는다. 사람에 붙이면 업무 데이터만 보고도 "이 사람이 네 번 입원했다" 를
+알 수 있고, 그건 가명정보라고 부르기 어렵다.
+
+`e2e/check-phi-split.mjs` 가 일부러 원내를 끊어 본다.
+원내가 살아 있으면 화면은 늘 멀쩡해 보여서, 끊어 봐야 무엇이 어디서 오는지 드러난다.
+
+### 2. 상태 전이 규칙은 한 곳에만 있다
+
+업무 종류마다 흐름이 다르다. 전이할 수 있는 조합, 그 전이를 누를 수 있는 쪽,
+사유나 예정시각이 필수인지가 전부 `OrderType` 의 종류별 규칙표에 들어 있다.
+
+```java
+RULES.put(TRANSFER, List.of(
+    new Rule(REQUESTED, ACCEPTED,   PERFORMER, false, true),   // 접수는 검사실이, 예정시각 필수
+    new Rule(READY,     IN_TRANSIT, REQUESTER, false, false),  // 출발은 병동이
+    ...));
+
+RULES.put(EQUIPMENT, List.of(
+    // 어떤 부품을 기다리는지 적지 않으면 언제 끝날지 아무도 모른다
+    new Rule(IN_PROGRESS, AWAITING_PARTS, PERFORMER, true, false),
+    // 고친 사람이 끝냈다고 말한다. 병동의 확인을 기다리지 않는 유일한 종류다
+    new Rule(IN_PROGRESS, COMPLETED,      PERFORMER, false, false),
+    ...));
+```
+
+| 종류 | 요청 → 수행 | 환자 | 흐름 |
+|---|---|---|---|
+| 이송 | 병동 → 검사실 | 있음 | 요청 → 접수 → 준비완료 → 이송중 → 검사중 → 복귀중 → 완료 |
+| 검체 | 병동 → 진단검사의학과 | 있음 | 요청 → 접수 → 채취완료 → 검사중 → 결과등록 → 완료 |
+| 약제 | 병동 → 약제부 | 있음 | 요청 → 접수 → 조제중 → 조제완료 → 불출완료 → 완료 |
+| 의공 | 병동 → 의공학팀 | **없음** | 요청 → 접수 → 수리중 → (부품대기) → 완료 |
+
+의공을 넣은 이유는 **이것만 환자가 없기** 때문이다.
+셋 다 "환자가 있고 병동이 건다" 면 일반화가 됐는지 알 수 없다.
+`encounter_id` 가 NULL 이 되면서 재원 정보를 그냥 꺼내 쓰던 자리가 전부 드러났다.
+
 서비스나 컨트롤러에는 `if (status == ...)` 분기가 없다.
-새 상태를 추가할 때 고칠 곳이 한 군데여야 하기 때문이다.
+새 상태나 종류를 추가할 때 고칠 곳이 한 군데여야 하기 때문이다.
+화면도 규칙표를 들지 않는다. 버튼의 이름·행동·필수 입력을 서버가 함께 내려준다.
 API 응답의 `availableTransitions` 도 이 표에서 그대로 나오므로,
 화면의 버튼과 서버의 검증이 어긋날 수 없다.
 
@@ -95,7 +148,7 @@ stateDiagram-v2
 보류는 규칙표에 넣지 않았다. 해제하면 "직전 상태"로 돌아가야 하는데
 그 값이 고정이 아니라서, 저장해 둔 이전 상태를 보고 엔티티가 직접 처리한다.
 
-### 2. 환자 정보 접근은 소속이 아니라 관계로 판단한다
+### 3. 환자 정보 접근은 소속이 아니라 관계로 판단한다
 
 "검사실 간호사니까 환자를 볼 수 있다" 는 틀렸다.
 **나에게 온 요청에 걸린 환자만** 볼 수 있어야 하고, 요청이 끝나면 그 권한도 사라져야 한다.
@@ -108,11 +161,11 @@ transferRequestRepository.existsActiveByEncounterAndToDepartment(encounterId, de
 같은 이유로 조회 결과도 보는 사람에 따라 달라진다.
 병동은 자기 환자 전체를 보고, 검사실은 요청에 걸린 환자만, 그것도 검사에 필요한 항목만 본다.
 
-### 3. 두 사람이 동시에 눌러도 한 명만 성공한다
+### 4. 두 사람이 동시에 눌러도 한 명만 성공한다
 
 검사실 간호사 둘이 같은 요청을 동시에 접수하면 환자가 두 번 불려 간다.
 요청에 `@Version` 을 걸고, 전이 요청에 클라이언트가 들고 있던 버전을 함께 받는다.
-늦게 도착한 쪽은 `409 TR-002` 로 막힌다.
+늦게 도착한 쪽은 `409 ORD-002` 로 막힌다.
 
 여기서 실제로 버그를 하나 만났다.
 `@Version` 은 flush 시점에 올라가는데 그 전에 응답을 만들면 **증가하지 않은 버전이 나간다.**
@@ -129,7 +182,7 @@ return TransitionResponse.of(request, actor);
 **실시간은 충돌을 줄이지만 없애지는 못한다** — 진짜 동시에 누르는 경우가 남는다.
 그래서 시연 스크립트는 한쪽 요청을 잠시 붙잡아 두고 그사이 다른 사람이 커밋하게 만든다.
 
-### 4. 알림은 반드시 커밋 이후에 나간다
+### 5. 알림은 반드시 커밋 이후에 나간다
 
 트랜잭션 안에서 알림을 보내면, 그 뒤에 롤백이 났을 때
 **일어나지 않은 일에 대한 알림**이 이미 나가 있다.
@@ -145,19 +198,19 @@ return TransitionResponse.of(request, actor);
 알림 메시지와 실제 데이터가 어긋나는 경우를 아예 없애기 위해서다.
 폴링은 60초 보조 장치로만 남겼다.
 
-### 5. 기록은 지우지 않는다
+### 6. 기록은 지우지 않는다
 
-`transfer_event`, `nursing_note`, `audit_log` 에는 DELETE 가 없다. API 도 만들지 않았다.
+`work_order_event`, `nursing_note`, `audit_log` 에는 DELETE 가 없다. API 도 만들지 않았다.
 
 - 간호기록은 **본인이 24시간 안에만** 고칠 수 있고, 고치기 전 내용은 감사 로그에 before/after 로 남는다
-- 부서·직원·검사 종류도 삭제하지 않고 **사용 중지**만 한다. 지난 요청 이력이 그 이름을 참조하고 있기 때문이다
+- 부서·직원·업무 항목도 삭제하지 않고 **사용 중지**만 한다. 지난 요청 이력이 그 이름을 참조하고 있기 때문이다
 - 환자 정보를 열어본 것 자체도 `@Audited` + AOP 로 자동 적재된다
 
 감사 로그 적재가 실패해도 조회는 성공한다. 기록을 남기지 못했다는 이유로
 간호사가 환자 정보를 못 보게 되면 안 되기 때문이다.
 대신 이 설계 때문에 **적재 실패가 조용히 넘어간다** — 개발 중에 이걸 눈치채는 데 세 번의 재기동이 걸렸다.
 
-### 6. 오프라인에서 낡은 값을 보여주지 않는다
+### 7. 오프라인에서 낡은 값을 보여주지 않는다
 
 폰에 설치해 앱처럼 쓴다. 서비스 워커가 앱 껍데기를 캐시하지만
 **API 응답은 캐시하지 않는다.**
@@ -177,7 +230,7 @@ return TransitionResponse.of(request, actor);
 근무 중에 앱이 하얗게 변하면 간호사는 결국 전화기를 든다.
 이 프로젝트가 없애려던 바로 그 전화다.
 
-### 7. 화면에 개발자의 말을 쓰지 않는다
+### 8. 화면에 개발자의 말을 쓰지 않는다
 
 `ACCEPTED`, `IN_TRANSIT` 같은 상태 이름은 화면에 나오지 않는다.
 버튼에는 다음에 할 일이 적혀 있다 — **접수 / 준비 완료 / 환자 출발 / 검사 시작 / 검사 종료 / 병동 도착**.
@@ -231,12 +284,20 @@ npm run dev                   # http://localhost:5173
 이미지 두 개(백엔드 JAR, Caddy + 정적 파일)와 DB · Redis 를 한 번에 올린다.
 
 ```bash
-cp .env.example .env          # POSTGRES_PASSWORD, JWT_SECRET, SITE_ADDRESS 를 채운다
+cp .env.example .env          # POSTGRES_PASSWORD, JWT_KEYS_DIR, SITE_ADDRESS 를 채운다
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
 서버와 도메인을 고르는 것부터 폰에서 열어 보는 것까지는
 [docs/05-deployment.md](docs/05-deployment.md) 에 단계별로 적어 두었다.
+
+**원내 서버를 따로 띄울 수도 있다.** 같은 이미지를 업무 서버(`cloud`)와 원내 서버(`onprem`)로
+나눠 올리고, 원내 DB 를 따로 둔다. 업무 서버는 원내 망에 붙지 않아 원내 DB 에 닿지 못한다.
+CI 는 이 구성으로 스택을 올려 격리를 확인한 뒤 브라우저 검사를 돌린다.
+
+```bash
+docker compose -f docker-compose.split.yml up -d --build   # PHI_POSTGRES_PASSWORD 도 채운다
+```
 
 `SITE_ADDRESS` 에 도메인을 넣으면 **Caddy 가 인증서를 받아 HTTPS 로 뜬다.**
 발급과 갱신이 자동이다. 비워 두면 `:80` 평문으로 떠서 로컬 확인용이 된다.
@@ -282,6 +343,9 @@ cd e2e && node check-pwa.mjs
 | `head01` | 수간호사 | 3병동 | 환자 보드 + 통계 |
 | `mri01` | 간호사 | MRI실 | 들어온 요청 |
 | `ct01` | 간호사 | CT실 | 들어온 요청 |
+| `lab01` | 간호사 | 진단검사의학과 | 들어온 검체 |
+| `pharm01` | 간호사 | 약제부 | 들어온 조제 요청 |
+| `bme01` | 간호사 | 의공학팀 | 들어온 수리 요청 |
 | `admin01` | 관리자 | 전산팀 | 통계 · 접근 기록 · 기준 정보 |
 
 로그인 화면에 계정 버튼이 있어 아이디를 칠 필요는 없다.
@@ -307,13 +371,16 @@ node rehearsal.mjs            # recordings/ 에 webm 으로 저장된다
 node screenshots.mjs          # README 용 스크린샷을 다시 뽑는다
 ```
 
-시연용 데이터는 아래 한 줄로 다시 심는다. 데이터를 비우고 Flyway 시드를 재적재한 뒤
-요청 11건을 **실제 API 로** 만든다. SQL 로 직접 꽂으면 이력과 감사 로그가 비어
+시연용 데이터는 아래 한 줄로 다시 심는다. 데이터를 비우고 `ops/demo-reset/seed/` 의 시드를
+재적재한 뒤 요청 20건을 **실제 API 로** 만든다. SQL 로 직접 꽂으면 이력이 비어
 통계·이력 화면이 텅 빈 채로 나오기 때문이다.
 
 ```bash
-PG_VIA_DOCKER=nurse-collab-postgres MIGRATION_DIR=src/main/resources/db/migration node ops/demo-reset/reset.mjs
+PG_VIA_DOCKER=nurse-collab-postgres SEED_DIR=ops/demo-reset/seed node ops/demo-reset/reset.mjs
 ```
+
+시드는 `seed/work`(업무 DB)와 `seed/phi`(원내 DB)로 나뉜다. 원내 DB 접속 정보(`PHI_PG*`)를
+주지 않으면 둘 다 한 DB 에 넣는다.
 
 공개 배포에서는 같은 스크립트가 컨테이너로 돌면서 **매일 새벽 데이터를 되돌린다.**
 데모 계정 비밀번호를 공개해 두었으므로 누구나 로그인해 데이터를 바꿀 수 있기 때문이다.
@@ -325,13 +392,13 @@ PG_VIA_DOCKER=nurse-collab-postgres MIGRATION_DIR=src/main/resources/db/migratio
 ```
 src/main/java/com/nursecollab/
 ├── domain/
-│   ├── transfer/       이송 요청 — 상태 전이 규칙, 요청번호 발번, 메시지
+│   ├── workorder/      업무 요청 — 종류별 상태 전이 규칙, 요청번호 발번, 메시지
 │   ├── encounter/      재원 · 환자 조회 (보는 사람에 따라 결과가 달라진다)
 │   ├── nursing/        활력징후, 간호기록(SBAR)
 │   ├── notification/   알림함
 │   ├── stats/          대기시간 집계 (SQL)
 │   ├── audit/          접근 기록 조회
-│   ├── master/         부서 · 직원 · 검사 종류 관리
+│   ├── master/         부서 · 직원 · 업무 항목 관리
 │   ├── staff/          인증
 │   ├── department/
 │   └── patient/

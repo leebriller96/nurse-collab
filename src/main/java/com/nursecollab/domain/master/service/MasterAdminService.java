@@ -4,15 +4,16 @@ import com.nursecollab.domain.department.dto.DepartmentResponse;
 import com.nursecollab.domain.department.entity.Department;
 import com.nursecollab.domain.department.repository.DepartmentRepository;
 import com.nursecollab.domain.master.dto.DepartmentUpsertRequest;
-import com.nursecollab.domain.master.dto.ExamTypeUpsertRequest;
+import com.nursecollab.domain.master.dto.ServiceItemUpsertRequest;
 import com.nursecollab.domain.master.dto.StaffAdminResponse;
 import com.nursecollab.domain.master.dto.StaffCreateRequest;
 import com.nursecollab.domain.master.dto.StaffUpdateRequest;
 import com.nursecollab.domain.staff.entity.Staff;
 import com.nursecollab.domain.staff.repository.StaffRepository;
-import com.nursecollab.domain.transfer.dto.ExamTypeResponse;
-import com.nursecollab.domain.transfer.entity.ExamType;
-import com.nursecollab.domain.transfer.repository.ExamTypeRepository;
+import com.nursecollab.domain.workorder.dto.ServiceItemResponse;
+import com.nursecollab.domain.workorder.entity.ServiceItem;
+import com.nursecollab.domain.workorder.repository.ServiceItemRepository;
+import com.nursecollab.global.audit.AuditRecorder;
 import com.nursecollab.global.error.BusinessException;
 import com.nursecollab.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -20,12 +21,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
- * 부서·직원·검사 종류 관리.
+ * 부서·직원·업무 항목 관리.
  *
- * 어느 것도 지우지 않는다. 부서나 검사 종류를 삭제하면 그것을 참조하던
+ * 어느 것도 지우지 않는다. 부서나 업무 항목을 삭제하면 그것을 참조하던
  * 지난 요청의 이력을 읽을 수 없게 된다. 기록은 남기고 새로 고르지만 못하게 한다.
  */
 @Service
@@ -34,8 +37,9 @@ public class MasterAdminService {
 
     private final DepartmentRepository departmentRepository;
     private final StaffRepository staffRepository;
-    private final ExamTypeRepository examTypeRepository;
+    private final ServiceItemRepository serviceItemRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuditRecorder auditRecorder;
 
     // ------------------------------------------------------------------
     // 부서
@@ -99,16 +103,39 @@ public class MasterAdminService {
     /**
      * 비밀번호는 여기서 다루지 않는다.
      * 관리자가 남의 비밀번호를 아무 때나 바꿀 수 있으면 그 계정으로 한 일을 본인이 했다고 말할 수 없다.
+     *
+     * 바뀐 것이 있으면 전후를 감사 기록에 남긴다. 저장을 먼저 확정한 뒤 남긴다 —
+     * 기록은 따로 커밋되므로, 순서가 바뀌면 실패한 수정이 "바꿨다" 로 남는다.
      */
     @Transactional
-    public StaffAdminResponse updateStaff(Long id, StaffUpdateRequest req) {
+    public StaffAdminResponse updateStaff(Long id, StaffUpdateRequest req, Long actorId) {
         Staff staff = staffRepository.findByIdWithDepartment(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MASTER_NOT_FOUND));
         Department department = departmentRepository.findById(req.departmentId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.MASTER_NOT_FOUND));
 
+        Map<String, Object> before = profileOf(staff);
         staff.updateProfile(req.name(), req.role(), department, req.phone());
+        staffRepository.flush();
+        Map<String, Object> after = profileOf(staff);
+
+        if (!before.equals(after)) {
+            Map<String, Object> detail = new LinkedHashMap<>();
+            detail.put("before", before);
+            detail.put("after", after);
+            auditRecorder.recordRequest(actorId, "UPDATE", "STAFF", id, detail);
+        }
         return StaffAdminResponse.from(staff);
+    }
+
+    private static Map<String, Object> profileOf(Staff staff) {
+        Map<String, Object> profile = new LinkedHashMap<>();
+        profile.put("name", staff.getName());
+        profile.put("role", staff.getRole().name());
+        profile.put("departmentId", staff.getDepartment().getId());
+        profile.put("departmentName", staff.getDepartment().getName());
+        profile.put("phone", staff.getPhone());
+        return profile;
     }
 
     @Transactional
@@ -119,42 +146,42 @@ public class MasterAdminService {
     }
 
     // ------------------------------------------------------------------
-    // 검사 종류
+    // 업무 항목
     // ------------------------------------------------------------------
 
     @Transactional
-    public ExamTypeResponse createExamType(ExamTypeUpsertRequest req) {
-        if (examTypeRepository.existsByCode(req.code())) {
+    public ServiceItemResponse createServiceItem(ServiceItemUpsertRequest req) {
+        if (serviceItemRepository.existsByCode(req.code())) {
             throw new BusinessException(ErrorCode.DUPLICATE_CODE);
         }
         Department department = departmentRepository.findById(req.departmentId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.MASTER_NOT_FOUND));
 
-        ExamType saved = examTypeRepository.save(ExamType.create(
-                req.code(), req.name(), department, req.defaultDuration(),
+        ServiceItem saved = serviceItemRepository.save(ServiceItem.create(
+                req.code(), req.name(), req.orderType(), department, req.defaultDuration(),
                 req.prepInstruction(), req.requiredAlerts()));
-        return ExamTypeResponse.from(saved);
+        return ServiceItemResponse.from(saved);
     }
 
     @Transactional
-    public ExamTypeResponse updateExamType(Long id, ExamTypeUpsertRequest req) {
-        ExamType examType = examTypeRepository.findByIdWithDepartment(id)
+    public ServiceItemResponse updateServiceItem(Long id, ServiceItemUpsertRequest req) {
+        ServiceItem serviceItem = serviceItemRepository.findByIdWithDepartment(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MASTER_NOT_FOUND));
 
-        if (!examType.getCode().equals(req.code()) && examTypeRepository.existsByCode(req.code())) {
+        if (!serviceItem.getCode().equals(req.code()) && serviceItemRepository.existsByCode(req.code())) {
             throw new BusinessException(ErrorCode.DUPLICATE_CODE);
         }
         Department department = departmentRepository.findById(req.departmentId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.MASTER_NOT_FOUND));
 
-        examType.update(req.code(), req.name(), department, req.defaultDuration(),
+        serviceItem.update(req.code(), req.name(), department, req.defaultDuration(),
                 req.prepInstruction(), req.requiredAlerts());
-        return ExamTypeResponse.from(examType);
+        return ServiceItemResponse.from(serviceItem);
     }
 
     @Transactional
-    public void deactivateExamType(Long id) {
-        examTypeRepository.findById(id)
+    public void deactivateServiceItem(Long id) {
+        serviceItemRepository.findById(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MASTER_NOT_FOUND))
                 .deactivate();
     }

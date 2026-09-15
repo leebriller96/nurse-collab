@@ -1,0 +1,126 @@
+package com.nursecollab.domain.workorder.service;
+
+import com.nursecollab.domain.episode.entity.CareEpisode;
+import com.nursecollab.domain.episode.repository.CareEpisodeRepository;
+import com.nursecollab.domain.staff.entity.Staff;
+import com.nursecollab.domain.staff.repository.StaffRepository;
+import com.nursecollab.domain.workorder.dto.WorkOrderCreateRequest;
+import com.nursecollab.domain.workorder.dto.WorkOrderCreateResponse;
+import com.nursecollab.domain.workorder.dto.TransitionRequest;
+import com.nursecollab.domain.workorder.dto.TransitionResponse;
+import com.nursecollab.domain.workorder.entity.ActorSide;
+import com.nursecollab.domain.workorder.entity.ServiceItem;
+import com.nursecollab.domain.workorder.entity.WorkOrderEvent;
+import com.nursecollab.domain.workorder.entity.WorkOrder;
+import com.nursecollab.domain.workorder.entity.OrderStatus;
+import com.nursecollab.domain.workorder.event.WorkOrderCreatedEvent;
+import com.nursecollab.domain.workorder.event.WorkOrderStatusChangedEvent;
+import com.nursecollab.domain.workorder.repository.ServiceItemRepository;
+import com.nursecollab.domain.workorder.repository.WorkOrderEventRepository;
+import com.nursecollab.domain.workorder.repository.WorkOrderRepository;
+import com.nursecollab.global.error.BusinessException;
+import com.nursecollab.global.error.ErrorCode;
+import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDate;
+
+@Service
+@RequiredArgsConstructor
+public class WorkOrderService {
+
+    private final WorkOrderRepository requestRepository;
+    private final WorkOrderEventRepository eventRepository;
+    private final StaffRepository staffRepository;
+    private final CareEpisodeRepository careEpisodeRepository;
+    private final ServiceItemRepository serviceItemRepository;
+    private final RequestNoGenerator requestNoGenerator;
+    private final ApplicationEventPublisher eventPublisher;
+
+    /**
+     * 업무 요청 생성.
+     * 생성도 하나의 상태 전이(없음 → REQUESTED)로 보고 이력을 함께 남긴다.
+     * 그래야 타임라인의 첫 줄이 비지 않고, 대기시간 계산의 기준점이 생긴다.
+     */
+    @Transactional
+    public WorkOrderCreateResponse create(WorkOrderCreateRequest req, Long staffId) {
+
+        Staff requester = staffRepository.findByIdWithDepartment(staffId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.STAFF_NOT_FOUND));
+
+        ServiceItem serviceItem = serviceItemRepository.findByIdWithDepartment(req.serviceItemId())
+                .orElseThrow(() -> new BusinessException(ErrorCode.SERVICE_ITEM_NOT_FOUND));
+
+        // 장비 수리처럼 환자가 없는 업무가 있다. 비었는지 아닌지의 판정은 엔티티가 한다.
+        // 여기서 종류를 다시 보고 분기하면 규칙이 두 군데로 갈라진다.
+        CareEpisode episode = req.subjectRef() == null ? null
+                : careEpisodeRepository.findWithDepartment(req.subjectRef())
+                        .orElseThrow(() -> new BusinessException(ErrorCode.ENCOUNTER_NOT_FOUND));
+
+        // 퇴원 여부와 병동 일치 검증도 엔티티가 한다. 둘 다 환자 정보 없이 판정된다.
+        WorkOrder request = WorkOrder.create(
+                requestNoGenerator.generate(serviceItem.getOrderType(), LocalDate.now()),
+                episode, serviceItem, requester,
+                req.priority(), req.desiredAt(), req.note());
+
+        requestRepository.save(request);
+        eventRepository.save(WorkOrderEvent.of(
+                request, null, OrderStatus.REQUESTED, requester, null));
+
+        eventPublisher.publishEvent(new WorkOrderCreatedEvent(request.getId(), requester.getId()));
+
+        return WorkOrderCreateResponse.from(request);
+    }
+
+    /**
+     * 상태 전이 처리.
+     *
+     * 흐름: 조회 → 버전확인 → 행위자판정 → 상태변경(엔티티가 검증) → 이력적재 → 이벤트발행
+     * 알림 발송은 여기서 직접 하지 않고 도메인 이벤트로 넘긴다.
+     * 트랜잭션이 롤백됐는데 알림만 나가는 사고를 막기 위해서다.
+     */
+    @Transactional
+    public TransitionResponse transition(Long requestId, TransitionRequest req, Long staffId) {
+
+        WorkOrder request = requestRepository.findByIdWithDepartments(requestId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.REQUEST_NOT_FOUND));
+
+        Staff actor = staffRepository.findByIdWithDepartment(staffId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.STAFF_NOT_FOUND));
+
+        // 클라이언트가 보고 있던 버전과 현재 버전이 같은지 먼저 확인한다.
+        // JPA @Version 도 flush 시점에 걸러주지만, 여기서 막아야 사용자에게 친절한 메시지를 줄 수 있다.
+        if (!request.getVersion().equals(req.version())) {
+            throw new BusinessException(ErrorCode.VERSION_CONFLICT);
+        }
+
+        ActorSide side = request.resolveActorSide(actor);
+        OrderStatus fromStatus = request.getStatus();
+        OrderStatus toStatus = parseStatus(req.toStatus());
+
+        // 검증과 상태 변경은 엔티티가 스스로 한다 (서비스에 if 문을 쌓지 않는다)
+        request.transitionTo(toStatus, side, req.reason(), req.scheduledAt());
+
+        eventRepository.save(WorkOrderEvent.of(request, fromStatus, toStatus, actor, req.reason()));
+
+        eventPublisher.publishEvent(new WorkOrderStatusChangedEvent(
+                request.getId(), fromStatus, toStatus, actor.getId()));
+
+        // @Version 은 flush 시점에 올라간다. 여기서 밀어내지 않으면 아직 증가하지 않은 버전이
+        // 응답에 실리고, 클라이언트는 그 값으로 다음 요청을 보내 매번 409 를 맞는다.
+        requestRepository.flush();
+
+        return TransitionResponse.of(request, actor);
+    }
+
+    private OrderStatus parseStatus(String value) {
+        try {
+            return OrderStatus.from(value);
+        } catch (IllegalArgumentException e) {
+            // 규칙표에 없는 이름이 오면 "허용되지 않는 전이" 와 같은 취급을 한다
+            throw new BusinessException(ErrorCode.INVALID_TRANSITION);
+        }
+    }
+}

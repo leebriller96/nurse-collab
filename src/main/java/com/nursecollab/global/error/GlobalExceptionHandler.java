@@ -64,7 +64,7 @@ public class GlobalExceptionHandler {
 
     /**
      * 경로 변수나 쿼리 파라미터가 빠졌거나 타입이 맞지 않는 경우.
-     * /transfer-requests/abc 처럼 숫자가 아닌 id 가 오면 여기로 온다.
+     * /work-orders/abc 처럼 숫자가 아닌 id 가 오면 여기로 온다.
      * 서버 잘못이 아니므로 400 으로 돌려준다.
      */
     @ExceptionHandler({MethodArgumentTypeMismatchException.class,

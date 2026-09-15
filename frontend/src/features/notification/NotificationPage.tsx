@@ -53,7 +53,7 @@ export default function NotificationPage() {
   if (isPending) return <CardListSkeleton rows={5} />;
   if (isError) return <LoadFailed error={error} onRetry={() => void refetch()} />;
 
-  const detailPath = staff?.department.deptType === 'EXAM' ? '/exam/requests' : '/ward/requests';
+  const detailPath = staff?.department.deptType === 'EXAM' ? '/service/requests' : '/ward/requests';
 
   return (
     <PullToRefresh onRefresh={refetch}>

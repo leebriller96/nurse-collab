@@ -5,14 +5,20 @@ import com.nursecollab.domain.staff.entity.Staff;
 import com.nursecollab.domain.staff.entity.StaffRole;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.security.Keys;
 import org.springframework.stereotype.Component;
 
-import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
+import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.time.Instant;
 import java.util.Date;
 
+/**
+ * 토큰을 만들고 검증한다.
+ *
+ * 발급은 개인키가 있는 역할만 한다. 원내 게이트웨이처럼 검증만 하는 역할은
+ * 개인키 없이 뜬다. 없는데 발급을 시도하면 조용히 넘어가지 않고 터진다 —
+ * 그 역할이 토큰을 만들 수 있게 된 것 자체가 설정 사고이기 때문이다.
+ */
 @Component
 public class JwtTokenProvider {
 
@@ -26,12 +32,29 @@ public class JwtTokenProvider {
     private static final String TYPE_ACCESS = "access";
     private static final String TYPE_REFRESH = "refresh";
 
-    private final SecretKey key;
+    private final PrivateKey signingKey;
+    private final PublicKey verifyKey;
     private final JwtProperties properties;
 
     public JwtTokenProvider(JwtProperties properties) {
         this.properties = properties;
-        this.key = Keys.hmacShaKeyFor(properties.secret().getBytes(StandardCharsets.UTF_8));
+        this.verifyKey = JwtKeys.readPublic(properties.publicKey());
+        this.signingKey = properties.privateKey() == null
+                ? null
+                : JwtKeys.readPrivate(properties.privateKey());
+    }
+
+    /** 이 역할이 토큰을 발급할 수 있는가. 원내 게이트웨이는 못 한다. */
+    public boolean canIssue() {
+        return signingKey != null;
+    }
+
+    private PrivateKey requireSigningKey() {
+        if (signingKey == null) {
+            throw new IllegalStateException(
+                    "이 역할에는 서명용 개인키가 없습니다. 토큰 발급은 인증 서버가 합니다.");
+        }
+        return signingKey;
     }
 
     public String createAccessToken(Staff staff) {
@@ -46,7 +69,7 @@ public class JwtTokenProvider {
                 .claim(CLAIM_DEPARTMENT_TYPE, staff.getDepartment().getDeptType().name())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(properties.accessTokenValidity())))
-                .signWith(key)
+                .signWith(requireSigningKey())
                 .compact();
     }
 
@@ -57,14 +80,14 @@ public class JwtTokenProvider {
                 .claim(CLAIM_TOKEN_TYPE, TYPE_REFRESH)
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(properties.refreshTokenValidity())))
-                .signWith(key)
+                .signWith(requireSigningKey())
                 .compact();
     }
 
     /** 서명과 만료를 검증한다. 실패하면 io.jsonwebtoken.JwtException 계열이 던져진다. */
     public Claims parse(String token) {
         return Jwts.parser()
-                .verifyWith(key)
+                .verifyWith(verifyKey)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();

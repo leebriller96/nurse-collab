@@ -2,13 +2,14 @@ package com.nursecollab.domain.master.controller;
 
 import com.nursecollab.domain.department.dto.DepartmentResponse;
 import com.nursecollab.domain.master.dto.DepartmentUpsertRequest;
-import com.nursecollab.domain.master.dto.ExamTypeUpsertRequest;
+import com.nursecollab.domain.master.dto.ServiceItemUpsertRequest;
 import com.nursecollab.domain.master.dto.StaffAdminResponse;
 import com.nursecollab.domain.master.dto.StaffCreateRequest;
 import com.nursecollab.domain.master.dto.StaffUpdateRequest;
 import com.nursecollab.domain.master.service.MasterAdminService;
 import com.nursecollab.domain.staff.entity.StaffRole;
-import com.nursecollab.domain.transfer.dto.ExamTypeResponse;
+import com.nursecollab.domain.workorder.dto.ServiceItemResponse;
+import com.nursecollab.global.audit.Audited;
 import com.nursecollab.global.error.BusinessException;
 import com.nursecollab.global.error.ErrorCode;
 import com.nursecollab.global.security.LoginStaff;
@@ -30,6 +31,9 @@ import java.util.List;
 /**
  * 마스터 관리. 조회는 각 도메인 컨트롤러가 하고 변경만 여기 모은다.
  * 변경은 전부 관리자만 한다.
+ *
+ * 변경은 전부 업무 감사 기록에 남는다. 직원 수정만 서비스가 전후를 직접 적는다 —
+ * 역할과 소속을 누가 무엇에서 무엇으로 바꿨는지가 이 기록이 답해야 할 첫 질문이다.
  */
 @RestController
 @RequestMapping("/api/v1")
@@ -39,6 +43,7 @@ public class MasterAdminController {
     private final MasterAdminService masterAdminService;
 
     @PostMapping("/departments")
+    @Audited(action = "CREATE", targetType = "DEPARTMENT")
     public ResponseEntity<DepartmentResponse> createDepartment(
             @Valid @RequestBody DepartmentUpsertRequest request,
             @AuthenticationPrincipal LoginStaff loginStaff) {
@@ -47,6 +52,7 @@ public class MasterAdminController {
     }
 
     @PutMapping("/departments/{id}")
+    @Audited(action = "UPDATE", targetType = "DEPARTMENT")
     public ResponseEntity<DepartmentResponse> updateDepartment(
             @PathVariable Long id,
             @Valid @RequestBody DepartmentUpsertRequest request,
@@ -56,6 +62,7 @@ public class MasterAdminController {
     }
 
     @PatchMapping("/departments/{id}/deactivate")
+    @Audited(action = "DEACTIVATE", targetType = "DEPARTMENT")
     public ResponseEntity<Void> deactivateDepartment(
             @PathVariable Long id, @AuthenticationPrincipal LoginStaff loginStaff) {
         requireAdmin(loginStaff);
@@ -71,6 +78,7 @@ public class MasterAdminController {
     }
 
     @PostMapping("/staff")
+    @Audited(action = "CREATE", targetType = "STAFF")
     public ResponseEntity<StaffAdminResponse> createStaff(
             @Valid @RequestBody StaffCreateRequest request,
             @AuthenticationPrincipal LoginStaff loginStaff) {
@@ -84,10 +92,11 @@ public class MasterAdminController {
             @Valid @RequestBody StaffUpdateRequest request,
             @AuthenticationPrincipal LoginStaff loginStaff) {
         requireAdmin(loginStaff);
-        return ResponseEntity.ok(masterAdminService.updateStaff(id, request));
+        return ResponseEntity.ok(masterAdminService.updateStaff(id, request, loginStaff.staffId()));
     }
 
     @PatchMapping("/staff/{id}/deactivate")
+    @Audited(action = "DEACTIVATE", targetType = "STAFF")
     public ResponseEntity<Void> deactivateStaff(
             @PathVariable Long id, @AuthenticationPrincipal LoginStaff loginStaff) {
         requireAdmin(loginStaff);
@@ -95,28 +104,31 @@ public class MasterAdminController {
         return ResponseEntity.noContent().build();
     }
 
-    @PostMapping("/exam-types")
-    public ResponseEntity<ExamTypeResponse> createExamType(
-            @Valid @RequestBody ExamTypeUpsertRequest request,
+    @PostMapping("/service-items")
+    @Audited(action = "CREATE", targetType = "SERVICE_ITEM")
+    public ResponseEntity<ServiceItemResponse> createServiceItem(
+            @Valid @RequestBody ServiceItemUpsertRequest request,
             @AuthenticationPrincipal LoginStaff loginStaff) {
         requireAdmin(loginStaff);
-        return ResponseEntity.ok(masterAdminService.createExamType(request));
+        return ResponseEntity.ok(masterAdminService.createServiceItem(request));
     }
 
-    @PutMapping("/exam-types/{id}")
-    public ResponseEntity<ExamTypeResponse> updateExamType(
+    @PutMapping("/service-items/{id}")
+    @Audited(action = "UPDATE", targetType = "SERVICE_ITEM")
+    public ResponseEntity<ServiceItemResponse> updateServiceItem(
             @PathVariable Long id,
-            @Valid @RequestBody ExamTypeUpsertRequest request,
+            @Valid @RequestBody ServiceItemUpsertRequest request,
             @AuthenticationPrincipal LoginStaff loginStaff) {
         requireAdmin(loginStaff);
-        return ResponseEntity.ok(masterAdminService.updateExamType(id, request));
+        return ResponseEntity.ok(masterAdminService.updateServiceItem(id, request));
     }
 
-    @PatchMapping("/exam-types/{id}/deactivate")
-    public ResponseEntity<Void> deactivateExamType(
+    @PatchMapping("/service-items/{id}/deactivate")
+    @Audited(action = "DEACTIVATE", targetType = "SERVICE_ITEM")
+    public ResponseEntity<Void> deactivateServiceItem(
             @PathVariable Long id, @AuthenticationPrincipal LoginStaff loginStaff) {
         requireAdmin(loginStaff);
-        masterAdminService.deactivateExamType(id);
+        masterAdminService.deactivateServiceItem(id);
         return ResponseEntity.noContent().build();
     }
 

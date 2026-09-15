@@ -26,7 +26,7 @@ async function login(loginId) {
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.getByRole('button', { name: new RegExp(loginId) }).click();
-  await page.waitForURL(/\/(ward|exam|admin)\//, { timeout: 15000 });
+  await page.waitForURL(/\/(ward|service|admin)\//, { timeout: 15000 });
 }
 
 try {
@@ -35,7 +35,7 @@ try {
   await page.waitForLoadState('networkidle');
 
   // 서버가 죽은 상황을 만든다
-  await page.route('**/api/v1/transfer-requests**', (route) => route.abort('failed'));
+  await page.route('**/api/v1/work-orders**', (route) => route.abort('failed'));
   await page.reload();
 
   const retry = page.getByRole('button', { name: '다시 시도' });
@@ -49,7 +49,7 @@ try {
   );
 
   // 서버를 되살리고 눌러 본다
-  await page.unroute('**/api/v1/transfer-requests**');
+  await page.unroute('**/api/v1/work-orders**');
   await retry.click();
   await page.getByRole('heading', { name: /들어온 요청/ })
     .waitFor({ timeout: 10000 })
@@ -98,16 +98,17 @@ async function pushToReturned() {
   const mri = await token('mri01');
   const h = (t) => ({ Authorization: `Bearer ${t}`, 'Content-Type': 'application/json' });
 
-  const encounters = await (await fetch(`${api}/encounters`, { headers: h(ward) })).json();
-  const exams = await (await fetch(`${api}/exam-types`, { headers: h(ward) })).json();
+  const encounters = await (await fetch(`${api}/care-episodes`, { headers: h(ward) })).json();
+  const exams = await (await fetch(`${api}/service-items`, { headers: h(ward) })).json();
   const mriExam = exams.find((e) => e.code.startsWith('MRI'));
 
-  const created = await (await fetch(`${api}/transfer-requests`, {
+  const created = await (await fetch(`${api}/work-orders`, {
     method: 'POST',
     headers: h(ward),
     body: JSON.stringify({
-      encounterId: (encounters.content ?? encounters)[0].encounterId,
-      examTypeId: mriExam.id,
+      // 업무 쪽에는 재원 id 도 이름도 넘기지 않는다. 넘기는 것은 가명뿐이다.
+      subjectRef: (encounters.content ?? encounters)[0].subjectRef,
+      serviceItemId: mriExam.id,
       priority: 'ROUTINE',
     }),
   })).json();
@@ -117,10 +118,10 @@ async function pushToReturned() {
     [mri, 'IN_PROGRESS'], [mri, 'RETURNED'],
   ];
   for (const [t, toStatus] of steps) {
-    const cur = await (await fetch(`${api}/transfer-requests/${created.id}`, { headers: h(t) })).json();
+    const cur = await (await fetch(`${api}/work-orders/${created.id}`, { headers: h(t) })).json();
     const payload = { toStatus, version: cur.version };
     if (toStatus === 'ACCEPTED') payload.scheduledAt = new Date(Date.now() + 3600000).toISOString();
-    await fetch(`${api}/transfer-requests/${created.id}/transitions`, {
+    await fetch(`${api}/work-orders/${created.id}/transitions`, {
       method: 'POST', headers: h(t), body: JSON.stringify(payload),
     });
   }

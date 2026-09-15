@@ -1,7 +1,7 @@
 package com.nursecollab.infra.realtime;
 
-import com.nursecollab.domain.transfer.entity.TransferPriority;
-import com.nursecollab.domain.transfer.entity.TransferStatus;
+import com.nursecollab.domain.workorder.entity.OrderPriority;
+import com.nursecollab.domain.workorder.entity.OrderStatus;
 
 import java.time.OffsetDateTime;
 
@@ -20,20 +20,20 @@ public record RealtimeEvent(
         EventType eventType,
         Long requestId,
         String requestNo,
-        TransferStatus fromStatus,
-        TransferStatus toStatus,
-        TransferPriority priority,
-        String patientName,
+        OrderStatus fromStatus,
+        OrderStatus toStatus,
+        OrderPriority priority,
+        java.util.UUID subjectRef,
         String roomNo,
-        String examName,
+        String itemName,
         Long actorId,
         String actorName,
         String actorDepartmentName,
         OffsetDateTime occurredAt
 ) {
     public enum EventType {
-        TRANSFER_CREATED,
-        TRANSFER_STATUS_CHANGED,
+        ORDER_CREATED,
+        ORDER_STATUS_CHANGED,
         MESSAGE_CREATED
     }
 }

@@ -13,7 +13,7 @@ async function login(page, loginId, label) {
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.getByRole('button', { name: new RegExp(loginId) }).click();
-  await page.waitForURL(/\/(ward|exam|admin)\//, { timeout: 15000 });
+  await page.waitForURL(/\/(ward|service|admin)\//, { timeout: 15000 });
   console.log(`  ${label} 로그인 → ${new URL(page.url()).pathname}`);
   await beat(page);
 }
@@ -58,10 +58,10 @@ async function otherNurseCompletesFirst(requestId) {
     'Content-Type': 'application/json',
   };
   const current = await (
-    await fetch(`${API}/transfer-requests/${requestId}`, { headers })
+    await fetch(`${API}/work-orders/${requestId}`, { headers })
   ).json();
 
-  const res = await fetch(`${API}/transfer-requests/${requestId}/transitions`, {
+  const res = await fetch(`${API}/work-orders/${requestId}/transitions`, {
     method: 'POST',
     headers,
     body: JSON.stringify({ toStatus: 'READY', version: current.version }),
@@ -94,12 +94,12 @@ async function main() {
 
     // ── 2. 환자 상세
     await page.getByRole('link', { name: /김OO/ }).first().click();
-    await page.waitForURL(/\/ward\/encounters\//);
+    await page.waitForURL(/\/ward\/subjects\//);
     await caption(page, '3', '이 환자는 좌측 고관절에 인공관절이 있다.');
     await beat(page, 2600);
 
     // ── 3. 이송 요청 등록
-    await page.getByRole('link', { name: /이송 요청/ }).click();
+    await page.getByRole('link', { name: /업무 요청/ }).click();
     await page.waitForURL(/\/ward\/requests\/new/);
     await caption(page, '4', '검사실로 보낼 검사를 고른다.');
     await beat(page);
@@ -124,7 +124,7 @@ async function main() {
 
     // 큐는 우선순위·오래된 순이라 첫 행이 방금 만든 요청이 아니다. 번호로 집는다.
     await page.locator(`tbody tr:has-text("${requestNo}")`).click();
-    await page.waitForURL(/\/exam\/requests\/\d+/);
+    await page.waitForURL(/\/service\/requests\/\d+/);
     await caption(page, '9', '열어보면 "MRI 금기 가능성" 안내가 이미 떠 있다. 따로 확인하러 갈 필요가 없다.');
     await beat(page, 3200);
 
@@ -155,7 +155,7 @@ async function main() {
     const requestId = page.url().split('/').pop();
 
     // 화면이 보낸 요청을 잠깐 붙잡아 두고, 그 사이 다른 사람이 먼저 커밋하게 한다
-    await page.route('**/transfer-requests/*/transitions', async (route) => {
+    await page.route('**/work-orders/*/transitions', async (route) => {
       await new Promise((r) => setTimeout(r, 2500));
       await route.continue();
     });
@@ -168,16 +168,16 @@ async function main() {
     await page.waitForSelector('[role="alert"]', { timeout: 15000 });
     await caption(page, '13', '나중에 누른 쪽은 막힌다. 같은 환자를 두 번 보내는 일이 생기지 않는다.');
     await beat(page, 4000);
-    await page.unroute('**/transfer-requests/*/transitions');
+    await page.unroute('**/work-orders/*/transitions');
 
     // ── 7. 검사실의 나머지 화면
     await page.getByRole('link', { name: '일정' }).click();
-    await page.waitForURL(/\/exam\/schedule/);
+    await page.waitForURL(/\/service\/schedule/);
     await caption(page, '14', '접수하며 정한 시각이 일정 보드에 자리를 잡는다. 앞뒤가 비었는지 한눈에 본다.');
     await beat(page, 3200);
 
     await page.getByRole('link', { name: '지난 요청' }).click();
-    await page.waitForURL(/\/exam\/history/);
+    await page.waitForURL(/\/service\/history/);
     await caption(page, '15', '끝난 요청은 기간과 환자명으로 다시 찾는다. 아무것도 지우지 않는다.');
     await beat(page, 3200);
 
@@ -191,7 +191,7 @@ async function main() {
     await page.getByRole('link', { name: '환자' }).click();
     await page.waitForURL(/\/ward\/board/);
     await page.getByRole('link', { name: /김OO/ }).first().click();
-    await page.waitForURL(/\/ward\/encounters\/\d+$/);
+    await page.waitForURL(/\/ward\/subjects\/[0-9a-f-]{36}$/);
     await page.getByRole('link', { name: '간호기록' }).click();
     await page.waitForURL(/\/notes$/);
     await caption(page, '17', '간호기록은 SBAR 로 쓴다. 본인이 24시간 안에만 고칠 수 있고 삭제는 없다.');

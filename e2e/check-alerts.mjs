@@ -10,6 +10,13 @@ import { chromium } from 'playwright';
  */
 const APP = process.env.APP ?? 'http://localhost:5173';
 
+/**
+ * 이 실행이 남긴 것만 세도록 내용에 표시를 붙인다.
+ * 고정 문구를 쓰면 같은 DB 에 두 번 돌렸을 때 앞선 실행이 남긴 주의사항까지 세어,
+ * "내렸는데 아직 보인다" 는 결과가 나온다. 진짜 고장과 구별할 수 없다.
+ */
+const MARK = `이전 MRI 중단 경험 있음 #${Date.now().toString().slice(-6)}`;
+
 const checks = [];
 const record = (ok, label, detail = '') => {
   checks.push({ ok, label });
@@ -25,7 +32,7 @@ async function login(loginId) {
   await page.evaluate(() => localStorage.clear());
   await page.reload();
   await page.getByRole('button', { name: new RegExp(loginId) }).click();
-  await page.waitForURL(/\/(ward|exam|admin)\//, { timeout: 15000 });
+  await page.waitForURL(/\/(ward|service|admin)\//, { timeout: 15000 });
   await page.waitForLoadState('networkidle');
 }
 
@@ -34,14 +41,14 @@ try {
   await login('ward01');
   // 주의사항이 없는 환자를 고른다. 폐소공포를 새로 남겨야 하기 때문이다.
   await page.getByRole('link', { name: /최OO/ }).first().click();
-  await page.waitForURL(/\/ward\/encounters\/\d+$/);
+  await page.waitForURL(/\/ward\/subjects\/[0-9a-f-]{36}$/);
   await page.waitForLoadState('networkidle');
   const encounterUrl = page.url();
 
   await page.getByRole('button', { name: '+ 추가' }).click();
   await page.getByRole('button', { name: '폐소공포' }).click();
   await page.getByRole('button', { name: /주의/ }).first().click();
-  await page.getByPlaceholder(/자세히/).fill('이전 MRI 중단 경험 있음');
+  await page.getByPlaceholder(/자세히/).fill(MARK);
   await page.getByRole('button', { name: '남기기' }).click();
 
   await page.getByText('주의사항을 남겼습니다').waitFor({ timeout: 10000 });
@@ -49,12 +56,12 @@ try {
 
   await page.waitForTimeout(800);
   record(
-    (await page.getByText('이전 MRI 중단 경험 있음').count()) > 0,
+    (await page.getByText(MARK).count()) > 0,
     '남긴 것이 환자 화면에 보인다',
   );
 
   // ── 뇌 MRI 를 요청하면 그 자리에서 안내가 뜬다
-  await page.getByRole('link', { name: /이송 요청/ }).click();
+  await page.getByRole('link', { name: /업무 요청/ }).click();
   await page.waitForURL(/\/ward\/requests\/new/);
   await page.getByRole('button', { name: /뇌 MRI/ }).click();
   await page.waitForTimeout(500);
@@ -69,7 +76,7 @@ try {
 
   // ── 검사실 화면에도 경고로 뜬다
   await login('mri01');
-  await page.goto(`${APP}/exam/requests/${requestId}`);
+  await page.goto(`${APP}/service/requests/${requestId}`);
   await page.waitForLoadState('networkidle');
   // 종류마다 문구가 다르다. 폐소공포는 "검사 전 진정 여부를 확인하세요" 다.
   record(
@@ -81,11 +88,12 @@ try {
   await login('ward01');
   await page.goto(encounterUrl);
   await page.waitForLoadState('networkidle');
-  await page.getByRole('button', { name: '내리기' }).first().click();
+  // 이 실행이 남긴 줄의 "내리기" 를 누른다. 첫 줄을 누르면 남의 것을 내린다.
+  await page.locator('li', { hasText: MARK }).getByRole('button', { name: '내리기' }).click();
   await page.getByText('주의사항을 내렸습니다').waitFor({ timeout: 10000 });
   await page.waitForTimeout(800);
   record(
-    (await page.getByText('이전 MRI 중단 경험 있음').count()) === 0,
+    (await page.getByText(MARK).count()) === 0,
     '내리면 목록에서 빠진다',
   );
 } finally {

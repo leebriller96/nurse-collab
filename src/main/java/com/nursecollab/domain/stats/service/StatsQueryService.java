@@ -33,8 +33,8 @@ public class StatsQueryService {
     private static final String FIRST_ACCEPTED = """
             left join lateral (
                 select min(e.occurred_at) as accepted_at
-                from transfer_event e
-                where e.request_id = r.id and e.to_status = 'ACCEPTED'
+                from work_order_event e
+                where e.order_id = r.id and e.to_status = 'ACCEPTED'
             ) a on true
             """;
 
@@ -66,7 +66,7 @@ public class StatsQueryService {
                 select count(*) as total_requests,
                        round(avg(extract(epoch from (a.accepted_at - r.requested_at)) / 60)) as avg_waiting,
                        round(avg(extract(epoch from (r.completed_at - r.requested_at)) / 60)) as avg_total
-                from transfer_request r
+                from work_order r
                 """ + FIRST_ACCEPTED + """
                 where r.requested_at >= ? and r.requested_at < ?
                 """ + departmentFilter(departmentId);
@@ -86,14 +86,14 @@ public class StatsQueryService {
                        d.name as department_name,
                        count(*) as request_count,
                        round(avg(extract(epoch from (a.accepted_at - r.requested_at)) / 60)) as avg_waiting,
-                       count(h.request_id) as hold_count
-                from transfer_request r
+                       count(h.order_id) as hold_count
+                from work_order r
                 join department d on d.id = r.to_department_id
                 """ + FIRST_ACCEPTED + """
                 left join lateral (
-                    select 1 as request_id
-                    from transfer_event e
-                    where e.request_id = r.id and e.to_status = 'ON_HOLD'
+                    select 1 as order_id
+                    from work_order_event e
+                    where e.order_id = r.id and e.to_status = 'ON_HOLD'
                     limit 1
                 ) h on true
                 where r.requested_at >= ? and r.requested_at < ?
@@ -115,7 +115,7 @@ public class StatsQueryService {
     private List<WaitingTimeStats.ByHour> byHour(Timestamp start, Timestamp end, Long departmentId) {
         String sql = """
                 select extract(hour from r.requested_at)::int as hour, count(*) as request_count
-                from transfer_request r
+                from work_order r
                 where r.requested_at >= ? and r.requested_at < ?
                 """ + departmentFilter(departmentId) + """
                 group by hour

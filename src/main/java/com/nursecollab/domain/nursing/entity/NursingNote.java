@@ -1,7 +1,6 @@
 package com.nursecollab.domain.nursing.entity;
 
 import com.nursecollab.domain.encounter.entity.Encounter;
-import com.nursecollab.domain.staff.entity.Staff;
 import com.nursecollab.global.error.BusinessException;
 import com.nursecollab.global.error.ErrorCode;
 import jakarta.persistence.Column;
@@ -67,9 +66,17 @@ public class NursingNote {
     @Column(name = "recorded_at", nullable = false)
     private OffsetDateTime recordedAt;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "recorded_by")
-    private Staff recordedBy;
+    /**
+     * 기록한 사람. 업무 쪽 staff 를 가리키지만 관계로 잇지 않는다.
+     *
+     * 이름을 함께 굳혀 둔다. 기록에 찍힌 이름은 <b>그때 그 사람의 이름</b>이어야 한다.
+     * 지금 이름으로 다시 그리면 기록이 조용히 달라진다.
+     */
+    @Column(name = "recorded_by", nullable = false)
+    private Long recordedById;
+
+    @Column(name = "recorded_by_name", nullable = false, length = 50)
+    private String recordedByName;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -77,7 +84,8 @@ public class NursingNote {
     public static NursingNote write(Encounter encounter, NoteType noteType,
                                     String situation, String background,
                                     String assessment, String recommendation,
-                                    String content, OffsetDateTime recordedAt, Staff recordedBy) {
+                                    String content, OffsetDateTime recordedAt,
+                                    Long recordedById, String recordedByName) {
         NursingNote note = new NursingNote();
         note.encounter = encounter;
         note.noteType = (noteType == null) ? NoteType.GENERAL : noteType;
@@ -87,7 +95,8 @@ public class NursingNote {
         note.recommendation = recommendation;
         note.content = content;
         note.recordedAt = (recordedAt == null) ? OffsetDateTime.now() : recordedAt;
-        note.recordedBy = recordedBy;
+        note.recordedById = recordedById;
+        note.recordedByName = recordedByName;
         note.createdAt = OffsetDateTime.now();
         note.validate();
         return note;
@@ -97,10 +106,10 @@ public class NursingNote {
      * 수정은 본인이 24시간 안에 하는 것만 허용한다.
      * 시간이 지난 기록은 고치는 대신 새 기록을 추가해 정정한다.
      */
-    public void edit(Staff editor, String situation, String background,
+    public void edit(Long editorId, String situation, String background,
                      String assessment, String recommendation, String content) {
 
-        if (!recordedBy.getId().equals(editor.getId())) {
+        if (!recordedById.equals(editorId)) {
             throw new BusinessException(ErrorCode.NOTE_NOT_EDITABLE);
         }
         if (Duration.between(createdAt, OffsetDateTime.now()).compareTo(EDIT_WINDOW) > 0) {

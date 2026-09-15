@@ -1,0 +1,185 @@
+# 원내 서버를 따로 띄우는 구성. 한 서버 구성(docker-compose.prod.yml)과 같은 이미지를 쓴다.
+#
+#   cp .env.example .env   # PHI_POSTGRES_PASSWORD 까지 채운 뒤
+#   docker compose -f docker-compose.split.yml up -d --build
+#
+# 한 대 위에 두 망을 흉내 낸다.
+#
+#   work 망  postgres · redis · backend(업무 서버) · onprem · web · demo-reset
+#   phi 망   phi-postgres · onprem(원내 서버) · web · demo-reset
+#
+# **업무 서버는 phi 망에 붙지 않는다.** 원내 DB 의 이름조차 풀리지 않는다. CI 가 그것을 확인한다.
+# 원내 서버가 work 망에도 붙는 것은 업무 서버에 "우리 파트로 온 요청이 있는가" 를 물어야 해서다.
+#
+# 실제 병원이라면 onprem · phi-postgres 는 병원 안에, 나머지는 클라우드에 있고
+# 원내망 게이트웨이(여기서는 web)만 두 곳에 닿는다. 원내망 밖의 폰은 게이트웨이를 거쳐도
+# 원내 경로에 닿지 못하게 막는 것이 그 게이트웨이의 일이다 — 여기서는 한 대라 흉내만 낸다.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: nursecollab
+      POSTGRES_USER: nursecollab
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 를 .env 에 넣어야 한다}
+      TZ: Asia/Seoul
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nursecollab -d nursecollab"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [work]
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [work]
+    restart: unless-stopped
+
+  # 원내 DB. 비밀번호를 업무 DB 와 따로 둔다. 하나가 새도 다른 쪽이 열리지 않게.
+  phi-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: nursecollab_phi
+      POSTGRES_USER: nursecollab
+      POSTGRES_PASSWORD: ${PHI_POSTGRES_PASSWORD:?PHI_POSTGRES_PASSWORD 를 .env 에 넣어야 한다}
+      TZ: Asia/Seoul
+    volumes:
+      - phi-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nursecollab -d nursecollab_phi"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [phi]
+    restart: unless-stopped
+
+  # 업무 서버. 인증을 맡고 진료 테이블을 모른다.
+  backend:
+    build: .
+    environment:
+      # JVM 두 개가 한 대에 돈다. 한 서버 구성보다 낮춘다.
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=${JVM_HEAP_PERCENT:-30}
+      SPRING_PROFILES_ACTIVE: prod,cloud
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/nursecollab
+      SPRING_DATASOURCE_USERNAME: nursecollab
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_DATA_REDIS_HOST: redis
+      JWT_PRIVATE_KEY_FILE: file:/run/keys/jwt-private.pem
+      JWT_PUBLIC_KEY_FILE: file:/run/keys/jwt-public.pem
+      TZ: Asia/Seoul
+    volumes:
+      - ${JWT_KEYS_DIR:?JWT_KEYS_DIR 을 .env 에 넣어야 한다}:/run/keys:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    networks: [work]
+    restart: unless-stopped
+
+  # 원내 서버. 진료정보만 들고, 토큰은 검증만 한다.
+  onprem:
+    build: .
+    environment:
+      JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=${JVM_HEAP_PERCENT:-30}
+      SPRING_PROFILES_ACTIVE: prod,onprem
+      SPRING_DATASOURCE_URL: jdbc:postgresql://phi-postgres:5432/nursecollab_phi
+      SPRING_DATASOURCE_USERNAME: nursecollab
+      SPRING_DATASOURCE_PASSWORD: ${PHI_POSTGRES_PASSWORD}
+      # 사용자 토큰을 그대로 실어 업무 서버에 묻는다
+      WORK_API_BASE_URL: http://backend:8080
+      JWT_PUBLIC_KEY_FILE: file:/run/keys/jwt-public.pem
+      TZ: Asia/Seoul
+    volumes:
+      # 공개키 파일 하나만 붙인다. 디렉터리를 통째로 붙이면 개인키 파일도 따라 들어온다.
+      # 설정에서 쓰지 않더라도 원내가 뚫렸을 때 그 파일을 읽으면 관리자 토큰을 만들 수 있다.
+      - ${JWT_KEYS_DIR:?JWT_KEYS_DIR 을 .env 에 넣어야 한다}/jwt-public.pem:/run/keys/jwt-public.pem:ro
+    depends_on:
+      phi-postgres:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+    networks: [phi, work]
+    restart: unless-stopped
+
+  web:
+    build: ./frontend
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-:80}
+      ACME_EMAIL: ${ACME_EMAIL:-admin@localhost}
+      # /api/v1/phi/* 를 원내 서버로 보낸다. 나머지 /api 는 업무 서버로 간다.
+      PHI_UPSTREAM: onprem:8080
+      TZ: Asia/Seoul
+    ports:
+      - "${WEB_PORT:-80}:80"
+      - "${WEB_TLS_PORT:-443}:443"
+    volumes:
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      backend:
+        condition: service_healthy
+      onprem:
+        condition: service_healthy
+    networks: [work, phi]
+    restart: unless-stopped
+
+  # 두 DB 에 시드를 나눠 심는다. 원내 시드는 원내 DB 로, 나머지는 업무 DB 로.
+  demo-reset:
+    build:
+      context: ops/demo-reset
+    environment:
+      API_BASE: http://backend:8080
+      PGHOST: postgres
+      PGUSER: nursecollab
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: nursecollab
+      PHI_PGHOST: phi-postgres
+      PHI_PGUSER: nursecollab
+      PHI_PGPASSWORD: ${PHI_POSTGRES_PASSWORD}
+      PHI_PGDATABASE: nursecollab_phi
+      RESET_AT: ${DEMO_RESET_AT:-04:00}
+      TZ: Asia/Seoul
+    depends_on:
+      backend:
+        condition: service_healthy
+      # 원내 서버가 떠야 원내 DB 에 테이블이 있다(마이그레이션을 원내 서버가 돌린다)
+      onprem:
+        condition: service_healthy
+    networks: [work, phi]
+    restart: unless-stopped
+
+networks:
+  work:
+  phi:
+    # 원내 망에서는 밖으로 나가는 길이 없다
+    internal: true
+
+volumes:
+  postgres-data:
+  redis-data:
+  phi-postgres-data:
+  caddy-data:
+  caddy-config:

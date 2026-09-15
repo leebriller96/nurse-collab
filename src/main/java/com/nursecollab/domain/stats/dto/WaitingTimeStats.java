@@ -6,7 +6,7 @@ import java.util.List;
 /**
  * 대기시간 통계.
  *
- * 값은 전부 transfer_event 에서 계산한다. 상태를 컬럼에만 두고 이력을 남기지 않았다면
+ * 값은 전부 work_order_event 에서 계산한다. 상태를 컬럼에만 두고 이력을 남기지 않았다면
  * "언제 접수됐는지" 를 알 수 없어 이 화면 자체가 만들어지지 않는다.
  */
 public record WaitingTimeStats(

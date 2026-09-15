@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { api, messageOf } from '@/shared/api/client';
-import type { EncounterFullView, PageResponse, VitalSign } from '@/shared/api/types';
+import { messageOf } from '@/shared/api/client';
+import type { PageResponse, VitalSign } from '@/shared/api/types';
 import { useToast } from '@/shared/ui/toast';
+import { phi, useSubject } from '@/shared/api/phi';
 
 /** 입력 칸 정의를 한곳에 모은다. 칸이 늘거나 순서가 바뀌어도 여기만 고치면 된다. */
 const FIELDS = [
@@ -30,8 +31,7 @@ function nowForInput() {
 
 /** W-06 활력징후. 이동 중에 한 손으로 쓰는 화면이라 숫자 키패드가 바로 올라와야 한다. */
 export default function VitalSignPage() {
-  const { id } = useParams();
-  const encounterId = Number(id);
+  const { subjectRef } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const toast = useToast();
@@ -42,15 +42,28 @@ export default function VitalSignPage() {
   });
   const [error, setError] = useState<string | null>(null);
 
-  const encounter = useQuery({
-    queryKey: ['encounter', encounterId],
-    queryFn: async () => (await api.get<EncounterFullView>(`/encounters/${encounterId}`)).data,
-  });
+  // 기록도 사람도 원내에서 받는다. 사람을 먼저 받아 두면 원내가 끊겼는지 한 번에 안다.
+  const { subject, unavailable: phiDown } = useSubject(subjectRef);
+
+  /*
+    이 화면은 통째로 진료 기록이다. 앞의 목록들처럼 일부만 비는 것이 아니라
+    아무것도 그릴 수 없다. 빈 목록을 보여주면 "기록이 없다" 로 읽히므로
+    화면 대신 이유를 띄운다.
+  */
+  const phiBlocked = phiDown ? (
+    <div className="p-6 text-center">
+      <p className="text-sm font-semibold text-amber-900">원내망에서만 조회됩니다</p>
+      <p className="mt-1 text-sm text-amber-800">
+        활력징후은 병원 안에서만 볼 수 있습니다. 기록이 없다는 뜻이 아닙니다.
+      </p>
+    </div>
+  ) : null;
 
   const history = useQuery({
-    queryKey: ['vital-signs', encounterId],
+    queryKey: ['vital-signs', subjectRef],
+    enabled: !!subject,
     queryFn: async () =>
-      (await api.get<PageResponse<VitalSign>>(`/encounters/${encounterId}/vital-signs`,
+      (await phi.get<PageResponse<VitalSign>>(`/subjects/${subjectRef}/vital-signs`,
         { params: { page: 0, size: 20 } })).data,
   });
 
@@ -61,13 +74,13 @@ export default function VitalSignPage() {
         const raw = values[field.key].trim();
         body[field.key] = raw === '' ? null : Number(raw);
       }
-      await api.post(`/encounters/${encounterId}/vital-signs`, body);
+      await phi.post(`/subjects/${subjectRef}/vital-signs`, body);
     },
     onSuccess: () => {
       setValues({ temperature: '', pulse: '', respiration: '', sbp: '', dbp: '', spo2: '', painScore: '' });
       setMeasuredAt(nowForInput());
       setError(null);
-      void queryClient.invalidateQueries({ queryKey: ['vital-signs', encounterId] });
+      void queryClient.invalidateQueries({ queryKey: ['vital-signs', subjectRef] });
       // 저장하면 입력칸이 비워진다. 그것만으로는 저장된 것인지 지워진 것인지 알 수 없다.
       toast.show('활력징후를 기록했습니다', { tone: 'success' });
     },
@@ -76,6 +89,20 @@ export default function VitalSignPage() {
 
   const anyFilled = FIELDS.some((f) => values[f.key].trim() !== '');
 
+  if (phiBlocked) {
+    return (
+      <div className="pb-28">
+        <header className="sticky top-0 z-10 flex items-center gap-2 bg-slate-100/95 px-4 py-3 backdrop-blur">
+          <button type="button" onClick={() => navigate(-1)} className="text-slate-500">
+            ←
+          </button>
+          <h1 className="text-lg font-bold text-slate-900">활력징후</h1>
+        </header>
+        {phiBlocked}
+      </div>
+    );
+  }
+
   return (
     <div className="pb-28">
       <header className="sticky top-0 z-10 flex items-center gap-2 bg-slate-100/95 px-4 py-3 backdrop-blur">
@@ -83,9 +110,9 @@ export default function VitalSignPage() {
           ←
         </button>
         <h1 className="text-lg font-bold text-slate-900">활력징후</h1>
-        {encounter.data && (
+        {subject && (
           <span className="text-sm text-slate-500">
-            {encounter.data.roomNo}-{encounter.data.bedNo} {encounter.data.patient.name}
+            {subject.name}
           </span>
         )}
       </header>

@@ -1,8 +1,6 @@
 # 공개 데모의 데이터를 매일 처음 상태로 되돌린다.
 #
-# 빌드 컨텍스트는 저장소 루트다. Flyway 시드 파일을 그대로 다시 실행하기 때문에
-# 마이그레이션 디렉터리가 필요하다.
-#   docker build -f ops/demo-reset/Dockerfile .
+#   docker build -f ops/demo-reset/Dockerfile ops/demo-reset
 FROM node:22-alpine
 
 ENV TZ=Asia/Seoul
@@ -12,9 +10,9 @@ ENV TZ=Asia/Seoul
 RUN apk add --no-cache postgresql16-client tzdata
 
 WORKDIR /app
-COPY ops/demo-reset/reset.mjs ./
-# 지킬 목록을 손으로 관리하지 않고 시드 파일을 그대로 다시 돌린다
-COPY src/main/resources/db/migration/V3__seed_master_data.sql sql/
-COPY src/main/resources/db/migration/V5__seed_demo_patients.sql sql/
+COPY reset.mjs ./
+# 다시 심을 시드. reset.mjs 가 이름 순서대로 전부 실행하므로
+# 파일을 더할 때 이 줄이나 스크립트를 고칠 일이 없다.
+COPY seed/ seed/
 
 CMD ["node", "reset.mjs"]

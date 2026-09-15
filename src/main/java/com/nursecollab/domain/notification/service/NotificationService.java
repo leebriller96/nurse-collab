@@ -6,7 +6,7 @@ import com.nursecollab.domain.notification.entity.NotiType;
 import com.nursecollab.domain.notification.entity.Notification;
 import com.nursecollab.domain.notification.repository.NotificationRepository;
 import com.nursecollab.domain.staff.repository.StaffRepository;
-import com.nursecollab.domain.transfer.entity.TransferRequest;
+import com.nursecollab.domain.workorder.entity.WorkOrder;
 import com.nursecollab.global.common.PageResponse;
 import com.nursecollab.global.error.BusinessException;
 import com.nursecollab.global.error.ErrorCode;
@@ -23,7 +23,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class NotificationService {
 
-    private static final String REF_TYPE = "TRANSFER_REQUEST";
+    private static final String REF_TYPE = "WORK_ORDER";
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm");
 
     private final NotificationRepository notificationRepository;
@@ -34,7 +34,7 @@ public class NotificationService {
      * 자기가 방금 누른 것이 알림으로 돌아오면 알림함이 쓸모없어진다.
      */
     @Transactional
-    public void notifyTransfer(TransferRequest request, Long actorId,
+    public void notifyOrder(WorkOrder request, Long actorId,
                                NotiType notiType, String title, String body) {
 
         List<Long> recipients = staffRepository.findActiveIdsByDepartmentIds(
@@ -50,12 +50,23 @@ public class NotificationService {
         }
     }
 
-    /** 302호 김OO / 뇌 MRI / 15:30 예정 */
-    public String describe(TransferRequest request) {
-        StringBuilder sb = new StringBuilder()
-                .append(request.getEncounter().getRoomNo()).append("호 ")
-                .append(request.getEncounter().getPatient().getName())
-                .append(" / ").append(request.getExamType().getName());
+    /**
+     * 302호 / 뇌 MRI / 15:30 예정
+     *
+     * <b>환자 이름은 넣지 않는다.</b> 알림은 DB 에 그대로 쌓이고 폰 알림창에도 뜬다.
+     * 이름을 넣으면 진료정보가 업무 쪽 DB 에 복사되어 남는다.
+     * 침대 번호로도 병동에서는 누구인지 안다.
+     *
+     * 환자가 없는 업무(장비 수리)는 앞의 병실 없이 업무명만 남는다.
+     */
+    public String describe(WorkOrder request) {
+        StringBuilder sb = new StringBuilder();
+
+        var episode = request.getCareEpisode();
+        if (episode != null && episode.getRoomNo() != null) {
+            sb.append(episode.getRoomNo()).append("호 / ");
+        }
+        sb.append(request.getServiceItem().getName());
 
         if (request.getScheduledAt() != null) {
             sb.append(" / ").append(request.getScheduledAt().format(TIME)).append(" 예정");
