@@ -3,15 +3,20 @@ package com.nursecollab.domain.episode.controller;
 import com.nursecollab.domain.episode.dto.ActiveSubjectsRequest;
 import com.nursecollab.domain.episode.dto.ActiveSubjectsResponse;
 import com.nursecollab.domain.episode.dto.EpisodeRegistrationRequest;
+import com.nursecollab.domain.episode.dto.MessageRefsResponse;
+import com.nursecollab.domain.episode.dto.MessageRegistrationRequest;
 import com.nursecollab.domain.episode.service.WorkRelationService;
 import com.nursecollab.global.security.LoginStaff;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -41,5 +46,21 @@ public class WorkRelationController {
             @AuthenticationPrincipal LoginStaff loginStaff) {
         workRelationService.register(request, loginStaff);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/messages")
+    public ResponseEntity<Void> registerMessage(
+            @Valid @RequestBody MessageRegistrationRequest request,
+            @AuthenticationPrincipal LoginStaff loginStaff) {
+        workRelationService.registerMessage(request, loginStaff);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/orders/{orderId}/message-refs")
+    public ResponseEntity<MessageRefsResponse> messageRefs(
+            @PathVariable Long orderId,
+            @RequestParam Long readerId,
+            @AuthenticationPrincipal LoginStaff loginStaff) {
+        return ResponseEntity.ok(workRelationService.messageRefs(orderId, readerId, loginStaff));
     }
 }

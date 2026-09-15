@@ -130,3 +130,38 @@ export async function searchSubjectRefs(name: string): Promise<string[]> {
   const { data } = await phi.get<string[]>('/subjects/search', { params: { name: name.trim() } });
   return data;
 }
+
+export interface MessageBody {
+  messageRef: string;
+  content: string;
+}
+
+/**
+ * 요청 대화의 내용. 누가·언제는 업무 쪽 목록에 있고, 내용만 원내에서 받아 열쇠로 붙인다.
+ *
+ * 응답이 아예 없으면(원내에 닿지 못함) `unavailable`, 원내가 답했는데 거절했으면 `failed` 다.
+ * 둘을 같게 보여주면 권한 문제를 "원내망에서만 조회됩니다" 로 잘못 안내하게 된다.
+ */
+export function useMessageBodies(orderId: string | number | undefined, messageRefs: string[]) {
+  const refs = [...new Set(messageRefs)].sort();
+
+  const query = useQuery({
+    // 열쇠 목록을 키에 넣는다. 새 메시지가 달리면 목록이 바뀌어 다시 받는다.
+    queryKey: ['phi', 'message-bodies', String(orderId), refs],
+    queryFn: async () =>
+      (await phi.get<MessageBody[]>(`/work-orders/${orderId}/messages/bodies`)).data,
+    enabled: !!orderId && refs.length > 0,
+    retry: 1,
+  });
+
+  const byRef = new Map<string, string>();
+  for (const body of query.data ?? []) byRef.set(body.messageRef, body.content);
+
+  const noResponse = query.isError && axios.isAxiosError(query.error) && !query.error.response;
+  return {
+    byRef,
+    unavailable: refs.length > 0 && noResponse,
+    failed: refs.length > 0 && query.isError && !noResponse,
+    loading: refs.length > 0 && query.isPending,
+  };
+}

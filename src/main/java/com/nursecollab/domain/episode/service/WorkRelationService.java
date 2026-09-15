@@ -4,11 +4,14 @@ import com.nursecollab.domain.department.repository.DepartmentRepository;
 import com.nursecollab.domain.episode.dto.ActiveSubjectsRequest;
 import com.nursecollab.domain.episode.dto.ActiveSubjectsResponse;
 import com.nursecollab.domain.episode.dto.EpisodeRegistrationRequest;
+import com.nursecollab.domain.episode.dto.MessageRefsResponse;
+import com.nursecollab.domain.episode.dto.MessageRegistrationRequest;
 import com.nursecollab.domain.episode.entity.CareEpisode;
 import com.nursecollab.domain.episode.repository.CareEpisodeRepository;
 import com.nursecollab.domain.staff.entity.StaffRole;
 import com.nursecollab.domain.workorder.entity.OrderStatus;
 import com.nursecollab.domain.workorder.repository.WorkOrderRepository;
+import com.nursecollab.domain.workorder.service.RequestMessageService;
 import com.nursecollab.global.error.BusinessException;
 import com.nursecollab.global.error.ErrorCode;
 import com.nursecollab.global.security.LoginStaff;
@@ -38,6 +41,7 @@ public class WorkRelationService {
     private final WorkOrderRepository workOrderRepository;
     private final CareEpisodeRepository careEpisodeRepository;
     private final DepartmentRepository departmentRepository;
+    private final RequestMessageService requestMessageService;
 
     public boolean hasActiveOrderTo(UUID subjectRef, Long departmentId) {
         return workOrderRepository.existsActiveBySubjectAndToDepartment(
@@ -74,6 +78,16 @@ public class WorkRelationService {
                 roomNo, bedNo, admittedAt));
     }
 
+    /** 메시지가 달렸다. 관여하는 파트인지는 요청 당사자를 아는 대화 서비스가 판정한다. */
+    @Transactional
+    public void registerMessage(Long orderId, UUID messageRef, Long senderId) {
+        requestMessageService.register(orderId, messageRef, senderId);
+    }
+
+    public Set<UUID> readableMessageRefs(Long orderId, Long readerId) {
+        return requestMessageService.readableRefs(orderId, readerId);
+    }
+
     // ------------------------------------------------------------------
     // HTTP 로 물을 때. 누가 묻는지 확인하는 것이 추가된다.
     // ------------------------------------------------------------------
@@ -102,5 +116,24 @@ public class WorkRelationService {
         }
         registerEpisode(request.subjectRef(), request.departmentId(),
                 request.roomNo(), request.bedNo(), request.admittedAt());
+    }
+
+    /** 남의 이름으로 메시지를 달 수 없다. */
+    @Transactional
+    public void registerMessage(MessageRegistrationRequest request, LoginStaff loginStaff) {
+        requireSelf(request.senderId(), loginStaff);
+        registerMessage(request.orderId(), request.messageRef(), request.senderId());
+    }
+
+    /** 남이 읽을 수 있는 목록을 알아낼 수 없다. */
+    public MessageRefsResponse messageRefs(Long orderId, Long readerId, LoginStaff loginStaff) {
+        requireSelf(readerId, loginStaff);
+        return new MessageRefsResponse(List.copyOf(readableMessageRefs(orderId, readerId)));
+    }
+
+    private static void requireSelf(Long staffId, LoginStaff loginStaff) {
+        if (!staffId.equals(loginStaff.staffId())) {
+            throw new BusinessException(ErrorCode.NOT_RELATED_DEPARTMENT);
+        }
     }
 }

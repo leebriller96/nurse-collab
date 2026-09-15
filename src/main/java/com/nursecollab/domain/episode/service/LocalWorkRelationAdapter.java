@@ -42,4 +42,14 @@ public class LocalWorkRelationAdapter implements WorkRelationPort {
                                 OffsetDateTime admittedAt) {
         relations.registerEpisode(subjectRef, departmentId, roomNo, bedNo, admittedAt);
     }
+
+    @Override
+    public void registerMessage(Long orderId, UUID messageRef, Long senderId) {
+        relations.registerMessage(orderId, messageRef, senderId);
+    }
+
+    @Override
+    public Set<UUID> readableMessageRefs(Long orderId, Long readerId) {
+        return relations.readableMessageRefs(orderId, readerId);
+    }
 }

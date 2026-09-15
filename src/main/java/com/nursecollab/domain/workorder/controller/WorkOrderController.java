@@ -1,6 +1,5 @@
 package com.nursecollab.domain.workorder.controller;
 
-import com.nursecollab.domain.workorder.dto.MessageCreateRequest;
 import com.nursecollab.domain.workorder.dto.MessageResponse;
 import com.nursecollab.domain.workorder.dto.WorkOrderCreateRequest;
 import com.nursecollab.domain.workorder.dto.WorkOrderCreateResponse;
@@ -105,6 +104,10 @@ public class WorkOrderController {
         return ResponseEntity.ok(transferQueryService.findEvents(id, loginStaff));
     }
 
+    /**
+     * 대화의 누가·언제. 내용은 원내에 있다.
+     * 보내는 길은 여기 없다 — 원내 {@code /phi/work-orders/{id}/messages} 로만 보낸다.
+     */
     @GetMapping("/{id}/messages")
     public ResponseEntity<List<MessageResponse>> messages(
             @PathVariable Long id,
@@ -112,15 +115,4 @@ public class WorkOrderController {
         return ResponseEntity.ok(requestMessageService.findAll(id, loginStaff.staffId()));
     }
 
-    @PostMapping("/{id}/messages")
-    public ResponseEntity<MessageResponse> createMessage(
-            @PathVariable Long id,
-            @Valid @RequestBody MessageCreateRequest request,
-            @AuthenticationPrincipal LoginStaff loginStaff) {
-
-        MessageResponse response = requestMessageService.create(id, request, loginStaff.staffId());
-        return ResponseEntity
-                .created(URI.create("/api/v1/work-orders/" + id + "/messages/" + response.id()))
-                .body(response);
-    }
 }

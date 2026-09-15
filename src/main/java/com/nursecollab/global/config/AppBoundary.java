@@ -42,7 +42,8 @@ public final class AppBoundary {
 
     /** 원내 DB 에만 있어야 하는 테이블. 업무 DB 에서 보이면 기동을 막는다. */
     public static final List<String> PHI_TABLES = List.of(
-            "patient", "encounter", "patient_alert", "vital_sign", "nursing_note", "phi_access_log");
+            "patient", "encounter", "patient_alert", "vital_sign", "nursing_note", "phi_access_log",
+            "request_message_body");
 
     /** 업무 DB 에만 있어야 하는 테이블. 원내 DB 에서 보이면 기동을 막는다. */
     public static final List<String> WORK_TABLES = List.of(

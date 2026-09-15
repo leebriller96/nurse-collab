@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
 import java.util.List;
+import java.util.UUID;
 
 public interface RequestMessageRepository extends JpaRepository<RequestMessage, Long> {
 
@@ -16,4 +17,6 @@ public interface RequestMessageRepository extends JpaRepository<RequestMessage, 
             order by m.createdAt asc, m.id asc
             """)
     List<RequestMessage> findAllByRequestId(Long requestId);
+
+    boolean existsByMessageRef(UUID messageRef);
 }

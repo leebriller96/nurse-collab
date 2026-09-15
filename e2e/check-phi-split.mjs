@@ -72,6 +72,25 @@ try {
   const beforeCut = await page.getByText(/[김이박정최]OO/).count();
   record(beforeCut > 0, '상세에도 이름이 채워진다');
 
+  // 대화도 내용은 원내다. "열이 38.5도라 미뤄주세요" 같은 말이 섞인다.
+  const MESSAGE_MARK = `대화 경로 확인 ${Date.now()}`;
+  await page.getByPlaceholder('메시지 입력').fill(MESSAGE_MARK);
+  const [messageSaved] = await Promise.all([
+    page.waitForResponse(
+      (res) => res.request().method() === 'POST' && res.url().includes('/messages'),
+      { timeout: 15000 },
+    ),
+    page.getByRole('button', { name: '전송' }).click(),
+  ]);
+  await page.getByText(MESSAGE_MARK).first().waitFor({ timeout: 15000 }).catch(() => {});
+  record(
+    new URL(messageSaved.url()).pathname.startsWith('/api/v1/phi/')
+      && messageSaved.status() < 400
+      && (await page.getByText(MESSAGE_MARK).count()) > 0,
+    '대화는 원내 경로로 보내고 다시 읽는다',
+    `${new URL(messageSaved.url()).pathname} ${messageSaved.status()}`,
+  );
+
   const orderUrl = page.url();
   // 끊기 전 버튼 수를 세어 둔다. 어떤 요청이 열렸는지에 따라 0개일 수도 있어서
   // "버튼이 있다" 가 아니라 "끊기 전과 같다" 로 본다.
@@ -91,6 +110,21 @@ try {
   record(
     (await page.getByText(/[김이박정최]OO/).count()) === 0,
     '끊기면 이름이 실제로 사라진다',
+  );
+
+  record(
+    (await page.getByText(MESSAGE_MARK).count()) === 0,
+    '끊기면 대화 내용도 사라진다',
+  );
+  record(
+    await page.getByRole('button', { name: '전송' }).isDisabled(),
+    '끊기면 대화를 보내지 못하게 막는다',
+  );
+  // 업무 응답을 직접 뒤진다. 대화 목록 응답에 내용이 섞여 있으면 클라우드에 남는다.
+  record(
+    workOrderBodies.every((b) => !b.includes(MESSAGE_MARK)),
+    '업무 응답 본문에 대화 내용이 없다',
+    `본문 ${workOrderBodies.length}건 확인`,
   );
 
   // 여기가 핵심이다. 경고를 "없음" 으로 보여주면 금기 환자를 그냥 보내게 된다.

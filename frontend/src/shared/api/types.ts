@@ -208,8 +208,9 @@ export interface OrderEvent {
 
 export interface Message {
   id: number;
+  /** 원내 본문을 가리키는 열쇠. 대화 내용은 업무 응답에 없다 */
+  messageRef: string;
   sender: { id: number; name: string; departmentName: string };
-  content: string;
   createdAt: string;
 }
 

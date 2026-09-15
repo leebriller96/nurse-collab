@@ -116,7 +116,7 @@ function wipe() {
   `);
   runSql(PHI_DB, `
     truncate table
-      phi_access_log, nursing_note, vital_sign, patient_alert, encounter, patient
+      request_message_body, phi_access_log, nursing_note, vital_sign, patient_alert, encounter, patient
     restart identity cascade;
   `);
 

@@ -484,15 +484,40 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 
 ## 5. 요청 내 대화
 
-### GET /work-orders/{id}/messages — 200 (오름차순)
-### POST /work-orders/{id}/messages
+대화 내용에는 환자 상태가 섞인다("열이 38.5도라 미뤄주세요"). 그래서 한 메시지가 둘로 나뉜다.
+**누가·언제는 업무 쪽, 내용은 원내.** 둘을 잇는 것은 `messageRef` 하나다.
+화면이 두 곳에서 받아 합친다 — 환자 이름과 같은 방식이다.
+
+### GET /work-orders/{id}/messages — 200 (오름차순, 업무 쪽)
+
+```json
+[{ "id": 88, "messageRef": "3f0c...", "sender": { "id": 12, "name": "김간호", "departmentName": "3병동" },
+   "createdAt": "..." }]
+```
+
+내용이 없다. 원내망 밖에서도 "대화가 3건 있다" 까지는 보여 줄 수 있어야 한다.
+
+### POST /phi/work-orders/{id}/messages — 201 (원내)
 
 ```json
 // Request
 { "content": "환자 지금 준비 완료됐습니다. 바로 출발할까요?" }
 // Response 201
-{ "id": 88, "sender": { "id": 12, "name": "김간호" }, "content": "...", "createdAt": "..." }
+{ "messageRef": "3f0c...", "createdAt": "..." }
 ```
+
+원내가 본문을 저장하고 업무 서버에 "메시지가 달렸다" 를 알린다. 요청에 관여하는 파트인지는
+업무 서버가 판정한다(`403 PERM-001`). 거절되면 원내 저장도 되돌린다.
+업무 서버에 닿지 못하면 `503 PHI-002` — 쌓아 두었다 나중에 보내지 않는다.
+
+### GET /phi/work-orders/{id}/messages/bodies — 200 (원내)
+
+```json
+[{ "messageRef": "3f0c...", "content": "환자 지금 준비 완료됐습니다. 바로 출발할까요?" }]
+```
+
+원내는 화면이 들고 온 `messageRef` 를 믿지 않는다. 업무 서버에 "이 요청에서 이 사람이 읽을 수 있는
+메시지" 를 물어 그 목록의 본문만 돌려준다. 관여하지 않는 파트면 `403 PERM-001`.
 
 ---
 
@@ -718,7 +743,16 @@ A-05 화면은 원내 경로를 읽는다. 간호기록 수정 전 내용은 그
 | 메서드 | 경로 | 묻는 것 |
 |---|---|---|
 | POST | `/work-relations/active-subjects` | 이 가명들 중 우리 파트로 온 진행중 요청이 있는 것 |
-| POST | `/work-relations/episodes` — 204 | 침대가 찼다. 원내에서 밖으로 나가는 유일한 쓰기 |
+| POST | `/work-relations/episodes` — 204 | 침대가 찼다 |
+| POST | `/work-relations/messages` — 204 | 메시지가 하나 달렸다. `{orderId, messageRef, senderId}` |
+| GET | `/work-relations/orders/{orderId}/message-refs?readerId=` | 이 사람이 이 요청에서 읽을 수 있는 메시지 |
+
+원내에서 밖으로 나가는 쓰기는 침대와 메시지 알림 둘뿐이다. 둘 다 내용이 없다 —
+가명·병동·병실·병상, 또는 요청 id·`messageRef`·직원 id 만 오간다.
+
+`senderId`·`readerId` 는 토큰의 주체와 같아야 한다. 다르면 `403 PERM-001`.
+남의 이름으로 메시지를 달거나 남이 읽을 수 있는 목록을 알아낼 수 없다.
+메시지 알림도 같은 `messageRef` 가 다시 오면 아무것도 하지 않는다(재시도가 안전해야 한다).
 
 ```json
 // POST /work-relations/active-subjects

@@ -328,14 +328,25 @@ CREATE TABLE request_message (
     id              BIGSERIAL    PRIMARY KEY,
     order_id        BIGINT       NOT NULL REFERENCES work_order(id),
     sender_id       BIGINT       NOT NULL REFERENCES staff(id),
-    content         VARCHAR(1000) NOT NULL,
+    message_ref     UUID         NOT NULL UNIQUE,   -- 원내 본문을 가리키는 열쇠 (V17)
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_rm_request ON request_message(request_id, created_at);
 
 COMMENT ON TABLE request_message IS
-'요청에 붙는 대화. 전화 통화를 대체하되 기록이 남는 것이 목적';
+'요청에 붙는 대화의 누가·언제. 내용은 원내 request_message_body 에 있다';
+
+-- 원내 DB. 대화 내용에는 환자 상태가 섞인다 (docs/06 9장 1).
+-- 업무 쪽 테이블을 외래키로 잇지 않는다. 두 DB 로 갈라 두어야 하기 때문이다.
+CREATE TABLE request_message_body (
+    message_ref     UUID          PRIMARY KEY,
+    order_id        BIGINT        NOT NULL,
+    sender_id       BIGINT        NOT NULL,
+    sender_name     VARCHAR(50)   NOT NULL,     -- 쓸 때 굳힌다. 그때 그 사람이어야 한다
+    content         VARCHAR(1000) NOT NULL,
+    created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+);
 
 -- ---------------------------------------------------------
 -- 10. 소통 : 개인 알림함

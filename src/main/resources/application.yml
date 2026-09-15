@@ -18,7 +18,9 @@ spring:
 
   flyway:
     enabled: true
-    locations: classpath:db/migration
+    # 한쪽 테이블만 건드리는 마이그레이션은 db/phi · db/work 에 둔다.
+    # 합친 DB 는 셋 다 돈다. 역할 DB 는 자기 쪽 폴더만 돈다(application-cloud/onprem.yml).
+    locations: classpath:db/migration,classpath:db/phi,classpath:db/work
 
   data:
     redis:

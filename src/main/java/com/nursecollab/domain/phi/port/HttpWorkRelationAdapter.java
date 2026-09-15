@@ -21,6 +21,7 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -95,6 +96,33 @@ public class HttpWorkRelationAdapter implements WorkRelationPort {
                 .toBodilessEntity());
     }
 
+    @Override
+    public void registerMessage(Long orderId, UUID messageRef, Long senderId) {
+        String token = bearer();
+        call(() -> client.post()
+                .uri("/api/v1/work-relations/messages")
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .contentType(MediaType.APPLICATION_JSON)
+                // 내용은 넘기지 않는다. 열쇠만 알린다
+                .body(new MessageRegistration(orderId, messageRef, senderId))
+                .retrieve()
+                .toBodilessEntity());
+    }
+
+    @Override
+    public Set<UUID> readableMessageRefs(Long orderId, Long readerId) {
+        String token = bearer();
+        MessageRefs answer = call(() -> client.get()
+                .uri("/api/v1/work-relations/orders/{orderId}/message-refs?readerId={readerId}",
+                        orderId, readerId)
+                .header(HttpHeaders.AUTHORIZATION, token)
+                .retrieve()
+                .body(MessageRefs.class));
+
+        return answer == null || answer.messageRefs() == null
+                ? Set.of() : new LinkedHashSet<>(answer.messageRefs());
+    }
+
     private <T> T call(Supplier<T> request) {
         try {
             return request.get();
@@ -104,6 +132,10 @@ public class HttpWorkRelationAdapter implements WorkRelationPort {
             }
             if (e.getStatusCode().isSameCodeAs(HttpStatus.UNAUTHORIZED)) {
                 throw new BusinessException(ErrorCode.TOKEN_EXPIRED);
+            }
+            if (e.getStatusCode().isSameCodeAs(HttpStatus.NOT_FOUND)) {
+                // 없는 요청에 메시지를 달거나 읽으려 한 경우. 끊긴 것이 아니다.
+                throw new BusinessException(ErrorCode.REQUEST_NOT_FOUND);
             }
             // 그 밖의 4xx 는 두 쪽 계약이 어긋났다는 뜻이다. 사용자 잘못이 아니므로 크게 남긴다.
             log.error("업무 서버가 원내의 질문을 거절했습니다. 계약이 어긋났는지 확인하세요. status={}",
@@ -137,4 +169,8 @@ public class HttpWorkRelationAdapter implements WorkRelationPort {
 
     public record EpisodeRegistration(UUID subjectRef, Long departmentId, String roomNo,
                                       String bedNo, OffsetDateTime admittedAt) {}
+
+    public record MessageRegistration(Long orderId, UUID messageRef, Long senderId) {}
+
+    public record MessageRefs(List<UUID> messageRefs) {}
 }

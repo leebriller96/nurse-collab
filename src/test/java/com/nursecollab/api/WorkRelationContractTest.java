@@ -68,6 +68,7 @@ class WorkRelationContractTest extends IntegrationTest {
     private Long wardId;
     private Long mriId;
     private Long ctId;
+    private long orderId;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -89,13 +90,15 @@ class WorkRelationContractTest extends IntegrationTest {
         Long brainMri = serviceItemRepository.findAllActiveWithDepartment().stream()
                 .filter(e -> e.getCode().equals("MRI_BRAIN"))
                 .findFirst().orElseThrow().getId();
-        mvc.perform(post("/api/v1/work-orders")
+        String created = mvc.perform(post("/api/v1/work-orders")
                         .header("Authorization", bearer("ward01"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"subjectRef":"%s","serviceItemId":%d,"priority":"ROUTINE"}"""
                                 .formatted(subjectRef, brainMri)))
-                .andExpect(status().isCreated());
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        orderId = om.readTree(created).get("id").asLong();
     }
 
     @AfterEach
@@ -178,7 +181,60 @@ class WorkRelationContractTest extends IntegrationTest {
                 .isInstanceOf(IllegalStateException.class);
     }
 
+    // ── 대화 ────────────────────────────────────────────────
+
+    @Test
+    void 메시지_알림은_HTTP_로도_한_번만_남고_상대_파트가_읽을_목록에_잡힌다() throws Exception {
+        actingAs("ward01");
+        Long ward01 = staffIdOf("ward01");
+        UUID ref = UUID.randomUUID();
+
+        http.registerMessage(orderId, ref, ward01);
+        // 응답 직전에 끊겨 원내가 다시 보냈다고 친다
+        http.registerMessage(orderId, ref, ward01);
+
+        Integer rows = jdbcTemplate.queryForObject(
+                "select count(*) from request_message where message_ref = ?", Integer.class, ref);
+        assertThat(rows).isEqualTo(1);
+
+        actingAs("mri01");
+        assertThat(http.readableMessageRefs(orderId, staffIdOf("mri01"))).contains(ref);
+        assertThat(http.readableMessageRefs(orderId, staffIdOf("mri01")))
+                .isEqualTo(local.readableMessageRefs(orderId, staffIdOf("mri01")));
+    }
+
+    @Test
+    void 남의_이름으로_메시지를_달_수_없다() throws Exception {
+        actingAs("mri01");
+
+        assertThatThrownBy(() -> http.registerMessage(orderId, UUID.randomUUID(), staffIdOf("ward01")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.NOT_RELATED_DEPARTMENT);
+    }
+
+    @Test
+    void 관여하지_않는_파트는_읽을_수_있는_메시지를_물을_수_없다() throws Exception {
+        actingAs("ct01");
+
+        assertThatThrownBy(() -> http.readableMessageRefs(orderId, staffIdOf("ct01")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.NOT_RELATED_DEPARTMENT);
+    }
+
+    @Test
+    void 없는_요청이면_끊긴_것이_아니라_없는_것이다() throws Exception {
+        actingAs("mri01");
+
+        assertThatThrownBy(() -> http.readableMessageRefs(Long.MAX_VALUE, staffIdOf("mri01")))
+                .isInstanceOf(BusinessException.class)
+                .extracting("errorCode").isEqualTo(ErrorCode.REQUEST_NOT_FOUND);
+    }
+
     // ── 도우미 ──────────────────────────────────────────────
+
+    private Long staffIdOf(String loginId) {
+        return staffRepository.findByLoginIdWithDepartment(loginId).orElseThrow().getId();
+    }
 
     /** 원내 서버가 이 사람의 요청을 처리하는 중인 것처럼 요청 문맥을 세운다 */
     private void actingAs(String loginId) throws Exception {

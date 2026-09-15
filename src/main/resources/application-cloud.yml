@@ -10,4 +10,4 @@ spring:
   flyway:
     # V14 까지는 합친 이력과 같고, V15 가 진료 테이블을 걷어낸다.
     # V15 는 방금 만든 DB 에서만 돈다. 쓰던 합친 DB 에 붙이면 거절한다.
-    locations: classpath:db/migration,classpath:db/split/cloud
+    locations: classpath:db/migration,classpath:db/split/cloud,classpath:db/work

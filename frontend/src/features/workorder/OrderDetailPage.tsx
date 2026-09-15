@@ -9,7 +9,7 @@ import { AlertBadge, PriorityBadge, StatusBadge, statusLabel } from '@/shared/ui
 import LoadFailed from '@/shared/ui/LoadFailed';
 import { useToast } from '@/shared/ui/toast';
 import { DetailSkeleton } from '@/shared/ui/Skeleton';
-import { useChecklist, useSubject } from '@/shared/api/phi';
+import { phi, useChecklist, useMessageBodies, useSubject } from '@/shared/api/phi';
 
 /*
  * 무엇을 더 받아야 하는지는 서버가 버튼마다 알려준다(reasonRequired / scheduleRequired).
@@ -104,7 +104,8 @@ export default function OrderDetailPage() {
 
   const sendMessage = useMutation({
     mutationFn: async () => {
-      await api.post(`/work-orders/${requestId}/messages`, { content: draft.trim() });
+      // 내용에 환자 상태가 섞인다. 원내로 보낸다. 누가·언제는 원내가 업무 서버에 알린다.
+      await phi.post(`/work-orders/${requestId}/messages`, { content: draft.trim() });
     },
     onSuccess: () => {
       setDraft('');
@@ -120,6 +121,9 @@ export default function OrderDetailPage() {
   const { subject, unavailable: subjectDown } = useSubject(subjectRef);
   const checklist = useChecklist(subjectRef, detail.data?.serviceItem.requiredAlerts ?? []);
   const phiUnavailable = subjectDown || checklist.unavailable;
+  // 대화도 누가·언제는 업무 쪽, 내용은 원내다. 이름과 같은 방식으로 합친다.
+  const bodies = useMessageBodies(requestId, messages.data?.map((m) => m.messageRef) ?? []);
+  const messagesBlocked = bodies.unavailable || phiUnavailable;
 
   if (detail.isPending) return <DetailSkeleton />;
   if (detail.isError) {
@@ -252,7 +256,12 @@ export default function OrderDetailPage() {
       </section>
 
       <section className="mx-3 mt-3 rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200">
-        <h2 className="mb-2 text-sm font-medium text-slate-600">대화</h2>
+        <h2 className="mb-2 text-sm font-medium text-slate-600">
+          대화
+          {!!messages.data?.length && (
+            <span className="ml-1 text-slate-400">{messages.data.length}건</span>
+          )}
+        </h2>
         <ul className="space-y-2">
           {messages.data?.map((m) => (
             <li key={m.id} className="text-sm">
@@ -260,7 +269,18 @@ export default function OrderDetailPage() {
               <span className="ml-1.5 text-xs text-slate-400">
                 {m.sender.departmentName} · {time(m.createdAt)}
               </span>
-              <p className="text-slate-700">{m.content}</p>
+              {/* 읽을 수 없다는 것과 없다는 것은 다르다. 빈칸으로 두지 않는다. */}
+              {bodies.unavailable ? (
+                <p className="text-amber-800">원내망에서만 조회됩니다</p>
+              ) : bodies.failed ? (
+                <p className="text-red-700">내용을 불러오지 못했습니다</p>
+              ) : bodies.loading ? (
+                <p className="text-slate-300">…</p>
+              ) : (
+                <p className="text-slate-700">
+                  {bodies.byRef.get(m.messageRef) ?? '원내에 내용이 없습니다'}
+                </p>
+              )}
             </li>
           ))}
           {messages.data?.length === 0 && <li className="text-sm text-slate-400">아직 대화가 없습니다.</li>}
@@ -275,13 +295,18 @@ export default function OrderDetailPage() {
           />
           <button
             type="button"
-            disabled={!draft.trim() || sendMessage.isPending}
+            disabled={!draft.trim() || sendMessage.isPending || messagesBlocked}
             onClick={() => sendMessage.mutate()}
             className="rounded-lg bg-slate-700 px-4 text-sm font-semibold text-white disabled:bg-slate-300"
           >
             전송
           </button>
         </div>
+        {messagesBlocked && (
+          <p className="mt-2 text-xs text-amber-800">
+            대화 내용은 원내에 있어 원내망에서만 보내고 읽을 수 있습니다.
+          </p>
+        )}
       </section>
 
       {error && (

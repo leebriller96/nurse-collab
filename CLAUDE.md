@@ -299,6 +299,13 @@ chore: Testcontainers 의존성 추가
   - 입원 등록은 `AdmissionService` 한 곳에서만 두 곳에 쓴다.
     진료 쪽을 떼어내면 이 자리가 **원내에서 밖으로 나가는 유일한 통로**가 된다.
     통로가 하나여야 무엇이 나가는지 한 곳만 보면 알 수 있다.
+  - **대화 내용도 원내다**(`request_message_body`). 업무 쪽 `request_message` 에는 누가·언제와
+    `message_ref` 만 남는다. 9장에서 정해 두고 한동안 옮기지 않았던 것이다.
+    - 쓰기는 원내가 받아 저장한 뒤 업무 서버에 알린다. **관여하는 파트인지는 업무 서버가 판정한다** —
+      요청 당사자를 아는 곳이 거기다. 거절되면 원내 저장도 되돌린다.
+    - 읽기도 원내가 화면이 들고 온 `message_ref` 를 믿지 않는다. 업무 서버에 읽을 수 있는 목록을 물어
+      그 본문만 돌려준다. 열쇠를 손에 넣는 것만으로 열리면 안 된다.
+    - 원내에 못 닿으면 목록에 건수는 보이고 내용 자리에 "원내망에서만 조회됩니다" 가 뜬다. 보내기는 막는다.
   - 알림 문구와 실시간 방송에도 이름을 싣지 않는다. 알림은 DB 에 쌓이고 폰 알림창에도 뜨며,
     실시간 채널을 구독하는 브라우저가 원내망 밖에 있을 수도 있다. 침대 번호로 충분하다.
   - 이름 검색은 두 걸음이다. 원내에 이름을 물어 가명을 받고, 그것으로 업무 목록을 거른다.
@@ -430,7 +437,8 @@ chore: Testcontainers 의존성 추가
 | GET | `/work-orders?direction=` | W-04, E-01 |
 | GET | `/work-orders/{id}` `/{id}/events` | W-05, E-02 |
 | POST | `/work-orders/{id}/transitions` | W-05, E-02 |
-| GET POST | `/work-orders/{id}/messages` | W-05, E-02 |
+| GET | `/work-orders/{id}/messages` | W-05, E-02 — 누가·언제만 |
+| POST GET | `/phi/work-orders/{id}/messages` `/messages/bodies` | W-05, E-02 — 대화 내용 (원내) |
 | GET POST | `/phi/subjects/{ref}/vital-signs` | W-06 |
 | GET POST | `/phi/subjects/{ref}/nursing-notes` | W-07 |
 | PUT | `/phi/nursing-notes/{noteId}` | W-07 |

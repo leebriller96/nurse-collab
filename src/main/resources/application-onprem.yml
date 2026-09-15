@@ -16,7 +16,7 @@ jwt:
 spring:
   flyway:
     # V14 까지는 합친 이력과 같고, V15 가 업무 쪽 테이블을 걷어낸다.
-    locations: classpath:db/migration,classpath:db/split/onprem
+    locations: classpath:db/migration,classpath:db/split/onprem,classpath:db/phi
   autoconfigure:
     # 갱신 토큰은 업무 서버가 들고 있다. 원내에는 Redis 가 없다.
     exclude:

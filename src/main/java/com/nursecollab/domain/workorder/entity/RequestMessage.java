@@ -15,10 +15,15 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 /**
- * 요청에 붙는 대화.
+ * 요청에 붙는 대화의 <b>누가·언제</b>.
  * 자유 채팅이 아니라 요청 단위 스레드다. 맥락에서 떨어진 대화는 기록으로서 가치가 없다.
+ *
+ * <p>내용이 여기 없다. "환자분 열이 38.5도라 미뤄주세요" 같은 말이 섞여서 원내에 둔다
+ * (docs/06 9장 1). 남는 것은 원내 본문을 가리키는 {@link #messageRef} 다.
+ * 그래야 원내망 밖에서도 "대화가 3건 있는데 여기서는 못 읽는다" 를 말할 수 있다.
  */
 @Entity
 @Table(name = "request_message")
@@ -38,17 +43,18 @@ public class RequestMessage {
     @JoinColumn(name = "sender_id")
     private Staff sender;
 
-    @Column(nullable = false, length = 1000)
-    private String content;
+    /** 원내 request_message_body 를 가리킨다. 원내가 만들어 알려 온다. */
+    @Column(name = "message_ref", nullable = false, unique = true, updatable = false)
+    private UUID messageRef;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
-    public static RequestMessage of(WorkOrder request, Staff sender, String content) {
+    public static RequestMessage of(WorkOrder request, Staff sender, UUID messageRef) {
         RequestMessage message = new RequestMessage();
         message.request = request;
         message.sender = sender;
-        message.content = content;
+        message.messageRef = messageRef;
         message.createdAt = OffsetDateTime.now();
         return message;
     }

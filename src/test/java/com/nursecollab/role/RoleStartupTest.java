@@ -6,6 +6,7 @@ import com.nursecollab.domain.episode.controller.WorkRelationController;
 import com.nursecollab.domain.episode.service.LocalWorkRelationAdapter;
 import com.nursecollab.domain.nursing.service.NursingRecordService;
 import com.nursecollab.domain.phi.port.HttpWorkRelationAdapter;
+import com.nursecollab.domain.phi.service.OrderMessageService;
 import com.nursecollab.domain.phi.service.SubjectPhiService;
 import com.nursecollab.domain.staff.service.AuthService;
 import com.nursecollab.domain.staff.service.RefreshTokenStore;
@@ -74,6 +75,7 @@ class RoleStartupTest extends IntegrationTest {
         assertThat(has(onprem, SubjectPhiService.class)).isTrue();
         assertThat(has(onprem, NursingRecordService.class)).isTrue();
         assertThat(has(onprem, HttpWorkRelationAdapter.class)).isTrue();
+        assertThat(has(onprem, OrderMessageService.class)).isTrue();
 
         assertThat(has(onprem, WorkOrderService.class)).isFalse();
         assertThat(has(onprem, AuthService.class)).isFalse();
@@ -97,6 +99,7 @@ class RoleStartupTest extends IntegrationTest {
         assertThat(has(cloud, NursingRecordService.class)).isFalse();
         assertThat(has(cloud, EncounterRepository.class)).isFalse();
         assertThat(has(cloud, HttpWorkRelationAdapter.class)).isFalse();
+        assertThat(has(cloud, OrderMessageService.class)).isFalse();
 
         assertThat(cloud.getBean(JwtTokenProvider.class).canIssue()).isTrue();
     }
@@ -158,7 +161,8 @@ class RoleStartupTest extends IntegrationTest {
         // 코드는 멀쩡히 뜬다. 스키마 가드가 없으면 원내 DB 에 직원 테이블이 그대로 남는다.
         assertThatThrownBy(() -> start("onprem", "role_misconfigured",
                 "--app.work-api.base-url=http://localhost:1",
-                "--spring.flyway.locations=classpath:db/migration"))
+                // V15(상대 쪽 테이블 걷어내기)를 빠뜨린 경우. 자기 쪽 테이블은 다 있어서 엔티티 검증은 통과한다.
+                "--spring.flyway.locations=classpath:db/migration,classpath:db/phi"))
                 .hasStackTraceContaining("상대 쪽 테이블");
     }
 
