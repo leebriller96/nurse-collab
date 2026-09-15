@@ -325,6 +325,9 @@ chore: Testcontainers 의존성 추가
     - **원내 기록은 원내에만 남긴다.** 간호기록·활력징후·주의사항의 감사와 간호기록 수정 전후를
       업무 쪽 `audit_log` 에서 여기로 옮겼다(V14 `detail`). 수정 전 내용은 그 자체가 진료정보다.
       7단계 설명의 `@Audited` · `audit_log.detail` 은 그때의 구조다.
+    - 업무 쪽 `audit_log` 에는 로그인·로그인 실패·로그아웃과 기준 정보 변경이 남는다. 로그인 실패는
+      화면에 같은 `AUTH-001` 을 주지만 기록에는 없는 아이디·틀린 비밀번호·비활성을 구별해 남긴다.
+      직원 수정은 전후까지 남긴다 — 역할을 누가 바꿨는지가 첫 질문이다. 비밀번호는 어디에도 남기지 않는다.
     - 쓰기는 `saveAndFlush` 로 확정한 뒤 기록한다. 기록은 `REQUIRES_NEW` 라 먼저 커밋되는데,
       저장이 실패했는데 "기록했다" 가 남으면 기록을 믿을 수 없다.
   - 조회량 제한: 최근 10분에 서로 다른 30명을 넘기면 막는다(`PHI-001`).
@@ -445,7 +448,7 @@ chore: Testcontainers 의존성 추가
 | GET PATCH POST | `/notifications` `/{id}/read` `/read-all` | C-02 |
 | GET | `/stats/waiting-time` | A-01 |
 | GET | `/phi/access-logs` | A-05 (원내) |
-| GET | `/audit-logs` | 업무 쪽 감사. 환자 칸 없음, 지금 화면 없음 |
+| GET | `/audit-logs` | A-05 업무 기록 탭 — 로그인·로그인 실패·기준 정보 변경. 환자 칸 없음 |
 | GET POST PUT PATCH | `/staff` `/departments` `/service-items` (+ `/{id}/deactivate`) | A-02~04 |
 
 ### 데모 계정

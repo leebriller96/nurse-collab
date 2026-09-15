@@ -264,6 +264,16 @@ try {
     (await page.locator('tr', { hasText: 'mri01' }).filter({ hasText: '환자 열람' }).count()) > 0,
     '원내망이 돌아오면 누가 열었는지 보인다',
   );
+
+  // 업무 기록은 업무 서버에 있다. 계정이 털렸는지는 병원 밖에서도 확인할 수 있어야 한다.
+  await page.route('**/api/v1/phi/**', (route) => route.abort('failed'));
+  await page.getByRole('tab', { name: '업무 기록' }).click();
+  await page.locator('tr', { hasText: '로그인' }).first().waitFor({ timeout: 15000 }).catch(() => {});
+  record(
+    (await page.locator('tr', { hasText: 'admin01' }).filter({ hasText: '로그인' }).count()) > 0,
+    '원내가 끊겨도 업무 기록(로그인)은 보인다',
+  );
+  await page.unroute('**/api/v1/phi/**');
 } finally {
   await browser.close();
 }

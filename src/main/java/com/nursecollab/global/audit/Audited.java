@@ -8,19 +8,19 @@ import java.lang.annotation.Target;
 /**
  * 이 요청을 감사 로그에 남긴다.
  *
- * 수정만 남기는 것이 아니다. 환자 정보를 열어본 것 자체가 기록 대상이다.
- * 의료 시스템에서 "누가 어떤 환자 정보를 봤는가" 는 반드시 답할 수 있어야 한다.
+ * 업무 쪽 행위(기준 정보 변경 등)에 붙인다. 환자 정보를 열어본 기록은 여기가 아니라
+ * 원내 phi_access_log 에 남는다. 진료정보가 실제로 나간 곳이 원내이기 때문이다.
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Audited {
 
-    /** VIEW / CREATE / UPDATE / DELETE / LOGIN */
+    /** CREATE / UPDATE / DEACTIVATE. 로그인 계열(LOGIN / LOGIN_FAILED / LOGOUT)은 AuthService 가 직접 남긴다 */
     String action();
 
-    /** ENCOUNTER / WORK_ORDER / NURSING_NOTE 등 */
+    /** DEPARTMENT / STAFF / SERVICE_ITEM */
     String targetType();
 
-    /** 대상 식별자가 담긴 경로 변수 이름 */
+    /** 대상 식별자가 담긴 경로 변수 이름. 없으면(만들기) 응답의 id 를 쓴다 */
     String targetIdParam() default "id";
 }

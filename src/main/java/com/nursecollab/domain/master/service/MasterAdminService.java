@@ -13,6 +13,7 @@ import com.nursecollab.domain.staff.repository.StaffRepository;
 import com.nursecollab.domain.workorder.dto.ServiceItemResponse;
 import com.nursecollab.domain.workorder.entity.ServiceItem;
 import com.nursecollab.domain.workorder.repository.ServiceItemRepository;
+import com.nursecollab.global.audit.AuditRecorder;
 import com.nursecollab.global.error.BusinessException;
 import com.nursecollab.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -20,7 +21,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 부서·직원·업무 항목 관리.
@@ -36,6 +39,7 @@ public class MasterAdminService {
     private final StaffRepository staffRepository;
     private final ServiceItemRepository serviceItemRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuditRecorder auditRecorder;
 
     // ------------------------------------------------------------------
     // 부서
@@ -99,16 +103,39 @@ public class MasterAdminService {
     /**
      * 비밀번호는 여기서 다루지 않는다.
      * 관리자가 남의 비밀번호를 아무 때나 바꿀 수 있으면 그 계정으로 한 일을 본인이 했다고 말할 수 없다.
+     *
+     * 바뀐 것이 있으면 전후를 감사 기록에 남긴다. 저장을 먼저 확정한 뒤 남긴다 —
+     * 기록은 따로 커밋되므로, 순서가 바뀌면 실패한 수정이 "바꿨다" 로 남는다.
      */
     @Transactional
-    public StaffAdminResponse updateStaff(Long id, StaffUpdateRequest req) {
+    public StaffAdminResponse updateStaff(Long id, StaffUpdateRequest req, Long actorId) {
         Staff staff = staffRepository.findByIdWithDepartment(id)
                 .orElseThrow(() -> new BusinessException(ErrorCode.MASTER_NOT_FOUND));
         Department department = departmentRepository.findById(req.departmentId())
                 .orElseThrow(() -> new BusinessException(ErrorCode.MASTER_NOT_FOUND));
 
+        Map<String, Object> before = profileOf(staff);
         staff.updateProfile(req.name(), req.role(), department, req.phone());
+        staffRepository.flush();
+        Map<String, Object> after = profileOf(staff);
+
+        if (!before.equals(after)) {
+            Map<String, Object> detail = new LinkedHashMap<>();
+            detail.put("before", before);
+            detail.put("after", after);
+            auditRecorder.recordRequest(actorId, "UPDATE", "STAFF", id, detail);
+        }
         return StaffAdminResponse.from(staff);
+    }
+
+    private static Map<String, Object> profileOf(Staff staff) {
+        Map<String, Object> profile = new LinkedHashMap<>();
+        profile.put("name", staff.getName());
+        profile.put("role", staff.getRole().name());
+        profile.put("departmentId", staff.getDepartment().getId());
+        profile.put("departmentName", staff.getDepartment().getName());
+        profile.put("phone", staff.getPhone());
+        return profile;
     }
 
     @Transactional

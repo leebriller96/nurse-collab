@@ -253,13 +253,17 @@ export interface NursingNote {
   editable: boolean;
 }
 
+/** 업무 기록 한 줄 (A-05 업무 기록 탭). 환자 칸이 없다 */
 export interface AuditLogEntry {
   id: number;
+  /** 없는 아이디로 로그인을 시도했으면 비어 있다 */
   actor: { id: number; name: string; departmentName: string } | null;
   action: string;
   targetType: string;
   targetId: number | null;
   ipAddress: string | null;
+  /** 로그인 실패면 입력한 아이디와 이유, 직원 수정이면 전후 */
+  detail: Record<string, unknown> | null;
   occurredAt: string;
 }
 

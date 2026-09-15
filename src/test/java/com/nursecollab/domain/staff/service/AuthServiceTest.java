@@ -8,6 +8,7 @@ import com.nursecollab.domain.staff.dto.RefreshRequest;
 import com.nursecollab.domain.staff.entity.Staff;
 import com.nursecollab.domain.staff.entity.StaffRole;
 import com.nursecollab.domain.staff.repository.StaffRepository;
+import com.nursecollab.global.audit.AuditRecorder;
 import com.nursecollab.global.error.BusinessException;
 import com.nursecollab.global.error.ErrorCode;
 import com.nursecollab.global.security.JwtProperties;
@@ -43,6 +44,9 @@ class AuthServiceTest {
     @Mock
     private RefreshTokenStore refreshTokenStore;
 
+    @Mock
+    private AuditRecorder auditRecorder;
+
     private PasswordEncoder passwordEncoder;
     private JwtTokenProvider tokenProvider;
     private AuthService authService;
@@ -56,7 +60,7 @@ class AuthServiceTest {
                 TestKeys.devPrivate(), TestKeys.devPublic(),
                 Duration.ofMinutes(30), Duration.ofDays(14)));
         authService = new AuthService(staffRepository, passwordEncoder,
-                tokenProvider, refreshTokenStore);
+                tokenProvider, refreshTokenStore, auditRecorder);
 
         staff = staff(passwordEncoder.encode(RAW_PASSWORD));
     }
