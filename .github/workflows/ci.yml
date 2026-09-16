@@ -201,6 +201,24 @@ jobs:
         working-directory: e2e
         run: APP=http://localhost:8081 node check-phi-split.mjs
 
+      # 원내망 밖에서 원내 경로가 실제로 끊기는지. 허용 대역을 어디에도 맞지 않는 값으로 바꿔
+      # 중계 서버만 다시 띄운 뒤, 원내 경로는 응답 없이 끊기고 업무 경로는 그대로인지 본다.
+      # 403 이 오면 실패로 친다. 화면이 "원내망에서만 조회됩니다" 대신 오류를 띄우기 때문이다.
+      - name: 원내망 밖에서 원내 경로 끊기
+        working-directory: e2e
+        env:
+          PHI_ALLOWED_NETS: 203.0.113.0/24
+        run: |
+          stack="docker compose -p ci -f ../docker-compose.split.yml"
+          $stack up -d --no-deps web
+          for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:8081/ && break; sleep 1; done
+          work=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8081/api/v1/auth/login             -H 'Content-Type: application/json' -d '{}' || true)
+          phi=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://localhost:8081/api/v1/phi/subjects/brief             -H 'Content-Type: application/json' -d '[]' || true)
+          echo "업무 경로 $work / 원내 경로 $phi"
+          [ "$work" != "000" ] || { echo "업무 경로까지 끊겼다"; exit 1; }
+          [ "$phi" = "000" ] || { echo "허용 대역 밖인데 원내 경로가 응답했다 ($phi)"; exit 1; }
+          APP=http://localhost:8081 node check-phi-gateway.mjs
+
       - name: 실패하면 스택 로그를 남긴다
         if: failure()
         run: docker compose -p ci -f docker-compose.split.yml logs --tail 80
