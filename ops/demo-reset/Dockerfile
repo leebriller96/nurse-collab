@@ -14,5 +14,7 @@ COPY reset.mjs ./
 # 다시 심을 시드. reset.mjs 가 이름 순서대로 전부 실행하므로
 # 파일을 더할 때 이 줄이나 스크립트를 고칠 일이 없다.
 COPY seed/ seed/
+# 작은 병원 반년치. SEED_PROFILE=hospital 일 때만 쓴다.
+COPY seed-hospital/ seed-hospital/
 
 CMD ["node", "reset.mjs"]

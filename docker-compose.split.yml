@@ -165,6 +165,8 @@ services:
       PHI_PGPASSWORD: ${PHI_POSTGRES_PASSWORD}
       PHI_PGDATABASE: nursecollab_phi
       RESET_AT: ${DEMO_RESET_AT:-04:00}
+      # hospital 이면 작은 병원 반년치를 심는다. 비우면 시연용 20건이다.
+      SEED_PROFILE: ${DEMO_SEED_PROFILE:-}
       TZ: Asia/Seoul
     depends_on:
       backend:

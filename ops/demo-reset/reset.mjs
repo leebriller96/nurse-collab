@@ -28,10 +28,22 @@ import { readdirSync, readFileSync } from 'node:fs';
  *   PHI_PGHOST PHI_PGPORT PHI_PGUSER PHI_PGPASSWORD PHI_PGDATABASE PHI_PG_VIA_DOCKER
  *                    원내 DB. 하나도 없으면 업무 DB 와 같다고 본다.
  *   RESET_AT         "04:00" 형식. 지정하면 매일 그 시각에 반복한다. 없으면 한 번만.
+ *   SEED_PROFILE     hospital 이면 seed-hospital/ 의 작은 병원 반년치를 심는다(아래 참고).
+ *
+ * **hospital 프로파일.** 병동 7개·검사실 5개의 반년치(요청 9만여 건, 진행 기록 50만여 건)다.
+ * 이 규모는 API 로 만들 수 없어 SQL 로 한 번에 넣는다 — 대신 서버가 남기는 것과 같은 모양으로
+ * 진행 기록·버전·요청번호 발번 표까지 함께 만든다.
+ *   - 두 DB 가 조인할 수 없으므로 양쪽 시드 앞에 common/ 을 붙여 **같은 계산을 각자 다시 한다.**
+ *     입원·침대·가명·직원이 해시로 정해지므로 두 쪽이 같은 값에 닿는다.
+ *   - 기준 시각은 여기서 한 번만 정해 양쪽에 넘긴다. 각자 now() 를 부르면 두 DB 가
+ *     다른 분에 계산해 "막 입원한 환자" 가 한쪽에만 생긴다.
+ *   - 메시지 내용은 원내에 있어야 하는데 누가 언제 보냈는지는 업무 DB 에서 정해진다.
+ *     그 줄만 읽어 원내 DB 로 넘긴다.
  */
 
 const API = `${process.env.API_BASE ?? 'http://localhost:8080'}/api/v1`;
-const SEED_DIR = process.env.SEED_DIR ?? '/app/seed';
+const HOSPITAL = process.env.SEED_PROFILE === 'hospital';
+const SEED_DIR = process.env.SEED_DIR ?? (HOSPITAL ? '/app/seed-hospital' : '/app/seed');
 
 const tokens = {};
 
@@ -82,6 +94,8 @@ function runSql(db, sql, vars = {}) {
   const childEnv = { ...env, PGPASSWORD: db.password ?? '' };
   return execFileSync(command, argv, {
     input: sql, env: childEnv, stdio: ['pipe', 'pipe', 'inherit'],
+    // 작은 병원 데이터는 메시지 줄만 1MB 를 넘는다. 기본 한도에서는 ENOBUFS 로 죽는다.
+    maxBuffer: 256 * 1024 * 1024,
   }).toString();
 }
 
@@ -89,12 +103,18 @@ function runSql(db, sql, vars = {}) {
  * -f 를 쓰지 않고 내용을 읽어 stdin 으로 넘긴다.
  * docker exec 로 부를 때 -f 의 경로는 컨테이너 안을 가리키기 때문이다.
  */
-function runSeeds(db, dir, vars) {
+function sqlFiles(dir) {
   // 파일 이름을 손으로 적지 않는다. 시드를 하나 더한 날 여기를 같이 고치지 않으면
   // 그 데이터만 초기화 때마다 조용히 사라진다. 이름 순서가 곧 적재 순서다.
   const files = readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
   if (files.length === 0) throw new Error(`시드 파일이 없다: ${dir}`);
-  for (const file of files) runSql(db, readFileSync(`${dir}/${file}`, 'utf8'), vars);
+  return files;
+}
+
+/** prelude 는 파일마다 앞에 붙인다. 임시 테이블이라 psql 세션이 끝나면 사라지기 때문이다. */
+function runSeeds(db, dir, vars, prelude = '') {
+  const files = sqlFiles(dir);
+  for (const file of files) runSql(db, prelude + readFileSync(`${dir}/${file}`, 'utf8'), vars);
   return files;
 }
 
@@ -120,6 +140,8 @@ function wipe() {
     restart identity cascade;
   `);
 
+  if (HOSPITAL) return wipeHospital();
+
   const work = runSeeds(WORK_DB, `${SEED_DIR}/work`);
 
   // 원내 시드가 필요로 하는 업무 쪽 id. 원내 서버도 이 값을 토큰으로만 안다.
@@ -136,6 +158,63 @@ function wipe() {
   const phi = runSeeds(PHI_DB, `${SEED_DIR}/phi`, ids);
   const where = phiConfigured ? '업무 DB · 원내 DB' : '한 DB';
   console.log(`  비우고 시드 재적재 완료 (${where}: work/${work.join(', ')} · phi/${phi.join(', ')})`);
+}
+
+function wipeHospital() {
+  const prelude = sqlFiles(`${SEED_DIR}/common`)
+    .map((f) => readFileSync(`${SEED_DIR}/common/${f}`, 'utf8')).join('\n');
+
+  // 분 단위로 자른다. 초까지 넘기면 같은 값이어도 읽는 쪽이 헷갈리고, 시각을 더 거칠게 자르면
+  // 방금 들어온 요청이 한 시간 전 일처럼 보인다.
+  const anchor = runSql(WORK_DB, `select to_char(date_trunc('minute', now()), 'YYYY-MM-DD"T"HH24:MI:SSOF')`).trim();
+  const vars = { anchor };
+
+  const work = runSeeds(WORK_DB, `${SEED_DIR}/work`, vars, prelude);
+  const phi = runSeeds(PHI_DB, `${SEED_DIR}/phi`, vars, prelude);
+  const bodies = copyMessageBodies(prelude, vars);
+
+  const where = phiConfigured ? '업무 DB · 원내 DB' : '한 DB';
+  console.log(`  작은 병원 반년치 적재 완료 (${where}, 기준 ${anchor}: work/${work.join(', ')} · phi/${phi.join(', ')})`);
+  console.log(`  메시지 내용 ${bodies}건을 원내로 옮김`);
+  console.log(runSql(WORK_DB, `
+    select '    업무 요청 ' || (select count(*) from work_order) || '건, 진행 기록 '
+        || (select count(*) from work_order_event) || '건, 재원 '
+        || (select count(*) from care_episode where status = 'ADMITTED') || '명, 알림 '
+        || (select count(*) from notification) || '건'`).trimEnd());
+  console.log(runSql(PHI_DB, `
+    select '    활력징후 ' || (select count(*) from vital_sign) || '건, 간호기록 '
+        || (select count(*) from nursing_note) || '건, 주의사항 '
+        || (select count(*) from patient_alert) || '건'`).trimEnd());
+}
+
+/**
+ * 업무 DB 의 메시지 줄(누가·언제·열쇠)을 읽어 원내 DB 에 내용을 채운다.
+ * 내용은 여기서 짓지 않고 bridge/message-bodies.sql 이 문구 표에서 고른다.
+ * 고르는 해시 함수가 prelude 에 있어 함께 붙인다.
+ */
+function copyMessageBodies(prelude, vars) {
+  const rows = runSql(WORK_DB, `
+    select m.order_id || '|' || m.message_ref || '|' || m.sender_id || '|' || s.name || '|'
+        || to_char(m.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.USOF') || '|' || w.order_type || '|'
+        || case when s.department_id = w.from_department_id then 'R' else 'P' end
+      from request_message m
+      join work_order w on w.id = m.order_id
+      join staff s on s.id = m.sender_id
+     order by m.id`).trim();
+  if (!rows) return 0;
+
+  const values = rows.split('\n').map((line) => {
+    const [orderId, ref, senderId, name, at, type, side] = line.split('|');
+    return `(${Number(orderId)}, '${ref}', ${Number(senderId)}, '${name.replaceAll("'", "''")}', '${at}', '${type}', '${side}')`;
+  });
+
+  const bridge = readFileSync(`${SEED_DIR}/bridge/message-bodies.sql`, 'utf8');
+  runSql(PHI_DB, `${prelude}
+    create temp table message_in (order_id bigint, message_ref uuid, sender_id bigint, sender_name text,
+                                  created_at timestamptz, order_type text, side char(1));
+    insert into message_in values ${values.join(',\n')};
+    ${bridge}`, vars);
+  return values.length;
 }
 
 // ── 2. 시연용 요청 만들기 ───────────────────────────────────
@@ -343,8 +422,12 @@ async function runOnce() {
   const at = new Date().toLocaleString('ko-KR');
   console.log(`[${at}] 데모 초기화 시작`);
   wipe();
-  await seed();
-  backdate();
+  // 작은 병원 데이터는 시각까지 시드가 정한다. API 로 20건을 더 얹으면 반년치 흐름 위에
+  // "지금 막 한꺼번에 들어온" 요청이 끼어 오히려 부자연스럽다.
+  if (!HOSPITAL) {
+    await seed();
+    backdate();
+  }
   console.log(`[${new Date().toLocaleString('ko-KR')}] 완료\n`);
 }
 
