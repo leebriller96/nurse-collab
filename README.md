@@ -425,6 +425,7 @@ frontend/src/
 | [docs/03-backend-structure.md](docs/03-backend-structure.md) | 패키지 구조, 상태 전이 코드 |
 | [docs/04-screens-permissions.md](docs/04-screens-permissions.md) | 화면 17개 정의, 권한 매트릭스 |
 | [docs/05-deployment.md](docs/05-deployment.md) | 배포 가이드 — 서버·도메인 선택부터 폰에서 열기까지 |
+| [docs/07-test-scenarios.md](docs/07-test-scenarios.md) | 손으로 따라 하는 시나리오 테스트 케이스 — 역할·업무 종류·원내 분리별 |
 
 API 를 직접 눌러 보려면 Postman 컬렉션이 있다 —
 [docs/nurse-collab.postman_collection.json](docs/nurse-collab.postman_collection.json).
