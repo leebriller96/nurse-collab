@@ -428,6 +428,23 @@ sudo chown -R 10001:10001 keys
 cd ~/nurse-collab && git pull && docker compose -f docker-compose.prod.yml up -d --build
 ```
 
+마이그레이션은 백엔드가 뜰 때 자동으로 돈다. 따로 실행할 것이 없다.
+다만 **데이터 모양이 바뀌는 마이그레이션**이 끼어 있으면 올리기 전에 무엇이 바뀌는지 알아 둔다.
+
+| 버전 | 바뀌는 것 | 되돌릴 수 있나 |
+|---|---|---|
+| V16 · V17 | 요청 대화의 **내용**을 `request_message` 에서 원내 테이블 `request_message_body` 로 옮기고, 원래 칸을 지운다 | 옮긴 뒤라 내용은 남는다. 칸을 되살리려면 거꾸로 옮기는 SQL 을 직접 써야 한다 |
+
+- 한 서버 구성(`docker-compose.prod.yml`)은 원내 테이블이 같은 DB 에 있어서 V17 이 내용을 옮긴 뒤 칸을 지운다.
+  **대화가 사라지지 않는다.**
+- 업무 서버만 따로 띄운 DB(`cloud` 역할)에 대화가 쌓여 있는데 옮길 원내 테이블이 없으면 V17 이 **멈춘다.**
+  조용히 칸을 지우면 내용이 사라지기 때문이다. 그런 DB 는 원내 DB 로 내용을 먼저 옮긴다.
+- 옮기기 전 상태를 남겨 두고 싶으면 올리기 전에 덤프를 떠 둔다.
+
+```bash
+docker compose -f docker-compose.prod.yml exec postgres pg_dump -U nursecollab nursecollab > before-upgrade.sql
+```
+
 ### 데모 데이터
 
 **매일 새벽 4시에 처음 상태로 돌아간다.** 데모 계정 비밀번호가 공개돼 있어
