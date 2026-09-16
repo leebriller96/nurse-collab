@@ -83,6 +83,10 @@ public interface WorkOrderRepository extends JpaRepository<WorkOrder, Long> {
      *
      * 이름으로 찾는 조건이 여기 없는 것이 핵심이다. 이름은 업무 쪽에 없다.
      * 부르는 쪽이 원내에 이름을 물어 가명 목록을 받아 subjectRefs 로 넘긴다.
+     *
+     * <p>우선순위는 문자열로 저장된다. {@code order by r.priority desc} 로 두면 알파벳 역순
+     * (URGENT → ROUTINE → EMERGENCY)이 되어 <b>응급이 큐 맨 아래로</b> 간다. 한동안 그랬고
+     * 진행 중인 응급이 없는 데모 데이터에서는 눈에 띄지 않았다. 순서를 명시한다.
      */
     @Query(value = """
             select r from WorkOrder r
@@ -98,7 +102,12 @@ public interface WorkOrderRepository extends JpaRepository<WorkOrder, Long> {
               and (:keyword is null
                    or r.requestNo like %:keyword%
                    or ce.subjectRef in :subjectRefs)
-            order by r.priority desc, r.requestedAt asc
+            order by case r.priority
+                       when com.nursecollab.domain.workorder.entity.OrderPriority.EMERGENCY then 0
+                       when com.nursecollab.domain.workorder.entity.OrderPriority.URGENT then 1
+                       else 2
+                     end,
+                     r.requestedAt asc
             """,
             countQuery = """
             select count(r) from WorkOrder r

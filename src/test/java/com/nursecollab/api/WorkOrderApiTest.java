@@ -120,6 +120,32 @@ class WorkOrderApiTest extends IntegrationTest {
                 .andExpect(status().isOk());
     }
 
+    // ── 큐 정렬 ─────────────────────────────────────────────
+
+    @Test
+    void 들어온_요청은_응급_긴급_일반_순으로_온다() throws Exception {
+        // 일부러 응급을 가운데에 만든다. 요청 시각 순으로만 정렬돼도 우연히 통과하지 않게.
+        long routine = createRequest("ROUTINE").get("id").asLong();
+        long emergency = createRequest("EMERGENCY").get("id").asLong();
+        long urgent = createRequest("URGENT").get("id").asLong();
+
+        String body = mvc.perform(get("/api/v1/work-orders")
+                        .param("direction", "INBOUND")
+                        .param("size", "200")
+                        .header("Authorization", bearer("mri01")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        java.util.List<Long> ids = new java.util.ArrayList<>();
+        om.readTree(body).get("content").forEach(row -> ids.add(row.get("id").asLong()));
+
+        // 우선순위는 문자열로 저장된다. 그대로 역순 정렬하면 URGENT > ROUTINE > EMERGENCY 가 되어
+        // 응급이 맨 아래로 간다. 큐 맨 위에 있어야 할 것이 제일 늦게 눈에 띈다.
+        org.assertj.core.api.Assertions.assertThat(ids).contains(routine, emergency, urgent);
+        org.assertj.core.api.Assertions.assertThat(ids.indexOf(emergency)).isLessThan(ids.indexOf(urgent));
+        org.assertj.core.api.Assertions.assertThat(ids.indexOf(urgent)).isLessThan(ids.indexOf(routine));
+    }
+
     // ── 전이 규칙 ───────────────────────────────────────────
 
     @Test
@@ -198,12 +224,16 @@ class WorkOrderApiTest extends IntegrationTest {
     }
 
     private JsonNode createRequest() throws Exception {
+        return createRequest("URGENT");
+    }
+
+    private JsonNode createRequest(String priority) throws Exception {
         String body = mvc.perform(post("/api/v1/work-orders")
                         .header("Authorization", bearer("ward01"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"subjectRef":"%s","serviceItemId":%d,"priority":"URGENT"}"""
-                                .formatted(subjectRef, brainMriId)))
+                                {"subjectRef":"%s","serviceItemId":%d,"priority":"%s"}"""
+                                .formatted(subjectRef, brainMriId, priority)))
                 // 생성은 201 이고 Location 헤더가 붙는다
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
