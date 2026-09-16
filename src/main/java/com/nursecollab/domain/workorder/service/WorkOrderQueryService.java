@@ -44,14 +44,12 @@ public class WorkOrderQueryService {
      * 요청 목록.
      * direction 하나로 병동 화면과 검사실 화면을 같은 엔드포인트에서 처리한다.
      * 어느 컬럼으로 거를지는 클라이언트가 아니라 서버가 정한다.
-     */
-    /**
-     * 요청 목록.
-     * direction 하나로 병동 화면과 검사실 화면을 같은 엔드포인트에서 처리한다.
-     * 어느 컬럼으로 거를지는 클라이언트가 아니라 서버가 정한다.
      *
      * 기간을 열어 두면 같은 엔드포인트가 지난 요청 검색(E-04)도 처리한다.
      * 화면마다 엔드포인트를 나누면 권한 검증과 조립 코드가 그만큼 흩어진다.
+     *
+     * 기간을 주지 않으면 오늘 것에 더해 전날 이전에 들어와 아직 끝나지 않은 요청을 싣는다.
+     * 큐와 병동 현황이 이렇게 부른다 — 자정에 밤 근무조의 할 일이 사라지면 안 된다.
      */
     public PageResponse<WorkOrderSummary> search(OrderDirection direction,
                                                 List<OrderStatus> statuses,
@@ -62,6 +60,7 @@ public class WorkOrderQueryService {
                                                 Pageable pageable,
                                                 LoginStaff loginStaff) {
 
+        boolean carryOver = (from == null && to == null);
         LocalDate fromDate = (from == null) ? LocalDate.now() : from;
         LocalDate toDate = (to == null) ? fromDate : to;
         if (toDate.isBefore(fromDate)) {
@@ -75,6 +74,7 @@ public class WorkOrderQueryService {
         var page = requestRepository.search(
                 direction.isInbound(), loginStaff.departmentId(),
                 statusFilter(statuses), priority, start, end,
+                carryOver, OrderStatus.terminals(),
                 (keyword == null || keyword.isBlank()) ? null : keyword.trim(),
                 refFilter(subjectRefs), pageable);
 

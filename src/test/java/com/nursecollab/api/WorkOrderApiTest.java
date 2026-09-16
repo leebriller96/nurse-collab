@@ -14,6 +14,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
@@ -44,6 +45,7 @@ class WorkOrderApiTest extends IntegrationTest {
     @Autowired private PatientRepository patientRepository;
     @Autowired private AdmissionService admissionService;
     @Autowired private ServiceItemRepository serviceItemRepository;
+    @Autowired private JdbcTemplate jdbcTemplate;
 
     private Long encounterId;
     private UUID subjectRef;
@@ -118,6 +120,70 @@ class WorkOrderApiTest extends IntegrationTest {
 
         mvc.perform(get("/api/v1/phi/subjects/" + subjectRef).header("Authorization", bearer("mri01")))
                 .andExpect(status().isOk());
+    }
+
+    // ── 큐 정렬 ─────────────────────────────────────────────
+
+    @Test
+    void 들어온_요청은_응급_긴급_일반_순으로_온다() throws Exception {
+        // 일부러 응급을 가운데에 만든다. 요청 시각 순으로만 정렬돼도 우연히 통과하지 않게.
+        long routine = createRequest("ROUTINE").get("id").asLong();
+        long emergency = createRequest("EMERGENCY").get("id").asLong();
+        long urgent = createRequest("URGENT").get("id").asLong();
+
+        String body = mvc.perform(get("/api/v1/work-orders")
+                        .param("direction", "INBOUND")
+                        .param("size", "200")
+                        .header("Authorization", bearer("mri01")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+
+        java.util.List<Long> ids = new java.util.ArrayList<>();
+        om.readTree(body).get("content").forEach(row -> ids.add(row.get("id").asLong()));
+
+        // 우선순위는 문자열로 저장된다. 그대로 역순 정렬하면 URGENT > ROUTINE > EMERGENCY 가 되어
+        // 응급이 맨 아래로 간다. 큐 맨 위에 있어야 할 것이 제일 늦게 눈에 띈다.
+        org.assertj.core.api.Assertions.assertThat(ids).contains(routine, emergency, urgent);
+        org.assertj.core.api.Assertions.assertThat(ids.indexOf(emergency)).isLessThan(ids.indexOf(urgent));
+        org.assertj.core.api.Assertions.assertThat(ids.indexOf(urgent)).isLessThan(ids.indexOf(routine));
+    }
+
+    @Test
+    void 기간을_주지_않으면_어제_들어와_안_끝난_요청도_큐에_남는다() throws Exception {
+        JsonNode open = createRequest("ROUTINE");
+        JsonNode cancelled = createRequest("ROUTINE");
+        mvc.perform(transition(cancelled, "ward01", """
+                        {"toStatus":"CANCELLED","reason":"중복 요청","version":%d}"""
+                        .formatted(cancelled.get("version").asLong())))
+                .andExpect(status().isOk());
+
+        // 자정을 기다리지 않고 요청 시각만 이틀 전으로 되돌린다. 목록은 이 컬럼 하나로 거른다.
+        jdbcTemplate.update("update work_order set requested_at = now() - interval '2 days' where id in (?, ?)",
+                open.get("id").asLong(), cancelled.get("id").asLong());
+
+        java.util.List<Long> current = inboundIds(null);
+        // 밤 근무조의 큐가 자정에 비면 전날 저녁에 걸린 일이 그대로 잊힌다
+        org.assertj.core.api.Assertions.assertThat(current).contains(open.get("id").asLong());
+        // 끝난 요청까지 끌고 오면 큐가 반년치 기록으로 찬다
+        org.assertj.core.api.Assertions.assertThat(current).doesNotContain(cancelled.get("id").asLong());
+
+        // 날짜를 직접 고르면 그 날짜만 본다. 일정 보드와 지난 요청 조회가 이렇게 부른다.
+        org.assertj.core.api.Assertions.assertThat(inboundIds(LocalDate.now().toString()))
+                .doesNotContain(open.get("id").asLong());
+    }
+
+    private java.util.List<Long> inboundIds(String date) throws Exception {
+        var request = get("/api/v1/work-orders")
+                .param("direction", "INBOUND")
+                .param("size", "200")
+                .header("Authorization", bearer("mri01"));
+        if (date != null) request.param("from", date).param("to", date);
+        String body = mvc.perform(request)
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        java.util.List<Long> ids = new java.util.ArrayList<>();
+        om.readTree(body).get("content").forEach(row -> ids.add(row.get("id").asLong()));
+        return ids;
     }
 
     // ── 전이 규칙 ───────────────────────────────────────────
@@ -198,12 +264,16 @@ class WorkOrderApiTest extends IntegrationTest {
     }
 
     private JsonNode createRequest() throws Exception {
+        return createRequest("URGENT");
+    }
+
+    private JsonNode createRequest(String priority) throws Exception {
         String body = mvc.perform(post("/api/v1/work-orders")
                         .header("Authorization", bearer("ward01"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"subjectRef":"%s","serviceItemId":%d,"priority":"URGENT"}"""
-                                .formatted(subjectRef, brainMriId)))
+                                {"subjectRef":"%s","serviceItemId":%d,"priority":"%s"}"""
+                                .formatted(subjectRef, brainMriId, priority)))
                 // 생성은 201 이고 Location 헤더가 붙는다
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();

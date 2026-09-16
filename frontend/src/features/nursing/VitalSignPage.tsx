@@ -54,7 +54,7 @@ export default function VitalSignPage() {
     <div className="p-6 text-center">
       <p className="text-sm font-semibold text-amber-900">원내망에서만 조회됩니다</p>
       <p className="mt-1 text-sm text-amber-800">
-        활력징후은 병원 안에서만 볼 수 있습니다. 기록이 없다는 뜻이 아닙니다.
+        활력징후는 병원 안에서만 볼 수 있습니다. 기록이 없다는 뜻이 아닙니다.
       </p>
     </div>
   ) : null;
