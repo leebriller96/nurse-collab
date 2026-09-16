@@ -87,6 +87,9 @@ public interface WorkOrderRepository extends JpaRepository<WorkOrder, Long> {
      * <p>우선순위는 문자열로 저장된다. {@code order by r.priority desc} 로 두면 알파벳 역순
      * (URGENT → ROUTINE → EMERGENCY)이 되어 <b>응급이 큐 맨 아래로</b> 간다. 한동안 그랬고
      * 진행 중인 응급이 없는 데모 데이터에서는 눈에 띄지 않았다. 순서를 명시한다.
+     *
+     * <p>{@code carryOver} 면 기간 이전에 들어와 아직 끝나지 않은 요청도 싣는다. 기간을 주지 않은
+     * "지금 할 일" 조회다. 오늘로만 거르면 자정이 지나는 순간 전날 저녁의 일이 큐에서 사라진다.
      */
     @Query(value = """
             select r from WorkOrder r
@@ -98,7 +101,9 @@ public interface WorkOrderRepository extends JpaRepository<WorkOrder, Long> {
                 or (:inbound = false and r.fromDepartment.id = :departmentId))
               and r.status in :statuses
               and (:priority is null or r.priority = :priority)
-              and r.requestedAt >= :from and r.requestedAt < :to
+              and r.requestedAt < :to
+              and (r.requestedAt >= :from
+                   or (:carryOver = true and r.status not in :terminals))
               and (:keyword is null
                    or r.requestNo like %:keyword%
                    or ce.subjectRef in :subjectRefs)
@@ -116,13 +121,16 @@ public interface WorkOrderRepository extends JpaRepository<WorkOrder, Long> {
                 or (:inbound = false and r.fromDepartment.id = :departmentId))
               and r.status in :statuses
               and (:priority is null or r.priority = :priority)
-              and r.requestedAt >= :from and r.requestedAt < :to
+              and r.requestedAt < :to
+              and (r.requestedAt >= :from
+                   or (:carryOver = true and r.status not in :terminals))
               and (:keyword is null
                    or r.requestNo like %:keyword%
                    or ce.subjectRef in :subjectRefs)
             """)
     Page<WorkOrder> search(boolean inbound, Long departmentId,
                                  Collection<OrderStatus> statuses, OrderPriority priority,
-                                 OffsetDateTime from, OffsetDateTime to, String keyword,
+                                 OffsetDateTime from, OffsetDateTime to,
+                                 boolean carryOver, Collection<OrderStatus> terminals, String keyword,
                                  Collection<UUID> subjectRefs, Pageable pageable);
 }
