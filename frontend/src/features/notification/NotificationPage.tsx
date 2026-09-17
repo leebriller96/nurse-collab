@@ -8,6 +8,7 @@ import LoadFailed from '@/shared/ui/LoadFailed';
 import PullToRefresh from '@/shared/ui/PullToRefresh';
 import { CardListSkeleton } from '@/shared/ui/Skeleton';
 import { orderPathFor } from '@/shared/lib/home';
+import PushToggle from '@/features/notification/PushToggle';
 
 const ago = (iso: string) => {
   const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -87,6 +88,7 @@ export default function NotificationPage() {
             </button>
           ))}
         </div>
+        <PushToggle />
       </div>
 
       <ul className="space-y-2 px-3">

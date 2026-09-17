@@ -53,6 +53,19 @@ app:
     base-url: ${WORK_API_BASE_URL:}
     connect-timeout: 2s
     read-timeout: 3s
+  push:
+    # 폰 알림(Web Push). 키 파일이 없으면 꺼진다 — 서버는 뜨고 화면에 버튼만 안 나온다.
+    # 만드는 법은 docs/05-deployment.md 4-2. 키를 바꾸면 기존 구독이 전부 무효가 된다.
+    vapid-private-key: ${VAPID_PRIVATE_KEY_FILE:}
+    vapid-public-key: ${VAPID_PUBLIC_KEY_FILE:}
+    subject: ${VAPID_SUBJECT:mailto:nurse-collab@example.com}
+    # 보내도 되는 푸시 서비스. 크롬·엣지(FCM), 파이어폭스, 사파리(iOS 포함), 윈도우.
+    allowed-hosts:
+      - fcm.googleapis.com
+      - updates.push.services.mozilla.com
+      - web.push.apple.com
+      - "*.push.apple.com"
+      - "*.notify.windows.com"
   delay-escalation:
     # 이 시간 동안 아무도 접수하지 않으면 양쪽 수간호사와 요청자에게 한 번 알린다. 일반 요청은 올리지 않는다.
     emergency-minutes: 10

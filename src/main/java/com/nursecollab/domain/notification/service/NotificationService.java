@@ -11,6 +11,7 @@ import com.nursecollab.global.common.PageResponse;
 import com.nursecollab.global.error.BusinessException;
 import com.nursecollab.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,6 +32,7 @@ public class NotificationService {
 
     private final NotificationRepository notificationRepository;
     private final StaffRepository staffRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * 그 요청에 손댄 사람에게 알린다. 행위자 본인은 뺀다.
@@ -89,6 +91,9 @@ public class NotificationService {
 
         if (!notifications.isEmpty()) {
             notificationRepository.saveAll(notifications);
+            // 폰 알림은 이 트랜잭션이 커밋된 뒤에 나간다(PushOnNotification)
+            eventPublisher.publishEvent(new NotificationsCreatedEvent(
+                    Set.copyOf(recipients), request.getId(), notiType, request.getPriority(), title, body));
         }
     }
 

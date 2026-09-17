@@ -48,7 +48,7 @@ public final class AppBoundary {
     /** 업무 DB 에만 있어야 하는 테이블. 원내 DB 에서 보이면 기동을 막는다. */
     public static final List<String> WORK_TABLES = List.of(
             "department", "staff", "service_item", "work_order", "work_order_event",
-            "request_message", "notification", "care_episode", "request_no_sequence", "audit_log");
+            "request_message", "notification", "push_subscription", "care_episode", "request_no_sequence", "audit_log");
 
     public static boolean isPhi(String className) {
         return belongs(className, PHI_PACKAGES);

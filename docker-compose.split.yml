@@ -76,6 +76,10 @@ services:
       SPRING_DATA_REDIS_HOST: redis
       JWT_PRIVATE_KEY_FILE: file:/run/keys/jwt-private.pem
       JWT_PUBLIC_KEY_FILE: file:/run/keys/jwt-public.pem
+      # 폰 알림 키. 비우면 폰 알림만 꺼진다(docs/05-deployment.md 4-2)
+      VAPID_PRIVATE_KEY_FILE: ${VAPID_PRIVATE_KEY_FILE:-}
+      VAPID_PUBLIC_KEY_FILE: ${VAPID_PUBLIC_KEY_FILE:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:nurse-collab@example.com}
       TZ: Asia/Seoul
     volumes:
       - ${JWT_KEYS_DIR:?JWT_KEYS_DIR 을 .env 에 넣어야 한다}:/run/keys:ro

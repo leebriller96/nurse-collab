@@ -270,6 +270,19 @@ sudo chown -R 10001:10001 keys
 로그에는 키 내용이 아니라 `Permission denied` 만 찍혀서 원인을 찾는 데 시간이 걸린다.
 (실제로 CI 에서 이 실수를 한 번 했다.)
 
+폰 알림(Web Push)을 쓰려면 키쌍이 하나 더 필요하다. 없어도 서버는 뜨고, 화면에 "이 기기에서 알림 받기" 버튼만 나오지 않는다.
+
+```bash
+openssl ecparam -name prime256v1 -genkey -noout | openssl pkcs8 -topk8 -nocrypt -out keys/vapid-private.pem
+openssl ec -in keys/vapid-private.pem -pubout -out keys/vapid-public.pem
+chmod 600 keys/vapid-private.pem
+sudo chown -R 10001:10001 keys
+```
+
+`.env` 에 `VAPID_PRIVATE_KEY_FILE=file:/run/keys/vapid-private.pem`, `VAPID_PUBLIC_KEY_FILE=file:/run/keys/vapid-public.pem`,
+`VAPID_SUBJECT=mailto:내이메일@example.com` 을 넣는다. 이 키를 바꾸면 **기존 구독이 전부 무효가 된다** —
+간호사마다 버튼을 다시 눌러야 한다. 토큰 키처럼 가볍게 돌리지 않는다.
+
 대칭키가 아니라 키쌍인 이유가 있다.
 대칭키면 토큰을 **검증**만 하면 되는 쪽도 **발급**할 수 있는 키를 가져야 한다.
 지금은 한 대뿐이라 차이가 없지만, 환자 정보를 원내에만 두는 구성으로 가면

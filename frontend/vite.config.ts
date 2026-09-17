@@ -56,6 +56,8 @@ export default defineConfig({
         navigateFallback: '/index.html',
         // SPA 폴백이 API 와 실시간 연결까지 가로채면 안 된다
         navigateFallbackDenylist: [/^\/api\//, /^\/ws/],
+        // 폰 알림을 받아 띄우는 처리. 워커 전체를 직접 쓰지 않고 이 부분만 덧붙인다.
+        importScripts: ['push-sw.js'],
       },
     }),
   ],
