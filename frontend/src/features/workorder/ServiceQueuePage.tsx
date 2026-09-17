@@ -79,7 +79,11 @@ export default function ServiceQueuePage() {
               <tr
                 key={row.id}
                 onClick={() => navigate(`/service/requests/${row.id}`)}
-                className={`cursor-pointer hover:bg-slate-50 ${waitingStyle(row.waitingMinutes)}`}
+                // 병동이 눌러야 하는 행은 흐리게 한다. 여기서 오래 기다렸다고 빨갛게 칠하면
+                // 검사실이 할 수 없는 일에 눈이 먼저 간다.
+                className={`cursor-pointer hover:bg-slate-50 ${
+                  row.myTurn ? waitingStyle(row.waitingMinutes) : 'text-slate-400 opacity-70'
+                }`}
               >
                 <td className="px-3 py-3">
                   <PriorityBadge priority={row.priority} />
@@ -98,6 +102,7 @@ export default function ServiceQueuePage() {
                 <td className="px-3 py-3 tabular-nums text-slate-700">{row.waitingMinutes}분</td>
                 <td className="px-3 py-3">
                   <StatusBadge status={row.status} label={row.statusLabel} />
+                  {!row.myTurn && <span className="ml-1.5 text-xs text-slate-500">병동 차례</span>}
                 </td>
               </tr>
             ))}

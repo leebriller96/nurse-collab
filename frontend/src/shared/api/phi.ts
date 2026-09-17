@@ -60,6 +60,8 @@ export interface SubjectPhi {
  * 원내에 닿지 못하면 `unavailable` 이 참이 되고, 화면은 빈칸을 보여주는 대신
  * "원내망에서만 조회됩니다" 라고 말한다. 모르는 것보다 틀리게 아는 것이 나쁘다.
  */
+export type SubjectBriefs = ReturnType<typeof useSubjectBriefs>;
+
 export function useSubjectBriefs(subjectRefs: (string | null | undefined)[]) {
   const refs = [...new Set(subjectRefs.filter((r): r is string => !!r))].sort();
 

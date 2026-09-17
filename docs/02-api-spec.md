@@ -358,23 +358,35 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
     {
       "id": 101,
       "requestNo": "TR20260904-0001",
-      "status": "ACCEPTED",
+      "orderType": "TRANSFER",
+      "status": "READY",
+      "statusLabel": "준비완료",
       "priority": "URGENT",
-      "patient": { "name": "김OO", "patientNo": "P0001234", "age": 68, "sex": "M" },
+      "subjectRef": "3f0c5b1e-6a8d-4c2e-9b7a-1d2e3f4a5b6c",
       "roomNo": "302",
-      "examName": "뇌 MRI",
+      "bedNo": "1",
+      "itemName": "뇌 MRI",
       "counterpartDepartment": { "id": 7, "name": "MRI실" },
       "requestedAt": "2026-09-04T14:12:00+09:00",
       "scheduledAt": "2026-09-04T15:30:00+09:00",
       "waitingMinutes": 18,
-      "criticalAlertCount": 1,
+      "myTurn": true,
       "version": 3
     }
   ]
 }
 ```
 
+이름·진단명·주의사항은 없다. `subjectRef` 로 원내에 물어 채운다.
+
 `counterpartDepartment` : 병동이 보면 검사실, 검사실이 보면 병동. 상대 파트를 뜻한다.
+
+`myTurn` : **보고 있는 쪽이 다음 걸음을 눌러야 하는가.** 위 예에서 준비완료 다음(환자 출발)은 병동이 누르므로
+병동이 보면 `true`, MRI실이 보면 `false` 다. 보류·취소처럼 옆으로 가는 버튼은 치지 않는다 — 누를 수는 있어도
+"차례" 는 아니다. 보류 중인 요청은 양쪽 다 `false` 다. 판정은 `OrderType` 규칙표에서 나온다.
+
+교대할 때 넘길 것이 이것이다. 안 끝난 요청 중 **우리가 멈춰 세운 것**(수령 확인을 안 누른 약, 결과를 안 본 검체,
+출발을 안 누른 이송)과 상대를 기다리는 것은 넘기는 말이 다르다. 목록에 섞여 있으면 인수인계 때 한 줄씩 열어 봐야 한다.
 
 `waitingMinutes` : 요청 시각부터 흐른 시간. 진행중이면 지금까지, 끝났으면 완료 시각까지 센다.
 검사실 큐에서 오래 기다린 행을 진하게 칠하는 근거라서 "지금 기준" 이어야 한다.

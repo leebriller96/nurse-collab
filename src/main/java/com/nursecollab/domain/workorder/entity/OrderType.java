@@ -274,6 +274,17 @@ public enum OrderType {
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
+    /**
+     * 이 상태에서 다음 걸음을 이 쪽이 눌러야 하는가.
+     *
+     * 보류·취소는 치지 않는다. 요청됨에서 병동은 취소를 누를 수 있지만 그걸로 "병동 차례" 라고 하면
+     * 접수를 기다리는 요청이 전부 병동이 멈춰 세운 것처럼 보인다. 교대할 때 넘기는 말이 달라진다.
+     */
+    public boolean isTurnOf(OrderStatus current, ActorSide side) {
+        return availableFor(current, side).stream()
+                .anyMatch(to -> to != ON_HOLD && to != CANCELLED);
+    }
+
     /** 이 종류가 실제로 쓰는 상태 전부. 화면이 진행 단계를 그릴 때 쓴다. */
     public Set<OrderStatus> statuses() {
         Set<OrderStatus> used = new LinkedHashSet<>();
