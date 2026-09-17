@@ -53,6 +53,10 @@ app:
     base-url: ${WORK_API_BASE_URL:}
     connect-timeout: 2s
     read-timeout: 3s
+  delay-escalation:
+    # 이 시간 동안 아무도 접수하지 않으면 양쪽 수간호사와 요청자에게 한 번 알린다. 일반 요청은 올리지 않는다.
+    emergency-minutes: 10
+    urgent-minutes: 30
 
 server:
   port: 8080

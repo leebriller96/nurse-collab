@@ -64,8 +64,26 @@ public class NotificationService {
             recipients.addAll(staffRepository.findActiveIdsByDepartmentIds(untouchedDepartments));
         }
 
+        recipients.remove(actorId);
+        save(recipients, request, notiType, title, body);
+    }
+
+    /**
+     * 접수 지연. 양쪽 파트의 수간호사와 요청한 사람에게 보낸다.
+     * 수행 파트 전원은 새 요청 알림을 이미 받았다 — 그걸 놓친 상황이라 같은 사람들에게 또 울리지 않는다.
+     */
+    @Transactional
+    public void notifyDelay(WorkOrder request, String title, String body) {
+        Set<Long> recipients = new LinkedHashSet<>(staffRepository.findActiveHeadNurseIdsByDepartmentIds(
+                List.of(request.getFromDepartment().getId(), request.getToDepartment().getId())));
+        if (request.getRequestedBy().isActive()) {
+            recipients.add(request.getRequestedBy().getId());
+        }
+        save(recipients, request, NotiType.DELAYED, title, body);
+    }
+
+    private void save(Set<Long> recipients, WorkOrder request, NotiType notiType, String title, String body) {
         List<Notification> notifications = recipients.stream()
-                .filter(id -> !id.equals(actorId))
                 .map(id -> Notification.of(id, notiType, REF_TYPE, request.getId(), title, body))
                 .toList();
 

@@ -437,6 +437,16 @@ FROM (
     FROM ev e JOIN ord o ON o.id = e.order_id
 ) x;
 
+-- 접수 안 된 채 기준 시간(응급 10분·긴급 30분)을 넘긴 요청은 그때 이미 알린 것으로 찍는다.
+-- 안 찍으면 초기화 1분 뒤 감시가 이것들을 한꺼번에 수간호사에게 올린다.
+UPDATE work_order
+   SET delay_notified_at = requested_at + CASE priority WHEN 'EMERGENCY' THEN interval '10 minutes'
+                                                        ELSE interval '30 minutes' END
+ WHERE status = 'REQUESTED'
+   AND priority IN ('EMERGENCY', 'URGENT')
+   AND requested_at + CASE priority WHEN 'EMERGENCY' THEN interval '10 minutes'
+                                    ELSE interval '30 minutes' END <= (SELECT anchor FROM plan_anchor);
+
 -- 요청번호 발번 표. 오늘 새로 만드는 요청이 기존 번호 뒤를 잇게 한다.
 INSERT INTO request_no_sequence (date_key, order_type, last_no)
 SELECT date_trunc('day', requested_at)::date, order_type, count(*)

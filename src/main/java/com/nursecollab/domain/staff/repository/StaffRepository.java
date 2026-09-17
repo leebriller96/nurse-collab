@@ -38,6 +38,15 @@ public interface StaffRepository extends JpaRepository<Staff, Long> {
     record Involved(Long staffId, Long departmentId) {
     }
 
+    /** 접수 지연을 올려받는 사람. 파트를 움직일 수 있는 수간호사다. */
+    @Query("""
+            select s.id from Staff s
+            where s.department.id in :departmentIds
+              and s.role = com.nursecollab.domain.staff.entity.StaffRole.HEAD_NURSE
+              and s.active = true
+            """)
+    List<Long> findActiveHeadNurseIdsByDepartmentIds(Collection<Long> departmentIds);
+
     boolean existsByLoginId(String loginId);
 
     boolean existsByEmployeeNo(String employeeNo);

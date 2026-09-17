@@ -839,6 +839,21 @@ A-05 화면은 탭이 둘이다. **환자 정보 열람**은 원내 경로를, *
 병동 간호사 폰에 남의 환자 채혈 결과 알림까지 쌓이면 결국 아무도 알림을 보지 않는다.
 파트 전체가 알아야 하는 변화는 실시간 채널과 화면 갱신이 이미 전한다 — 알림함은 **나중에 확인할 내 일**만 담는다.
 
+### 접수 지연
+
+응급 요청이 **10분**, 긴급 요청이 **30분** 동안 접수되지 않으면(`REQUESTED` 그대로) 한 번 더 알린다.
+받는 사람은 **양쪽 파트의 수간호사와 요청한 사람**이다. 새 요청 알림은 이미 수행 파트 전원에게 갔으니
+같은 사람들에게 또 보내지 않는다 — 그걸 놓친 상황이다. 파트를 움직일 수 있는 사람에게 올린다.
+
+- `notiType` 은 `DELAYED`. 제목은 `"MRI실 응급 요청이 12분째 접수되지 않았습니다"`.
+- 요청마다 **한 번만** 보낸다(`work_order.delay_notified_at`). 매분 울리면 결국 끈다.
+- 파트 채널로 `ORDER_DELAYED` 도 방송한다. 큐를 보고 있는 사람에게 빨간 토스트로 뜬다.
+- 들어온 지 12시간이 지난 요청은 올리지 않는다. 서버가 오래 꺼져 있다 켜졌을 때 한꺼번에 울리는 것을 막는다.
+  그만큼 묵은 요청은 지연이 아니라 방치이고, 알림 하나로 풀리지 않는다.
+- 시간 기준은 `app.delay-escalation.emergency-minutes` / `urgent-minutes` 로 바꾼다. 일반 요청은 올리지 않는다.
+- 접수 여부를 표시하는 값이지 요청의 상태가 아니다. `version` 을 올리지 않는다 — 올리면 알림이 나가는 순간
+  접수 버튼을 누른 간호사가 "다른 사용자가 먼저 처리했습니다" 를 받는다.
+
 ### 보관
 
 읽은 알림은 30일, 읽지 않은 알림은 90일이 지나면 지운다(매일 03:40). 알림은 요청 이력의 복사본이라
@@ -898,23 +913,29 @@ CONNECT 헤더 : Authorization: Bearer {accessToken}
 
 ```json
 {
-  "eventType": "TRANSFER_STATUS_CHANGED",
+  "eventType": "ORDER_STATUS_CHANGED",
   "requestId": 101,
   "requestNo": "TR20260904-0001",
   "fromStatus": "REQUESTED",
   "toStatus": "ACCEPTED",
   "priority": "URGENT",
-  "patientName": "김OO",
+  "subjectRef": "3f0c5b1e-6a8d-4c2e-9b7a-1d2e3f4a5b6c",
   "roomNo": "302",
-  "examName": "뇌 MRI",
+  "itemName": "뇌 MRI",
   "actorId": 5,
   "actorName": "박간호",
   "actorDepartmentName": "MRI실",
+  "waitingMinutes": null,
   "occurredAt": "2026-09-04T14:30:00+09:00"
 }
 ```
 
-`eventType` 종류: `TRANSFER_CREATED`, `TRANSFER_STATUS_CHANGED`, `MESSAGE_CREATED`
+`eventType` 종류: `ORDER_CREATED`, `ORDER_STATUS_CHANGED`, `MESSAGE_CREATED`, `ORDER_DELAYED`
+
+이름은 싣지 않는다. 환자는 `subjectRef` 로만 가리키고 화면이 필요하면 원내에 물어 채운다.
+
+`ORDER_DELAYED` 는 사람이 누른 것이 아니라 서버가 보낸다. `actorId`·`actorName`·`actorDepartmentName` 이
+비어 오고 `waitingMinutes` 에 몇 분째 기다렸는지가 실린다(7장 접수 지연).
 
 페이로드에 사람이 읽을 수 있는 필드를 함께 싣는 것은 **토스트 문구를 만들기 위해서**다.
 화면을 이 내용으로 그리라는 뜻이 아니다. 목록과 상세는 반드시 REST 로 다시 받아온다.

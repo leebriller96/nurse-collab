@@ -6,6 +6,7 @@ import com.nursecollab.domain.workorder.entity.OrderStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.OffsetDateTime;
@@ -15,6 +16,41 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface WorkOrderRepository extends JpaRepository<WorkOrder, Long> {
+
+    /** 접수되지 않은 채 기준 시각을 넘긴 응급·긴급 요청. 아직 알리지 않은 것만. */
+    @Query("""
+            select new com.nursecollab.domain.workorder.repository.WorkOrderRepository$Delayed(r.id, r.requestedAt)
+            from WorkOrder r
+            where r.status = com.nursecollab.domain.workorder.entity.OrderStatus.REQUESTED
+              and r.delayNotifiedAt is null
+              and r.requestedAt > :notBefore
+              and ((r.priority = com.nursecollab.domain.workorder.entity.OrderPriority.EMERGENCY
+                    and r.requestedAt < :emergencyBefore)
+                or (r.priority = com.nursecollab.domain.workorder.entity.OrderPriority.URGENT
+                    and r.requestedAt < :urgentBefore))
+            order by r.requestedAt asc
+            """)
+    List<Delayed> findDelayed(OffsetDateTime emergencyBefore, OffsetDateTime urgentBefore,
+                              OffsetDateTime notBefore);
+
+    record Delayed(Long id, OffsetDateTime requestedAt) {
+    }
+
+    /**
+     * 접수 지연을 알렸다고 찍는다. 갱신된 행이 1일 때만 알린다.
+     *
+     * 엔티티를 거치지 않는 것은 version 을 올리지 않기 위해서다. 올리면 알림이 나가는 그 순간
+     * 접수를 누른 간호사가 낙관적 락에 걸린다. 조건을 다시 거는 것은 서버가 여러 대이거나
+     * 그사이 접수됐을 때 두 번 알리지 않기 위해서다.
+     */
+    @Modifying
+    @Query("""
+            update WorkOrder r set r.delayNotifiedAt = :now
+            where r.id = :id
+              and r.delayNotifiedAt is null
+              and r.status = com.nursecollab.domain.workorder.entity.OrderStatus.REQUESTED
+            """)
+    int markDelayNotified(Long id, OffsetDateTime now);
 
     /** 상태 전이는 양쪽 파트와 행위자를 모두 봐야 하므로 함께 가져온다. */
     @Query("""

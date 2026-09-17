@@ -289,6 +289,8 @@ CREATE TABLE work_order (
 
     note                VARCHAR(500),                 -- 요청 메모
     hold_reason         VARCHAR(500),                 -- 보류/취소 사유
+    hold_from_status    VARCHAR(20),                  -- 보류 직전 상태
+    delay_notified_at   TIMESTAMPTZ,                  -- 접수 지연을 알린 시각 (V18). 한 번만 알린다
     version             BIGINT       NOT NULL DEFAULT 0, -- 낙관적 락 (JPA @Version)
     created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW()

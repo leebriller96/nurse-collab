@@ -284,7 +284,7 @@ export interface PhiAccessLogEntry {
   detail: Record<string, unknown> | null;
 }
 
-export type NotiType = 'ORDER_CREATED' | 'STATUS_CHANGED' | 'MESSAGE';
+export type NotiType = 'ORDER_CREATED' | 'STATUS_CHANGED' | 'MESSAGE' | 'DELAYED';
 
 export interface NotificationItem {
   id: number;

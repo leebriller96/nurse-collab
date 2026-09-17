@@ -100,11 +100,22 @@ export default function NotificationPage() {
                 navigate(`${detailPath}/${noti.refId}`);
               }}
               className={`w-full rounded-xl p-3.5 text-left shadow-sm ring-1 ${
-                noti.readAt ? 'bg-white ring-slate-200' : 'bg-sky-50 ring-sky-200'
+                noti.readAt
+                  ? 'bg-white ring-slate-200'
+                  : noti.notiType === 'DELAYED'
+                    // 접수 지연은 다른 알림 사이에 묻히면 안 된다. 토스트의 응급 색과 맞춘다.
+                    ? 'bg-rose-50 ring-rose-300'
+                    : 'bg-sky-50 ring-sky-200'
               }`}
             >
               <div className="flex items-baseline gap-2">
-                {!noti.readAt && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" />}
+                {!noti.readAt && (
+                  <span
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                      noti.notiType === 'DELAYED' ? 'bg-rose-500' : 'bg-sky-500'
+                    }`}
+                  />
+                )}
                 <span className="font-semibold text-slate-900">{noti.title}</span>
                 <span className="ml-auto shrink-0 text-xs text-slate-400">{ago(noti.createdAt)}</span>
               </div>
