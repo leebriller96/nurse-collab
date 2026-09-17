@@ -17,7 +17,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -30,15 +33,36 @@ public class NotificationService {
     private final StaffRepository staffRepository;
 
     /**
-     * 요청에 관여하는 양쪽 파트에 알린다. 행위자 본인은 뺀다.
+     * 그 요청에 손댄 사람에게 알린다. 행위자 본인은 뺀다.
      * 자기가 방금 누른 것이 알림으로 돌아오면 알림함이 쓸모없어진다.
+     *
+     * 파트 전원에게 보내지 않는다. 반년치 데이터로 세어 보니 하루 7만 5천 건이었고,
+     * 남의 환자 알림까지 쌓이는 알림함은 아무도 열지 않는다. 파트 전체가 알아야 할 변화는
+     * 실시간 채널이 이미 전한다. 다만 한쪽 파트에 아직 손댄 사람이 없으면 그 파트 전원에게 보낸다 —
+     * 담당자가 없으니 누가 집을지 모른다. 새 요청이 수행 파트 전원에게 가는 것이 이 경우다.
      */
     @Transactional
     public void notifyOrder(WorkOrder request, Long actorId,
                                NotiType notiType, String title, String body) {
 
-        List<Long> recipients = staffRepository.findActiveIdsByDepartmentIds(
-                List.of(request.getFromDepartment().getId(), request.getToDepartment().getId()));
+        List<StaffRepository.Involved> involved = staffRepository.findInvolvedInOrder(request.getId());
+        Set<Long> recipients = new LinkedHashSet<>();
+        List<Long> untouchedDepartments = new ArrayList<>();
+
+        for (Long departmentId : List.of(request.getFromDepartment().getId(), request.getToDepartment().getId())) {
+            List<Long> ours = involved.stream()
+                    .filter(i -> i.departmentId().equals(departmentId))
+                    .map(StaffRepository.Involved::staffId)
+                    .toList();
+            if (ours.isEmpty()) {
+                untouchedDepartments.add(departmentId);
+            } else {
+                recipients.addAll(ours);
+            }
+        }
+        if (!untouchedDepartments.isEmpty()) {
+            recipients.addAll(staffRepository.findActiveIdsByDepartmentIds(untouchedDepartments));
+        }
 
         List<Notification> notifications = recipients.stream()
                 .filter(id -> !id.equals(actorId))

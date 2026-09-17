@@ -30,6 +30,15 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     @Query("update Notification n set n.readAt = :now where n.recipientId = :recipientId and n.readAt is null")
     int markAllRead(Long recipientId, OffsetDateTime now);
 
+    /** 읽은 것은 readBefore 전에 만든 것, 안 읽은 것은 unreadBefore 전에 만든 것을 지운다 */
+    @Modifying(clearAutomatically = true)
+    @Query("""
+            delete from Notification n
+            where (n.readAt is not null and n.createdAt < :readBefore)
+               or (n.readAt is null and n.createdAt < :unreadBefore)
+            """)
+    int deleteOlderThan(OffsetDateTime readBefore, OffsetDateTime unreadBefore);
+
     /** 알림은 한 번에 여러 명에게 나가므로 묶어서 넣는다. */
     @Override
     <S extends Notification> List<S> saveAll(Iterable<S> entities);

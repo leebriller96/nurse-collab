@@ -363,6 +363,7 @@ CREATE TABLE notification (
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
+-- 이력의 복사본이라 지운다: 읽은 것 30일, 안 읽은 것 90일 (api-spec 7장)
 -- 미읽음 알림 조회가 가장 빈번 → 부분 인덱스
 CREATE INDEX idx_noti_unread ON notification(recipient_id, created_at DESC) WHERE read_at IS NULL;
 
