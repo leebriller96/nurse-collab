@@ -15,3 +15,13 @@ export function homeFor(deptType: DeptType): string {
   if (deptType === 'ADMIN') return '/admin/stats';
   return deptType === 'WARD' ? '/ward/board' : '/service/queue';
 }
+
+/**
+ * 요청 한 건의 상세 화면. 소속에 따라 병동 화면이냐 수행 파트 화면이냐가 갈린다.
+ *
+ * 알림함이 `deptType === 'EXAM'` 으로 따로 판정하고 있었다. 검사실만 수행 파트였던 때의 흔적이라
+ * 진단검사의학과·약제부·의공학팀은 알림을 누르면 병동 화면으로 갔다. 홈과 같은 기준을 쓴다.
+ */
+export function orderPathFor(deptType: DeptType, orderId: number | string): string {
+  return deptType === 'WARD' ? `/ward/requests/${orderId}` : `/service/requests/${orderId}`;
+}

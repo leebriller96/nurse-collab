@@ -7,6 +7,7 @@ import type { NotificationsResponse } from '@/shared/api/types';
 import LoadFailed from '@/shared/ui/LoadFailed';
 import PullToRefresh from '@/shared/ui/PullToRefresh';
 import { CardListSkeleton } from '@/shared/ui/Skeleton';
+import { orderPathFor } from '@/shared/lib/home';
 
 const ago = (iso: string) => {
   const minutes = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
@@ -53,8 +54,6 @@ export default function NotificationPage() {
   if (isPending) return <CardListSkeleton rows={5} />;
   if (isError) return <LoadFailed error={error} onRetry={() => void refetch()} />;
 
-  const detailPath = staff?.department.deptType === 'EXAM' ? '/service/requests' : '/ward/requests';
-
   return (
     <PullToRefresh onRefresh={refetch}>
     <div className="pb-24">
@@ -97,7 +96,7 @@ export default function NotificationPage() {
               type="button"
               onClick={() => {
                 if (!noti.readAt) open.mutate(noti.id);
-                navigate(`${detailPath}/${noti.refId}`);
+                if (staff) navigate(orderPathFor(staff.department.deptType, noti.refId));
               }}
               className={`w-full rounded-xl p-3.5 text-left shadow-sm ring-1 ${
                 noti.readAt
