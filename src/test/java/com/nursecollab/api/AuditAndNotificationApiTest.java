@@ -16,8 +16,11 @@ import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -181,6 +184,32 @@ class AuditAndNotificationApiTest extends IntegrationTest {
         assertThat(unreadCountOf("head01")).isEqualTo(wardColleague);
         // 같은 MRI실이라도 이제 담당자가 정해졌다. 동료 폰까지 울리면 알림함을 아무도 안 연다.
         assertThat(unreadCountOf("mri02")).isEqualTo(mriColleague);
+    }
+
+    @Test
+    void 알림_문구의_예정_시각은_병원_현지_시각이다() throws Exception {
+        long orderId = createRequest();
+
+        // 화면은 toISOString() 으로 UTC 를 보낸다. 서울 15:30 은 06:30Z 로 온다.
+        OffsetDateTime seoul = OffsetDateTime.now(ZoneId.systemDefault())
+                .plusDays(1).withHour(15).withMinute(30).withSecond(0).withNano(0);
+        mvc.perform(post("/api/v1/work-orders/" + orderId + "/transitions")
+                        .header("Authorization", bearer("mri01"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"toStatus":"ACCEPTED","scheduledAt":"%s","version":0}"""
+                                .formatted(seoul.withOffsetSameInstant(ZoneOffset.UTC))))
+                .andExpect(status().isOk());
+
+        // 기본 getContentAsString() 은 ISO-8859-1 로 읽어 한글이 깨진다
+        String body = mvc.perform(get("/api/v1/notifications")
+                        .header("Authorization", bearer("ward01")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8);
+        String text = om.readTree(body).get("page").get("content").get(0).get("body").asText();
+
+        // UTC 로 찍히면 "06:30 예정" 이 되고, 간호사는 아침 검사인 줄 안다
+        assertThat(text).endsWith("15:30 예정");
     }
 
     @Test

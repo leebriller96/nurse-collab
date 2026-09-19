@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -116,7 +117,10 @@ public class NotificationService {
         sb.append(request.getServiceItem().getName());
 
         if (request.getScheduledAt() != null) {
-            sb.append(" / ").append(request.getScheduledAt().format(TIME)).append(" 예정");
+            // 화면은 UTC 로 보내고 DB 에서 돌아오는 값도 UTC 다. 그대로 찍으면 15:30 예정이 06:30 예정이 된다.
+            sb.append(" / ")
+                    .append(request.getScheduledAt().atZoneSameInstant(ZoneId.systemDefault()).format(TIME))
+                    .append(" 예정");
         }
         return sb.toString();
     }
