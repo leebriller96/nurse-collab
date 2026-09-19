@@ -43,6 +43,39 @@ async function refreshAccessToken(): Promise<string> {
   return data.accessToken;
 }
 
+/** 토큰의 만료 시각(ms). 서명은 서버가 본다 — 여기서는 언제 죽는지만 읽는다. */
+function expiresAt(token: string): number | null {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))) as { exp?: number };
+    return typeof payload.exp === 'number' ? payload.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 곧 만료될 토큰이면 미리 갈아 끼운다.
+ *
+ * REST 는 401 을 받고 나서 갱신하면 되지만 실시간 연결은 다르다. 끊겼다 다시 붙을 때
+ * 만료된 토큰으로 CONNECT 하면 서버가 거절하고, 3초마다 같은 토큰으로 다시 두드리게 된다.
+ * 여러 곳이 동시에 부르면 갱신은 한 번만 나간다(refreshing).
+ */
+export async function freshAccessToken(): Promise<string | null> {
+  const token = tokenStore.access();
+  if (!token) return null;
+  const exp = expiresAt(token);
+  if (exp !== null && exp - Date.now() > 60_000) return token;
+  try {
+    refreshing = refreshing ?? refreshAccessToken();
+    return await refreshing;
+  } catch {
+    // 갱신 토큰까지 죽었으면 다음 REST 호출이 로그인 화면으로 보낸다
+    return token;
+  } finally {
+    refreshing = null;
+  }
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError<ApiError>) => {
