@@ -3,9 +3,9 @@ package com.nursecollab.domain.audit.controller;
 import com.nursecollab.domain.audit.dto.AuditLogResponse;
 import com.nursecollab.domain.audit.service.AuditLogQueryService;
 import com.nursecollab.global.common.PageResponse;
+import com.nursecollab.global.common.Paging;
 import com.nursecollab.global.security.LoginStaff;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -33,6 +33,6 @@ public class AuditLogController {
             @AuthenticationPrincipal LoginStaff loginStaff) {
 
         return ResponseEntity.ok(auditLogQueryService.search(
-                from, to, actorId, PageRequest.of(page, size), loginStaff));
+                from, to, actorId, Paging.of(page, size), loginStaff));
     }
 }

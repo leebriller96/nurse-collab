@@ -3,9 +3,9 @@ package com.nursecollab.domain.phi.controller;
 import com.nursecollab.domain.phi.dto.PhiAccessLogResponse;
 import com.nursecollab.domain.phi.service.PhiAccessLogQueryService;
 import com.nursecollab.global.common.PageResponse;
+import com.nursecollab.global.common.Paging;
 import com.nursecollab.global.security.LoginStaff;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -34,6 +34,6 @@ public class PhiAccessLogController {
             @AuthenticationPrincipal LoginStaff loginStaff) {
 
         return ResponseEntity.ok(queryService.search(
-                from, to, patientNo, PageRequest.of(page, size), loginStaff));
+                from, to, patientNo, Paging.of(page, size), loginStaff));
     }
 }

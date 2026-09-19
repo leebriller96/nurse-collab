@@ -87,6 +87,27 @@ class WorkOrderApiTest extends IntegrationTest {
                 .andExpect(jsonPath("$.code").value("AUTH-001"));
     }
 
+    // ── 목록 크기 ───────────────────────────────────────────
+
+    @Test
+    void 페이지_크기는_1에서_200_사이로_눌러_담는다() throws Exception {
+        // size=0 은 PageRequest 가 거부해 500 이 나갔고, 큰 값은 반년치를 한 번에 올렸다
+        mvc.perform(get("/api/v1/work-orders").param("direction", "OUTBOUND").param("size", "0")
+                        .header("Authorization", bearer("ward01")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size").value(1));
+
+        mvc.perform(get("/api/v1/work-orders").param("direction", "OUTBOUND").param("size", "100000")
+                        .header("Authorization", bearer("ward01")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size").value(200));
+
+        mvc.perform(get("/api/v1/work-orders").param("direction", "OUTBOUND").param("page", "-3")
+                        .header("Authorization", bearer("ward01")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(0));
+    }
+
     // ── 역할 권한 ───────────────────────────────────────────
 
     @Test

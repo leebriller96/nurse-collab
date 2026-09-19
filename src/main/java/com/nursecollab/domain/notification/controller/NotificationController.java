@@ -2,9 +2,9 @@ package com.nursecollab.domain.notification.controller;
 
 import com.nursecollab.domain.notification.dto.NotificationsResponse;
 import com.nursecollab.domain.notification.service.NotificationService;
+import com.nursecollab.global.common.Paging;
 import com.nursecollab.global.security.LoginStaff;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -29,7 +29,7 @@ public class NotificationController {
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal LoginStaff loginStaff) {
         return ResponseEntity.ok(notificationService.find(
-                loginStaff.staffId(), unreadOnly, PageRequest.of(page, size)));
+                loginStaff.staffId(), unreadOnly, Paging.of(page, size)));
     }
 
     @PatchMapping("/{id}/read")
