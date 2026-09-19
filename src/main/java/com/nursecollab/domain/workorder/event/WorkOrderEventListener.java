@@ -87,6 +87,7 @@ public class WorkOrderEventListener {
                             request.getRequestNo(),
                             null,
                             request.getStatus(),
+                            request.getOrderType().labelOf(request.getStatus()),
                             request.getPriority(),
                             request.getCareEpisode() == null ? null
                                     : request.getCareEpisode().getSubjectRef(),
@@ -126,6 +127,7 @@ public class WorkOrderEventListener {
                             request.getRequestNo(),
                             fromStatus,
                             toStatus,
+                            toStatus == null ? null : request.getOrderType().labelOf(toStatus),
                             request.getPriority(),
                             // 이름은 실시간 방송에도 싣지 않는다. 알림은 파트 채널로 나가고
                             // 그 채널을 구독하는 브라우저가 원내망 밖에 있을 수도 있다.

@@ -187,7 +187,7 @@ export default function ServiceSchedulePage() {
                   )}
                   <span className="ml-auto flex shrink-0 items-center gap-1.5">
                     {r.priority !== 'ROUTINE' && <PriorityBadge priority={r.priority} />}
-                    <StatusBadge status={r.status} />
+                    <StatusBadge status={r.status} label={r.statusLabel} />
                   </span>
                 </button>
               );

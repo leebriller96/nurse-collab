@@ -22,6 +22,8 @@ public record RealtimeEvent(
         String requestNo,
         OrderStatus fromStatus,
         OrderStatus toStatus,
+        /** 종류가 부르는 이름. 토스트가 "진행중" 대신 "조제중" 을 띄우게 한다 */
+        String toStatusLabel,
         OrderPriority priority,
         java.util.UUID subjectRef,
         String roomNo,

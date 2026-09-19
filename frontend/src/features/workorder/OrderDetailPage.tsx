@@ -5,7 +5,7 @@ import { api, messageOf } from '@/shared/api/client';
 import type {
   Message, OrderDetail, OrderEvent, OrderStatus, TransitionOption,
 } from '@/shared/api/types';
-import { AlertBadge, PriorityBadge, StatusBadge, statusLabel } from '@/shared/ui/badges';
+import { AlertBadge, PriorityBadge, StatusBadge } from '@/shared/ui/badges';
 import LoadFailed from '@/shared/ui/LoadFailed';
 import { useToast } from '@/shared/ui/toast';
 import { DetailSkeleton } from '@/shared/ui/Skeleton';
@@ -244,7 +244,7 @@ export default function OrderDetailPage() {
             <li key={e.id} className="flex gap-2.5 text-sm">
               <span className="w-11 shrink-0 tabular-nums text-slate-400">{time(e.occurredAt)}</span>
               <div className="min-w-0">
-                <span className="font-medium text-slate-900">{statusLabel(e.toStatus)}</span>
+                <span className="font-medium text-slate-900">{e.toStatusLabel}</span>
                 <span className="ml-2 text-slate-500">
                   {e.actor.name} ({e.actor.departmentName})
                 </span>

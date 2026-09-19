@@ -206,6 +206,8 @@ export interface OrderEvent {
   id: number;
   fromStatus: OrderStatus | null;
   toStatus: OrderStatus;
+  /** 종류가 부르는 이름(검사중 / 조제중 / 수리중). 화면은 상태 이름표를 들지 않는다 */
+  toStatusLabel: string;
   actor: { id: number; name: string; departmentName: string };
   occurredAt: string;
   reason: string | null;

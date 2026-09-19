@@ -10,6 +10,8 @@ public record WorkOrderEventResponse(
         Long id,
         OrderStatus fromStatus,
         OrderStatus toStatus,
+        /** 종류가 부르는 이름. 화면이 상태 이름표를 들지 않게 한다 — 약제 이력에 "진행중" 이 찍히면 안 된다. */
+        String toStatusLabel,
         ActorInfo actor,
         OffsetDateTime occurredAt,
         String reason
@@ -21,6 +23,7 @@ public record WorkOrderEventResponse(
                 event.getId(),
                 event.getFromStatus(),
                 event.getToStatus(),
+                event.getRequest().getOrderType().labelOf(event.getToStatus()),
                 new ActorInfo(event.getActor().getId(), event.getActor().getName(),
                         event.getActorDept().getName()),
                 event.getOccurredAt(),
