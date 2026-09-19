@@ -15,10 +15,10 @@ import com.nursecollab.domain.workorder.service.RequestMessageService;
 import com.nursecollab.domain.workorder.service.WorkOrderQueryService;
 import com.nursecollab.domain.workorder.service.WorkOrderService;
 import com.nursecollab.global.common.PageResponse;
+import com.nursecollab.global.common.Paging;
 import com.nursecollab.global.security.LoginStaff;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -75,7 +75,7 @@ public class WorkOrderController {
 
         return ResponseEntity.ok(transferQueryService.search(
                 direction, status, from, to, priority, keyword, subjectRefs,
-                PageRequest.of(page, size), loginStaff));
+                Paging.of(page, size), loginStaff));
     }
 
     @GetMapping("/{id}")

@@ -33,7 +33,9 @@ export function usePullToRefresh(onRefresh: () => Promise<unknown> | unknown) {
   const pulledRef = useRef(0);
   const refreshingRef = useRef(false);
   const onRefreshRef = useRef(onRefresh);
-  onRefreshRef.current = onRefresh;
+  useEffect(() => {
+    onRefreshRef.current = onRefresh;
+  });
 
   const setDistance = useCallback((next: number) => {
     pulledRef.current = next;

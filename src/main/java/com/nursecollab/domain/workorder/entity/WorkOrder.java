@@ -72,6 +72,18 @@ public class WorkOrder extends BaseTimeEntity {
     @Column(name = "hold_from_status", length = 20)
     private OrderStatus holdFromStatus;  // 보류 직전 상태
 
+    /**
+     * 보류를 건 쪽. 푸는 것도 이 쪽만 할 수 있다.
+     *
+     * 사람이 아니라 파트다. 건 사람이 퇴근해도 다음 교대 근무자가 풀어야 한다.
+     * 상대 파트가 풀 수 있으면 "지금은 진행하지 말자" 고 멈춰 세운 판단을 상대가 되돌리게 된다 —
+     * 검사실이 장비 점검으로 걸어 둔 것을 병동이 풀면 장비가 안 고쳐진 채 접수됨으로 돌아간다.
+     * 정말 풀어야 하면 메시지로 묻는다. 그게 이 시스템이 전화를 대신하는 방식이다.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "hold_by_side", length = 10)
+    private ActorSide holdBySide;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
     private OrderPriority priority = OrderPriority.ROUTINE;
@@ -193,8 +205,11 @@ public class WorkOrder extends BaseTimeEntity {
             return Set.of();
         }
         if (status == OrderStatus.ON_HOLD) {
-            // 보류 상태에서는 "직전 상태로 복귀" 와 "취소" 만 가능하다
-            return new LinkedHashSet<>(Set.of(holdFromStatus, OrderStatus.CANCELLED));
+            // 보류 상태에서는 "직전 상태로 복귀" 와 "취소" 만 가능하다. 복귀는 건 쪽에만 보인다.
+            Set<OrderStatus> options = new LinkedHashSet<>();
+            if (side == holdBySide) options.add(holdFromStatus);
+            options.add(OrderStatus.CANCELLED);
+            return options;
         }
         return orderType.availableFor(status, side);
     }
@@ -225,8 +240,12 @@ public class WorkOrder extends BaseTimeEntity {
             if (to != holdFromStatus) {
                 throw new BusinessException(ErrorCode.INVALID_TRANSITION);
             }
+            if (actorSide != holdBySide) {
+                throw new BusinessException(ErrorCode.NOT_ALLOWED_ACTOR);
+            }
             this.status = to;
             this.holdFromStatus = null;
+            this.holdBySide = null;
             this.holdReason = null;
             return;
         }
@@ -245,18 +264,22 @@ public class WorkOrder extends BaseTimeEntity {
             throw new BusinessException(ErrorCode.SCHEDULE_REQUIRED);
         }
 
-        // 보류로 들어갈 때는 돌아올 상태를 기억해 둔다
+        // 보류로 들어갈 때는 돌아올 상태와 건 쪽을 기억해 둔다
         if (to == OrderStatus.ON_HOLD) {
             this.holdFromStatus = this.status;
+            this.holdBySide = actorSide;
             this.holdReason = reason;
         }
 
         // 상태별 시각 기록
         switch (to) {
             case ACCEPTED    -> this.scheduledAt = scheduledAt;
-            case IN_PROGRESS -> this.startedAt   = OffsetDateTime.now();
+            // 처음 시작한 시각만 남긴다. 부품을 기다렸다 다시 수리중이 될 때 덮어쓰면
+            // 수리에 걸린 시간이 부품이 온 뒤부터로 줄어든다.
+            case IN_PROGRESS -> { if (this.startedAt == null) this.startedAt = OffsetDateTime.now(); }
             case COMPLETED   -> this.completedAt = OffsetDateTime.now();
-            case CANCELLED   -> this.holdReason  = reason;
+            // 보류 중에 취소하면 보류는 끝난 것이다. 건 쪽 표시를 지운다(DB 가 보류일 때만 있도록 건다)
+            case CANCELLED   -> { this.holdReason = reason; this.holdBySide = null; }
             default          -> { /* 별도 기록 없음 */ }
         }
 

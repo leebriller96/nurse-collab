@@ -7,10 +7,10 @@ import com.nursecollab.domain.nursing.dto.VitalSignResponse;
 import com.nursecollab.domain.nursing.entity.NoteType;
 import com.nursecollab.domain.nursing.service.NursingRecordService;
 import com.nursecollab.global.common.PageResponse;
+import com.nursecollab.global.common.Paging;
 import com.nursecollab.global.security.LoginStaff;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -59,7 +59,7 @@ public class NursingRecordController {
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal LoginStaff loginStaff) {
         return ResponseEntity.ok(nursingRecordService.findVitalSigns(
-                subjectRef, from, to, PageRequest.of(page, size), loginStaff));
+                subjectRef, from, to, Paging.of(page, size), loginStaff));
     }
 
     @PostMapping("/subjects/{subjectRef}/nursing-notes")
@@ -78,7 +78,7 @@ public class NursingRecordController {
             @RequestParam(defaultValue = "20") int size,
             @AuthenticationPrincipal LoginStaff loginStaff) {
         return ResponseEntity.ok(nursingRecordService.findNotes(
-                subjectRef, noteType, PageRequest.of(page, size), loginStaff));
+                subjectRef, noteType, Paging.of(page, size), loginStaff));
     }
 
     /** 삭제는 없다. 24시간이 지난 기록은 정정 기록을 새로 남긴다. */

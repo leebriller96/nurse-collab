@@ -96,6 +96,7 @@ X-Request-Id: {UUID}        -- 선택. 로그 추적용
 | AUTH-001 | 401 | 아이디 또는 비밀번호 불일치 |
 | AUTH-002 | 401 | 토큰 만료 |
 | AUTH-003 | 401 | 비활성 계정 |
+| AUTH-004 | 429 | 로그인 실패가 잦아 잠긴 아이디. 맞는 비밀번호로도 열리지 않는다 |
 | PERM-001 | 403 | 요청에 관여하지 않는 파트의 접근 |
 | PERM-002 | 403 | 상대 파트가 처리해야 할 전이를 시도 |
 | PERM-003 | 403 | 역할 권한 부족 (통계·감사로그 등) |
@@ -146,6 +147,11 @@ PERM-003 은 역할 자체가 모자란 경우다. 일반 간호사가 통계를
 ```
 
 `deptType` 을 응답에 포함시키는 이유: 프론트가 **병동 화면과 검사실 화면을 분기**해야 하기 때문.
+
+**같은 아이디로 10번 틀리면 15분 동안 `429 AUTH-004`** 다(`app.login-limit`). 그동안은 맞는 비밀번호도
+같은 답이다 — 그래야 대입이 멈춘다. 없는 아이디도 센다. 있는 아이디만 세면 잠기는지로 계정 존재를 알 수 있다.
+잠긴 채 두드린 것도 감사 로그에 `LOCKED` 로 남는다. 창은 마지막 실패에서 다시 시작하고,
+로그인에 성공하면 바로 풀린다. Redis 에 세므로 서버가 여러 대여도 함께 센다.
 
 ### POST /auth/refresh
 
@@ -342,7 +348,7 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 | from, to | Date | 요청 시각 기준 기간. 미지정 시 오늘 + **어제 이전에 들어와 아직 안 끝난 요청** |
 | keyword | String | 환자명 또는 요청번호 |
 | priority | String | ROUTINE/URGENT/EMERGENCY |
-| page, size | Int | |
+| page, size | Int | `size` 는 1~200 으로 눌러 담는다. 0 이나 10만을 보내도 오류가 아니라 1·200 으로 받는다. 모든 목록 API 가 같다 |
 
 `direction` 하나로 병동 화면과 검사실 화면을 동일 API로 처리한다.
 
@@ -413,12 +419,8 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
   "desiredAt": "2026-09-04T15:00:00+09:00",
   "scheduledAt": "2026-09-04T15:30:00+09:00",
   "note": "휠체어 이송 필요, 보호자 동반",
-  "alerts": [
-    { "alertType": "METAL_IMPLANT", "severity": "CRITICAL", "content": "좌측 고관절 인공관절" }
-  ],
-  "checklistWarnings": [
-    { "alertType": "METAL_IMPLANT", "message": "MRI 금기 가능성. 시행 전 확인 필요." }
-  ],
+  "holdReason": null,
+  "holdByDepartment": null,
   "availableTransitions": [
     { "status": "READY",     "label": "준비완료" },
     { "status": "ON_HOLD",   "label": "보류" },
@@ -483,19 +485,29 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 
 **필수 규칙**
 - `version` 미포함 또는 불일치 → `409 ORD-002`
-- `ON_HOLD`, `CANCELLED` 인데 `reason` 없음 → `400 TR-003`
+- `ON_HOLD`, `CANCELLED` 인데 `reason` 없음 → `400 ORD-003`
 - 허용되지 않는 전이 → `409 ORD-001`
-- `ACCEPTED` 인데 `scheduledAt` 없음 → `400`
+- 이송의 `ACCEPTED` 인데 `scheduledAt` 없음 → `400 ORD-005`
+
+**보류 해제는 건 파트만 할 수 있다** (`403 PERM-002`). 보류할 때 `hold_by_side` 에 건 쪽(REQUESTER / PERFORMER)을
+남기고, 직전 상태로 돌아가는 버튼은 그 쪽에만 내려준다. 상대 파트에는 취소만 남는다.
+사람이 아니라 **파트** 단위다 — 건 사람이 퇴근해도 다음 교대 근무자가 푼다. 상대 파트가 풀 수 있으면
+"지금은 진행하지 말자" 고 멈춰 세운 판단을 상대가 되돌리게 된다. 검사실이 장비 점검으로 걸어 둔 것을
+병동이 풀면 장비가 안 고쳐진 채 접수됨으로 돌아간다. 정말 풀어야 하면 메시지로 묻는다.
+상세의 `holdByDepartment` 가 누가 걸었는지 알려 준다. 보류가 아니면 `null` 이다.
 
 ### GET /work-orders/{id}/events
 
 ```json
 [
-  { "id": 1, "fromStatus": null, "toStatus": "REQUESTED", "actor": { "name": "김간호", "departmentName": "3병동" }, "occurredAt": "2026-09-04T14:12:00+09:00", "reason": null },
-  { "id": 2, "fromStatus": "REQUESTED", "toStatus": "ON_HOLD", "actor": { "name": "박간호", "departmentName": "MRI실" }, "occurredAt": "2026-09-04T14:25:00+09:00", "reason": "응급 환자 우선 진행" },
-  { "id": 3, "fromStatus": "ON_HOLD", "toStatus": "ACCEPTED", "actor": { "name": "박간호", "departmentName": "MRI실" }, "occurredAt": "2026-09-04T14:30:00+09:00", "reason": null }
+  { "id": 1, "fromStatus": null, "toStatus": "REQUESTED", "toStatusLabel": "요청됨", "actor": { "name": "김간호", "departmentName": "3병동" }, "occurredAt": "2026-09-04T14:12:00+09:00", "reason": null },
+  { "id": 2, "fromStatus": "REQUESTED", "toStatus": "ON_HOLD", "toStatusLabel": "보류", "actor": { "name": "박간호", "departmentName": "MRI실" }, "occurredAt": "2026-09-04T14:25:00+09:00", "reason": "응급 환자 우선 진행" },
+  { "id": 3, "fromStatus": "ON_HOLD", "toStatus": "ACCEPTED", "toStatusLabel": "접수됨", "actor": { "name": "박간호", "departmentName": "MRI실" }, "occurredAt": "2026-09-04T14:30:00+09:00", "reason": null }
 ]
 ```
+
+`toStatusLabel` 은 그 종류가 부르는 이름이다(약제의 `IN_PROGRESS` 는 "조제중"). 목록·상세의 `statusLabel` 과 같은 이유로
+서버가 준다 — 화면이 상태 이름표를 들면 종류를 더할 때 두 곳을 고쳐야 한다.
 
 ---
 
@@ -823,21 +835,28 @@ A-05 화면은 탭이 둘이다. **환자 정보 열람**은 원내 경로를, *
 
 ```json
 {
-  "content": [
-    {
-      "id": 900,
-      "notiType": "STATUS_CHANGED",
-      "refType": "WORK_ORDER",
-      "refId": 101,
-      "title": "MRI실에서 요청을 접수했습니다",
-      "body": "302호 김OO / 뇌 MRI / 15:30 예정",
-      "readAt": null,
-      "createdAt": "2026-09-04T14:30:00+09:00"
-    }
-  ],
+  "page": {
+    "content": [
+      {
+        "id": 900,
+        "notiType": "STATUS_CHANGED",
+        "refType": "WORK_ORDER",
+        "refId": 101,
+        "title": "MRI실에서 접수됨 처리했습니다",
+        "body": "302호 / 뇌 MRI / 15:30 예정",
+        "readAt": null,
+        "createdAt": "2026-09-04T14:30:00+09:00"
+      }
+    ],
+    "page": 0, "size": 20, "totalElements": 1, "totalPages": 1
+  },
   "unreadCount": 5
 }
 ```
+
+`body` 에 이름은 없다. 알림은 업무 쪽 DB 에 쌓이고 폰 알림창에도 뜬다. 침대 번호로 병동은 누구인지 안다.
+예정 시각은 **병원 현지 시각**으로 적는다. 화면이 UTC 로 보내고 DB 도 UTC 로 돌려주므로 그대로 찍으면
+15:30 예정이 06:30 예정으로 나갔다(`알림_문구의_예정_시각은_병원_현지_시각이다`).
 
 ### 누가 받는가
 
@@ -930,11 +949,22 @@ CONNECT 헤더 : Authorization: Bearer {accessToken}
 그래서 토큰은 STOMP CONNECT 프레임의 네이티브 헤더로 보낸다.
 쿼리스트링에 실으면 접속 로그와 프록시 로그에 토큰이 그대로 남는다.
 
+토큰이 없거나 만료된 CONNECT 는 **ERROR 프레임으로 거절하고 세션을 닫는다.** 주체 없는 세션은 어차피
+아무 채널도 받을 수 없는데, 열어 두면 화면이 "연결됨" 만 보고 오지 않는 갱신을 기다린다.
+
+화면은 붙을 때마다 토큰을 다시 읽는다(`beforeConnect`). 접근 토큰은 30분이라, 처음 한 번만 박아 두면
+와이파이가 한 번 끊긴 뒤부터 만료된 토큰으로만 재연결을 시도하게 된다. 곧 만료될 토큰이면 붙기 전에 갱신한다.
+
 ### 구독 채널
 
 | 채널 | 대상 | 용도 |
 |---|---|---|
 | `/topic/department/{departmentId}` | 파트 전체 | 신규 요청, 상태 변경 |
+
+**자기 파트 채널만 구독할 수 있다.** 다른 파트 채널이나 다른 목적지를 SUBSCRIBE 하면 ERROR 프레임을 받고
+세션이 닫힌다. 파트 채널에는 요청번호·병실·가명·행위자 이름이 실리므로 CONNECT 만 검사하고 구독을 그냥
+통과시키면 토큰 없이 붙어 아무 파트나 받을 수 있다 — 한동안 실제로 그랬다(`RealtimeChannelApiTest`).
+소속은 토큰의 것을 믿는다. 소속이 바뀌면 접근 토큰이 만료될 때까지 옛 파트 채널을 받는다. REST 와 같은 지연이다.
 
 개인 채널(`/user/queue/notifications`)은 두지 않는다.
 
@@ -953,6 +983,7 @@ CONNECT 헤더 : Authorization: Bearer {accessToken}
   "requestNo": "TR20260904-0001",
   "fromStatus": "REQUESTED",
   "toStatus": "ACCEPTED",
+  "toStatusLabel": "접수됨",
   "priority": "URGENT",
   "subjectRef": "3f0c5b1e-6a8d-4c2e-9b7a-1d2e3f4a5b6c",
   "roomNo": "302",
@@ -985,8 +1016,12 @@ CONNECT 헤더 : Authorization: Bearer {accessToken}
 **중요: 재접속 시 유실 보정**
 
 WebSocket 은 끊길 수 있다. 병원 와이파이면 더 자주 끊긴다.
-재연결 직후 무조건 `GET /work-orders?direction=INBOUND` 를 다시 호출해서
-현재 상태로 화면을 덮어쓴다. 실시간 메시지는 "빠른 갱신"일 뿐, **진실의 원천은 REST 조회**다.
+재연결 직후 조회 캐시를 전부 무효화해 현재 상태로 화면을 덮어쓴다.
+실시간 메시지는 "빠른 갱신"일 뿐, **진실의 원천은 REST 조회**다.
+
+메시지 하나가 오면 무효화하는 캐시는 요청 목록·상세, 병동 보드(`care-episodes`), 환자 상세(`care-episode`),
+검사실 일정(`exam-schedule`), 알림함이다. 화면이 쓰는 쿼리 키를 바꾸면 이 목록도 같이 바꿔야 한다 —
+V11 에서 병동 보드 키가 바뀌었을 때 여기가 옛 키를 찌르고 있어 침대별 요청 수가 실시간으로 안 바뀌었다.
 
 ---
 

@@ -31,8 +31,13 @@ export default function OrderHistoryPage() {
   const navigate = useNavigate();
 
   // 조회 조건은 주소에 담는다. 한 건을 열어 보고 돌아왔을 때 조건이 살아 있어야 한다.
-  const [from, setFrom] = useUrlParam('from', localDate(new Date(Date.now() - 13 * 86400000)));
-  const [to, setTo] = useUrlParam('to', localDate(new Date()));
+  // 기본 기간은 처음 그릴 때 한 번 정한다. 렌더마다 시계를 읽으면 자정을 넘는 순간 기본값이 바뀐다.
+  const [defaultPeriod] = useState(() => ({
+    from: localDate(new Date(Date.now() - 13 * 86400000)),
+    to: localDate(new Date()),
+  }));
+  const [from, setFrom] = useUrlParam('from', defaultPeriod.from);
+  const [to, setTo] = useUrlParam('to', defaultPeriod.to);
   const [query, setQuery] = useUrlParam('q');
   const [finished, setFinished] = useUrlParam('finished', '1');
   const [pageParam, setPageParam] = useUrlParam('page', '0');

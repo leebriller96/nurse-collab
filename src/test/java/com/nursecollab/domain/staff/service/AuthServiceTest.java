@@ -45,6 +45,9 @@ class AuthServiceTest {
     private RefreshTokenStore refreshTokenStore;
 
     @Mock
+    private LoginAttemptLimiter attemptLimiter;
+
+    @Mock
     private AuditRecorder auditRecorder;
 
     private PasswordEncoder passwordEncoder;
@@ -60,7 +63,7 @@ class AuthServiceTest {
                 TestKeys.devPrivate(), TestKeys.devPublic(),
                 Duration.ofMinutes(30), Duration.ofDays(14)));
         authService = new AuthService(staffRepository, passwordEncoder,
-                tokenProvider, refreshTokenStore, auditRecorder);
+                tokenProvider, refreshTokenStore, attemptLimiter, auditRecorder);
 
         staff = staff(passwordEncoder.encode(RAW_PASSWORD));
     }

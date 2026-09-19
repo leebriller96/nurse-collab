@@ -10,7 +10,8 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class RealtimeNotifier {
 
-    private static final String DEPARTMENT_TOPIC = "/topic/department/";
+    /** 파트 채널. 구독 검사(StompAuthChannelInterceptor)가 같은 값을 본다. */
+    static final String DEPARTMENT_TOPIC = "/topic/department/";
 
     private final SimpMessagingTemplate messagingTemplate;
 

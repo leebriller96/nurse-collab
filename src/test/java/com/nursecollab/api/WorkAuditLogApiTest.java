@@ -85,6 +85,34 @@ class WorkAuditLogApiTest extends IntegrationTest {
     }
 
     @Test
+    void 거듭_틀리면_맞는_비밀번호로도_한동안_열리지_않고_그것도_남는다() throws Exception {
+        // 다른 테스트가 쓰는 계정을 잠그면 안 된다. 이 테스트만의 계정을 만든다.
+        String loginId = "lock" + UUID.randomUUID().toString().substring(0, 6);
+        jdbcTemplate.update("""
+                insert into staff (login_id, password_hash, employee_no, name, role, department_id)
+                select ?, s.password_hash, ?, '잠금시험', 'NURSE', s.department_id
+                  from staff s where s.login_id = 'ward02'""", loginId, "E" + loginId);
+
+        for (int i = 0; i < 10; i++) {
+            login(loginId, "wrong-" + i).andExpect(status().isUnauthorized());
+        }
+
+        // 맞는 비밀번호도 같은 답이다. 그래야 대입이 멈춘다.
+        login(loginId, "nurse1234!")
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("AUTH-004"));
+
+        Map<String, Object> row = jdbcTemplate.queryForMap("""
+                select detail->>'reason' as reason from audit_log
+                where detail->>'loginId' = ? order by id desc limit 1
+                """, loginId);
+        assertThat(row.get("reason")).isEqualTo("LOCKED");
+
+        // 다른 계정은 영향이 없다
+        login("ward02", "nurse1234!").andExpect(status().isOk());
+    }
+
+    @Test
     void 로그인과_로그아웃이_남는다() throws Exception {
         Long ct01 = staffRepository.findByLoginIdWithDepartment("ct01").orElseThrow().getId();
 

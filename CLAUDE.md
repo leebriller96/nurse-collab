@@ -414,6 +414,30 @@ chore: Testcontainers 의존성 추가
     따지지 않았고, jjwt `audience().add()` 가 aud 를 배열로 적은 것을 실제 크롬 구독으로 보내 보고서야 FCM 403 으로 알았다.
     지금은 테스트가 aud 가 문자열인지 못 박고, 거절되면 푸시 서비스가 준 사유를 로그에 남긴다.
     실제 기기에 뜨는지는 HTTPS 배포 뒤 폰으로 봐야 한다 — Playwright 가 띄운 크롬은 푸시 수신을 끈다.
+- **실시간 채널은 구독도 검사한다.** `StompAuthChannelInterceptor` 가 CONNECT 에서 토큰을 확인하고,
+  SUBSCRIBE 는 토큰 소속의 `/topic/department/{id}` 만 허용한다. 거절은 ERROR 프레임 + 세션 종료다.
+  한동안 CONNECT 만 보고 구독은 그냥 통과시켜서, 토큰 없이 붙어 아무 파트 채널이나 받을 수 있었다.
+  이름을 방송에 싣지 않은 것은 원내망 밖의 브라우저 때문이지 로그인 안 한 사람 때문이 아니었다.
+  - MockMvc 로는 못 잡는다. `RealtimeChannelApiTest` 가 포트를 열고 진짜 STOMP 로 붙는다.
+    구독 등록은 내장 브로커가 영수증을 주지 않아 `SimpUserRegistry` 를 보고 기다린다.
+  - 화면은 붙을 때마다 토큰을 다시 읽는다(`beforeConnect` → `freshAccessToken`). 접근 토큰이 30분이라
+    처음 한 번만 박아 두면 와이파이가 한 번 끊긴 뒤부터 만료된 토큰으로만 재연결한다.
+  - 메시지가 오면 무효화하는 쿼리 키 목록(`useRealtime`)은 화면 쿼리 키를 바꿀 때 같이 바꿔야 한다.
+    V11 에서 병동 보드 키가 바뀐 뒤 옛 키(`encounters`)를 찌르고 있어 침대별 요청 수가 실시간으로 안 바뀌었다.
+- **상태 이름은 전부 서버가 준다.** 목록·상세의 `statusLabel`, 진행 기록의 `toStatusLabel`, 실시간 방송의
+  `toStatusLabel`. 화면에는 상태 이름표가 없다(`badges.tsx` 는 색만 정한다). 우선순위 이름만 화면이 든다 —
+  종류와 무관하게 셋뿐이다.
+- 알림 문구의 시각은 `ZoneId.systemDefault()` 로 바꿔 찍는다. 화면이 UTC 로 보내고 DB 도 UTC 로 돌려주므로
+  `OffsetDateTime.format` 을 그대로 쓰면 15:30 예정이 06:30 예정으로 나간다. 테스트가 현지 시각을 못 박는다.
+- 로그인은 같은 아이디로 10번 틀리면 15분 잠근다(`LoginAttemptLimiter`, Redis, `429 AUTH-004`).
+  맞는 비밀번호도 같은 답이다 — 그래야 대입이 멈춘다. 없는 아이디도 센다(잠기는지로 계정 존재를 알 수 없게).
+  잠긴 채 두드린 것은 감사 로그에 `LOCKED` 로 남는다.
+- **보류는 건 파트만 푼다**(`hold_by_side`, V20, `403 PERM-002`). 사람이 아니라 파트다 — 건 사람이 퇴근해도
+  다음 교대 근무자가 풀어야 한다. 상대 파트는 취소만 할 수 있다. 검사실이 장비 점검으로 걸어 둔 것을
+  병동이 풀면 장비가 안 고쳐진 채 접수됨으로 돌아간다. 정말 풀어야 하면 메시지로 묻는다.
+  복귀 버튼은 서버가 건 쪽에만 내려주고, 상세의 `holdByDepartment` 로 누가 걸었는지 보여 준다.
+  DB 가 "보류일 때만 값이 있다" 를 CHECK 로 건다 — 보류 중 취소하면 엔티티가 지운다.
+- `startedAt` 은 처음 한 번만 찍는다. 부품대기에서 수리중으로 돌아올 때 덮어쓰면 수리에 걸린 시간이 줄어든다.
 - 조회 조건은 `useUrlParam` 으로 주소에 담는다. 컴포넌트 안에만 두면 한 건을 열어 보고
   돌아왔을 때 기간과 검색어가 전부 처음으로 돌아간다. 링크로 넘길 수도 있게 된다.
   - `replace: true` 로 바꾼다. 조건을 고칠 때마다 방문 기록이 쌓이면 뒤로가기가
@@ -481,6 +505,7 @@ chore: Testcontainers 의존성 추가
 | GET | `/auth/me` | C-03 |
 | GET | `/departments` `/service-items` | W-03, A-04 |
 | GET | `/care-episodes` `/care-episodes/{ref}` | W-01, W-02 의 업무 쪽 절반 |
+| POST GET | `/work-relations/active-subjects` `/episodes` `/messages` `/orders/{id}/message-refs` | 원내 서버가 업무 서버에 묻거나 알리는 곳. 화면은 부르지 않는다 (`WorkRelationPort`) |
 | GET | `/phi/subjects/{ref}` `/{ref}/alerts` `/{ref}/checklist` `/subjects/search` | 사람 쪽 절반 |
 | POST | `/phi/subjects/brief` | 목록 이름 채우기 |
 | POST PATCH | `/phi/subjects/{ref}/alerts` `/phi/alerts/{id}/deactivate` | W-02 |
@@ -498,6 +523,9 @@ chore: Testcontainers 의존성 추가
 | GET | `/phi/access-logs` | A-05 (원내) |
 | GET | `/audit-logs` | A-05 업무 기록 탭 — 로그인·로그인 실패·기준 정보 변경. 환자 칸 없음 |
 | GET POST PUT PATCH | `/staff` `/departments` `/service-items` (+ `/{id}/deactivate`) | A-02~04 |
+| GET POST DELETE | `/push/public-key` `/push/subscriptions` | 폰 알림 켜기·끄기 (로그아웃 때 화면이 DELETE 를 부른다) |
+
+목록 API 의 `size` 는 `Paging.of` 가 1~200 으로 눌러 담는다. 새 목록 엔드포인트도 `PageRequest.of` 를 직접 쓰지 않는다.
 
 ### 데모 계정
 

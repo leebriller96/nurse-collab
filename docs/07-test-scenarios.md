@@ -96,6 +96,7 @@ README 참고)를 심으면 계정과 업무 항목은 같지만 병실 배치�
 | C-08 | ward01 | C-07 상태 | *Offline* 을 끄고 다시 시도 | 목록이 뜬다 | check-ux |
 | C-09 | mri01 | 로그인 | 상단 알림(종) → 알림 목록 | 안 읽음 수가 보이고 "전체" 로 바꿔 볼 수 있다. 항목을 누르면 해당 요청 상세로 간다 | AuditAndNotificationApiTest |
 | C-10 | ward01 | 로그인 | 로딩이 느린 네트워크(개발자 도구 *Slow 3G*)로 보드·요청·통계를 연다 | 불러오는 동안 회색 자리가 먼저 잡히고, 값이 들어올 때 화면이 밀리지 않는다 | check-skeleton |
+| C-11 | — | 로그아웃 상태 | 아이디 `ward02` 로 비밀번호를 10번 틀린 뒤 **맞는 비밀번호**로 로그인 | "로그인 실패가 너무 많습니다. 잠시 후 다시 시도해 주세요." 15분 뒤에 풀린다. 다른 계정은 그대로 된다 | WorkAuditLogApiTest |
 
 ---
 
@@ -226,7 +227,9 @@ docker exec nurse-collab-postgres psql -U nursecollab -d nursecollab \
 |---|---|---|---|---|---|
 | E-50 | mri01 | 요청됨 상태의 MRI 요청 | "보류" → 사유 없이 | "보류 확정" 이 눌리지 않는다 | WorkOrderApiTest |
 | E-51 | mri01 | E-50 | 사유 "응급 환자 우선" → 보류 확정 | 보류. 상세에 "사유: 응급 환자 우선", 진행 기록에도 사유 | |
-| E-52 | mri01 | E-51 | 상세의 버튼 | 보류 전 상태로 돌아가는 버튼과 "취소" 만 있다 | OrderTypeTest |
+| E-52 | mri01 | E-51 | 상세의 버튼 | 보류 전 상태로 돌아가는 버튼과 "취소" 만 있다. 상세에 "MRI실 보류 · 사유: …" | WorkOrderTest |
+| E-52a | ward01 | E-51 | 같은 요청의 상세 | **돌아가는 버튼이 없고 "취소" 만** 있다. 검사실이 멈춰 세운 것을 병동이 되돌릴 수 없다. 필요하면 메시지로 묻는다 | WorkOrderApiTest |
+| E-52b | head01 · ward01 | E-51 에서 ward01 이 보류를 건 경우 | 다른 병동 계정(head01)으로 상세 | 돌아가는 버튼이 있다 — 건 사람이 아니라 **건 파트**가 푼다. 교대 근무자가 풀 수 있어야 한다 | WorkOrderTest |
 | E-53 | ward01 | 요청됨 상태의 아무 요청 | "취소" → 사유 입력 → "취소 확정" | 취소. 버튼이 모두 사라진다 | |
 | E-54 | mri01 두 창 | 요청됨 상태의 MRI 요청을 두 창에서 연다 | 왼쪽 "접수" 확정 → 오른쪽(새로고침하지 않은 채) "접수" 확정 | 오른쪽에 "다른 사용자가 먼저 처리했습니다. 화면을 새로고침해 주세요." | WorkOrderServiceTest |
 
@@ -250,6 +253,11 @@ docker exec nurse-collab-postgres psql -U nursecollab -d nursecollab \
 | R-03 | 같은 두 창 | 오른쪽에서 접수했을 때 오른쪽 화면 | 오른쪽에는 "접수 처리했습니다" 확인만 뜨고, 자기가 한 일을 알리는 토스트는 **뜨지 않는다** | check-feedback |
 | R-04 | 왼 ward01 | 오른쪽이 처리한 뒤 왼쪽 알림 탭 | 알림함에 쌓여 있다. 제목에 **환자 이름이 없고** 침대·업무로 적혀 있다 | AuditAndNotificationApiTest |
 | R-05 | 왼 ward01 | 백엔드를 잠깐 멈췄다 다시 띄운다 | "연결을 다시 맺는 중" → "실시간으로 받는 중" 으로 돌아온다 | |
+| R-06 | 왼 ward01(보드) · 오 mri01 | 오른쪽에서 접수·검사 시작 등 상태를 바꾼다 | 왼쪽 **병동 보드**의 침대 카드에 적힌 요청 수·상태가 새로고침 없이 바뀐다 | |
+| R-07 | 왼 ward01 | 로그인 후 35분 넘게 두었다가(접근 토큰 만료) 백엔드를 잠깐 멈췄다 다시 띄운다 | 재연결이 되고 실시간이 다시 온다. 만료된 토큰으로 재연결을 반복하지 않는다 | |
+| R-08 | — | 토큰 없이 `/ws` 에 STOMP 로 붙어 `/topic/department/3` 을 구독 | 연결 자체가 ERROR 프레임으로 거절된다. 로그인한 뒤 남의 파트 채널을 구독해도 같다 | RealtimeChannelApiTest |
+| R-09 | 왼 ward01 · 오 pharm01 | 약제 요청을 조제 시작까지 민다 | 왼쪽 토스트와 진행 기록에 "진행중" 이 아니라 **"조제중"** 이 적힌다 | |
+| R-10 | mri01 | 접수할 때 예정 시각을 15:30 으로 넣는다 | ward01 알림함의 문구가 "15:30 예정" 이다(06:30 이 아니다) | AuditAndNotificationApiTest |
 
 ---
 
@@ -405,6 +413,7 @@ CLAUDE.md 의 완료 기준이다. 폰 화면(병동)과 넓은 창(MRI실)을 �
 | `OrderMessageApiTest` | 대화 내용은 원내, 업무 응답에 내용 없음 |
 | `AuditAndNotificationApiTest` `WorkAuditLogApiTest` | 접근 기록 두 종류, 알림함, 로그인·기준 정보 감사 |
 | `WorkRelationContractTest` `RoleStartupTest` `PhiBoundaryTest` | 원내↔업무 HTTP 계약, 역할별 기동, 코드 경계 |
+| `RealtimeChannelApiTest` | 실시간 채널 — 토큰 없는 연결·남의 파트 구독 거절, 자기 파트에는 닿는가 (진짜 STOMP) |
 | `AuthServiceTest` `JwtKeyGuardTest` | 로그인, 개발용 서명 키로 운영 기동 차단 |
 | `e2e/check-ux` | 조회 실패 다시 시도, 완료 확인 |
 | `e2e/check-skeleton` | 로딩 중 화면 밀림 |

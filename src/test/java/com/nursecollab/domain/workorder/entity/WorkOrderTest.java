@@ -211,6 +211,39 @@ class WorkOrderTest {
     }
 
     @Test
+    void 보류는_건_파트만_풀_수_있다() {
+        // 검사실이 "장비 점검" 으로 멈춰 세운 것을 병동이 풀면 장비가 안 고쳐진 채 접수됨으로 돌아간다.
+        WorkOrder request = accepted();
+        request.transitionTo(OrderStatus.ON_HOLD, ActorSide.PERFORMER, "장비 점검", null);
+
+        assertThat(request.getHoldBySide()).isEqualTo(ActorSide.PERFORMER);
+        // 상대 파트에는 복귀 버튼이 없다. 취소는 남는다.
+        assertThat(request.availableTransitions(wardNurse)).containsExactly(OrderStatus.CANCELLED);
+
+        assertThat(errorOf(() -> request.transitionTo(
+                OrderStatus.ACCEPTED, ActorSide.REQUESTER, null, null)))
+                .isEqualTo(ErrorCode.NOT_ALLOWED_ACTOR);
+        assertThat(request.getStatus()).isEqualTo(OrderStatus.ON_HOLD);
+
+        // 같은 파트면 건 사람이 아니어도 된다 — 다음 교대 근무자가 푼다
+        request.transitionTo(OrderStatus.ACCEPTED, ActorSide.PERFORMER, null, null);
+        assertThat(request.getStatus()).isEqualTo(OrderStatus.ACCEPTED);
+        assertThat(request.getHoldBySide()).isNull();
+    }
+
+    @Test
+    void 병동이_건_보류는_검사실이_풀_수_없다() {
+        WorkOrder request = accepted();
+        request.transitionTo(OrderStatus.READY, ActorSide.PERFORMER, null, null);
+        request.transitionTo(OrderStatus.ON_HOLD, ActorSide.REQUESTER, "환자 상태 불안정", null);
+
+        assertThat(request.availableTransitions(mriNurse)).containsExactly(OrderStatus.CANCELLED);
+        assertThat(errorOf(() -> request.transitionTo(
+                OrderStatus.READY, ActorSide.PERFORMER, null, null)))
+                .isEqualTo(ErrorCode.NOT_ALLOWED_ACTOR);
+    }
+
+    @Test
     void 보류_상태에서도_취소는_가능하다() {
         WorkOrder request = accepted();
         request.transitionTo(OrderStatus.ON_HOLD, ActorSide.PERFORMER, "장비 점검", null);
@@ -262,6 +295,29 @@ class WorkOrderTest {
         assertThat(request.getScheduledAt()).isEqualTo(scheduled);
         assertThat(request.getStartedAt()).isNotNull();
         assertThat(request.getCompletedAt()).isNotNull();
+    }
+
+    // ------------------------------------------------------------------
+    // 시각 기록
+    // ------------------------------------------------------------------
+
+    @Test
+    void 부품을_기다렸다_다시_시작해도_처음_시작한_시각은_그대로다() {
+        Department bme = department(7L, "BME", "의공학팀", DeptType.BIOMED);
+        ServiceItem pumpRepair = ServiceItem.create("BME_PUMP", "수액펌프 수리", OrderType.EQUIPMENT,
+                bme, 60, null, List.of());
+        WorkOrder request = WorkOrder.create("EQ20260905-0001", null, pumpRepair, wardNurse,
+                OrderPriority.ROUTINE, null, "알람이 계속 울림");
+        request.transitionTo(OrderStatus.ACCEPTED, ActorSide.PERFORMER, null, null);
+        request.transitionTo(OrderStatus.IN_PROGRESS, ActorSide.PERFORMER, null, null);
+        OffsetDateTime firstStart = request.getStartedAt();
+
+        request.transitionTo(OrderStatus.AWAITING_PARTS, ActorSide.PERFORMER, "배터리 주문", null);
+        ReflectionTestUtils.setField(request, "startedAt", firstStart.minusHours(3)); // 세 시간 전에 시작한 셈
+        request.transitionTo(OrderStatus.IN_PROGRESS, ActorSide.PERFORMER, null, null);
+
+        // 다시 찍으면 수리에 걸린 시간이 부품이 온 뒤부터로 줄어든다
+        assertThat(request.getStartedAt()).isEqualTo(firstStart.minusHours(3));
     }
 
     // ------------------------------------------------------------------

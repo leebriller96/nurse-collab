@@ -66,6 +66,10 @@ app:
       - web.push.apple.com
       - "*.push.apple.com"
       - "*.notify.windows.com"
+  login-limit:
+    # 같은 아이디로 이만큼 틀리면 창이 끝날 때까지 막는다. 맞는 비밀번호여도 안 열린다.
+    max-failures: 10
+    window: 15m
   delay-escalation:
     # 이 시간 동안 아무도 접수하지 않으면 양쪽 수간호사와 요청자에게 한 번 알린다. 일반 요청은 올리지 않는다.
     emergency-minutes: 10

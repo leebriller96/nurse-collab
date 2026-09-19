@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import { useAuth } from '@/shared/hooks/useAuth';
 import { useRealtime } from '@/shared/hooks/useRealtime';
 import type { RealtimeEvent } from '@/shared/hooks/useRealtime';
-import { priorityLabel, statusLabel } from '@/shared/ui/badges';
+import { PRIORITY_LABEL } from '@/shared/lib/labels';
 import { useToast, type ToastTone } from '@/shared/ui/toast';
 
 function describe(event: RealtimeEvent): { title: string; body: string; tone: ToastTone } {
@@ -17,14 +17,14 @@ function describe(event: RealtimeEvent): { title: string; body: string; tone: To
   if (event.eventType === 'ORDER_DELAYED') {
     // 누른 사람이 없다. 새 요청 알림을 모두가 놓친 상황이라 조용한 색으로 띄우면 또 놓친다.
     return {
-      title: `접수 지연 (${priorityLabel(event.priority)})`,
+      title: `접수 지연 (${PRIORITY_LABEL[event.priority]})`,
       body: `${patient} — ${event.waitingMinutes}분째 아무도 접수하지 않았습니다`,
       tone: 'urgent',
     };
   }
   if (event.eventType === 'ORDER_CREATED') {
     return {
-      title: `새 요청 (${priorityLabel(event.priority)})`,
+      title: `새 요청 (${PRIORITY_LABEL[event.priority]})`,
       body: `${patient} — ${who}`,
       tone: event.priority === 'EMERGENCY' ? 'urgent' : 'info',
     };
@@ -33,7 +33,7 @@ function describe(event: RealtimeEvent): { title: string; body: string; tone: To
     return { title: '새 메시지', body: `${patient} — ${who}`, tone: 'info' };
   }
   return {
-    title: event.toStatus ? statusLabel(event.toStatus) : '상태 변경',
+    title: event.toStatusLabel ?? '상태 변경',
     body: `${patient} — ${who}`,
     tone: 'info',
   };

@@ -18,6 +18,9 @@ public enum ErrorCode {
     INVALID_CREDENTIALS("AUTH-001", HttpStatus.UNAUTHORIZED, "아이디 또는 비밀번호가 올바르지 않습니다."),
     TOKEN_EXPIRED("AUTH-002", HttpStatus.UNAUTHORIZED, "로그인이 만료되었습니다. 다시 로그인해 주세요."),
     INACTIVE_ACCOUNT("AUTH-003", HttpStatus.UNAUTHORIZED, "비활성화된 계정입니다. 관리자에게 문의하세요."),
+    // 비밀번호를 대입하는 것을 늦춘다. 맞는 비밀번호여도 잠긴 동안은 같은 답이다.
+    LOGIN_LOCKED("AUTH-004", HttpStatus.TOO_MANY_REQUESTS,
+            "로그인 실패가 너무 많습니다. 잠시 후 다시 시도해 주세요."),
 
     // 권한
     NOT_RELATED_DEPARTMENT("PERM-001", HttpStatus.FORBIDDEN, "해당 요청에 관여하는 파트가 아닙니다."),

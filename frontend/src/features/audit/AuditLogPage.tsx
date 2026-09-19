@@ -70,8 +70,13 @@ const stamp = (iso: string) =>
  */
 export default function AuditLogPage() {
   const [tab, setTab] = useUrlParam('tab', 'phi');
-  const [from, setFrom] = useUrlParam('from', localDate(new Date(Date.now() - 6 * 86400000)));
-  const [to, setTo] = useUrlParam('to', localDate(new Date()));
+  // 기본 기간은 처음 그릴 때 한 번 정한다. 렌더마다 시계를 읽으면 자정을 넘는 순간 기본값이 바뀐다.
+  const [defaultPeriod] = useState(() => ({
+    from: localDate(new Date(Date.now() - 6 * 86400000)),
+    to: localDate(new Date()),
+  }));
+  const [from, setFrom] = useUrlParam('from', defaultPeriod.from);
+  const [to, setTo] = useUrlParam('to', defaultPeriod.to);
   const [pageParam, setPageParam] = useUrlParam('page', '0');
   const page = Number(pageParam) || 0;
 

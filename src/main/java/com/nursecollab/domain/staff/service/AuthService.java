@@ -34,6 +34,7 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtTokenProvider tokenProvider;
     private final RefreshTokenStore refreshTokenStore;
+    private final LoginAttemptLimiter attemptLimiter;
     private final AuditRecorder auditRecorder;
 
     /**
@@ -45,8 +46,16 @@ public class AuthService {
      */
     @Transactional
     public LoginResponse login(LoginRequest request) {
+        // 잠긴 아이디는 비밀번호를 보기 전에 돌려보낸다. 맞는 비밀번호로도 열리지 않아야
+        // 대입이 멈춘다. 기록에는 잠긴 채 두드린 것도 남긴다 — 그게 조사할 때 보고 싶은 것이다.
+        if (attemptLimiter.isLocked(request.loginId())) {
+            audit(null, "LOGIN_FAILED", null, failure(request.loginId(), "LOCKED"));
+            throw new BusinessException(ErrorCode.LOGIN_LOCKED);
+        }
+
         Staff staff = staffRepository.findByLoginIdWithDepartment(request.loginId()).orElse(null);
         if (staff == null) {
+            attemptLimiter.recordFailure(request.loginId());
             audit(null, "LOGIN_FAILED", null, failure(request.loginId(), "UNKNOWN_ID"));
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
@@ -54,6 +63,7 @@ public class AuthService {
         // 비활성 여부보다 비밀번호를 먼저 본다.
         // 순서가 반대면 비밀번호를 몰라도 계정 존재 여부를 알아낼 수 있다.
         if (!passwordEncoder.matches(request.password(), staff.getPasswordHash())) {
+            attemptLimiter.recordFailure(request.loginId());
             audit(staff.getId(), "LOGIN_FAILED", staff.getId(), failure(request.loginId(), "BAD_PASSWORD"));
             throw new BusinessException(ErrorCode.INVALID_CREDENTIALS);
         }
@@ -62,6 +72,7 @@ public class AuthService {
             throw new BusinessException(ErrorCode.INACTIVE_ACCOUNT);
         }
 
+        attemptLimiter.reset(request.loginId());
         staff.recordLogin();
 
         String accessToken = tokenProvider.createAccessToken(staff);

@@ -33,11 +33,18 @@ com.nursecollab
 ├── global/                          # 원내와 업무 양쪽이 함께 쓰는 기반만 둔다
 │   ├── config/
 │   │   ├── SecurityConfig.java
-│   │   └── JpaConfig.java           # Auditing 활성화
+│   │   ├── JpaConfig.java           # Auditing 활성화. 엔티티 목록은 AppBoundary 를 본다
+│   │   ├── AppRole.java             # combined / cloud / onprem
+│   │   ├── AppBoundary.java         # 어느 패키지·테이블이 어느 쪽인지 적는 유일한 표
+│   │   ├── RoleTypeExcludeFilter.java   # 역할에 없는 쪽 컴포넌트를 스캔에서 뺀다
+│   │   ├── AppRoleEnvironmentGuard.java # 역할에 맞지 않는 설정(원내에 개인키 등)이면 기동을 막는다
+│   │   └── AppRoleSchemaGuard.java      # 쓰던 합친 DB 에 역할 프로파일을 붙이면 막는다
 │   ├── security/
 │   │   ├── JwtTokenProvider.java
 │   │   ├── JwtAuthenticationFilter.java
 │   │   ├── JwtProperties.java           # 키 파일 / 만료시간 설정
+│   │   ├── JwtKeys.java                 # PEM 파일을 읽는다
+│   │   ├── JwtKeyGuard.java             # prod 에서 개발용 키를 보면 기동을 막는다
 │   │   ├── LoginStaff.java              # @AuthenticationPrincipal 로 받는 인증 주체
 │   │   └── SecurityErrorResponder.java  # 필터 단계 401 / 403 응답
 │   ├── error/
@@ -45,45 +52,75 @@ com.nursecollab
 │   │   ├── BusinessException.java
 │   │   ├── ErrorResponse.java
 │   │   └── GlobalExceptionHandler.java
-│   ├── audit/                       # 업무 쪽 전용 (경계 테스트의 업무 목록에 있다)
+│   ├── audit/                       # 업무 쪽 전용 (AppBoundary 의 업무 목록에 있다)
 │   │   ├── Audited.java             # @Audited 어노테이션
 │   │   ├── AuditAspect.java         # AOP 로 audit_log 자동 적재
+│   │   ├── AuditRecorder.java       # 로그인·기준 정보 변경처럼 손으로 남기는 곳
 │   │   ├── AuditLog.java
+│   │   ├── AuditLogPartitionMaintainer.java  # 월별 파티션을 하루 한 번 채운다
 │   │   └── SchedulingConfig.java    # 파티션 정리 때문에 켠다. 이유가 여기 있으므로 여기 둔다
 │   └── common/
 │       ├── BaseTimeEntity.java      # createdAt / updatedAt 공통
-│       └── PageResponse.java
+│       ├── PageResponse.java
+│       └── Paging.java              # page·size 를 1~200 으로 눌러 담는다
 │
 ├── domain/
+│   │
+│   │   ── 업무 쪽 (cloud) ──
 │   ├── department/                  # 파트 마스터
-│   ├── staff/                       # 계정 + 인증 (RefreshTokenStore — 갱신 토큰 Redis 보관)
-│   ├── patient/                     # 환자, 주의사항(alert)
-│   ├── encounter/                   # 재원 + 파트별 뷰 조립
-│   ├── transfer/                    # ★ 이송 요청 (이 프로젝트의 심장)
+│   ├── staff/                       # 계정 + 인증 (RefreshTokenStore·LoginAttemptLimiter — Redis)
+│   ├── episode/                     # 재원 건의 업무 쪽 절반 — 침대·병동·가명. 사람은 없다
+│   │   └── service/
+│   │       ├── CareEpisodeQueryService.java   # 병동 보드 (/care-episodes)
+│   │       ├── WorkRelationService.java       # "이 대상에 우리 파트로 온 요청이 있는가" (/work-relations)
+│   │       └── LocalWorkRelationAdapter.java  # 한 서버일 때 원내가 같은 프로세스에서 묻는 길
+│   ├── workorder/                   # ★ 업무 요청 (이 프로젝트의 심장)
 │   │   ├── entity/
 │   │   │   ├── WorkOrder.java
 │   │   │   ├── WorkOrderEvent.java
-│   │   │   ├── OrderStatus.java      # 상태 + 전이 규칙
+│   │   │   ├── OrderType.java        # ★ 종류별 전이 규칙표. 규칙은 여기에만 있다
+│   │   │   ├── OrderStatus.java      # 상태 목록 (전이 규칙은 없다)
 │   │   │   ├── OrderPriority.java
-│   │   │   └── ActorSide.java
+│   │   │   ├── ActorSide.java
+│   │   │   ├── ServiceItem.java      # 업무 항목. 수행 파트와 종류를 정한다
+│   │   │   └── RequestMessage.java   # 대화의 누가·언제. 내용은 원내에 있다
 │   │   ├── repository/
 │   │   ├── service/
 │   │   │   ├── WorkOrderService.java
-│   │   │   └── WorkOrderQueryService.java
+│   │   │   ├── WorkOrderQueryService.java
+│   │   │   ├── RequestMessageService.java
+│   │   │   ├── RequestNoGenerator.java
+│   │   │   ├── WorkOrderDelayWatcher.java   # 응급·긴급 접수 지연을 매분 본다
+│   │   │   └── WorkOrderDelayService.java
 │   │   ├── controller/
-│   │   ├── dto/
-│   │   └── event/                       # 도메인 이벤트 (알림 발송 트리거)
-│   ├── nursing/                     # 활력징후, 간호기록
+│   │   ├── dto/                      # TransitionOption — 버튼 이름·필수 입력을 서버가 내려준다
+│   │   └── event/                    # 도메인 이벤트 + AFTER_COMMIT 리스너 (알림 발송 트리거)
 │   ├── notification/                # 알림함
-│   └── stats/                       # 대기시간 통계 (집계는 SQL 로)
+│   │   ├── service/                  # NotificationService, NotificationRetention(30일/90일 정리)
+│   │   └── push/                     # 폰 알림(Web Push). RFC 8291 암호화를 JDK 로 직접 짰다
+│   ├── stats/                       # 대기시간 통계 (집계는 SQL 로)
+│   ├── master/                      # 기준 정보 관리 (파트·직원·업무 항목) — A-02~04
+│   ├── audit/                       # 업무 쪽 감사 로그 조회 (/audit-logs)
+│   │
+│   │   ── 원내 쪽 (onprem) ──
+│   ├── patient/                     # 환자, 주의사항(alert)
+│   ├── encounter/                   # 재원 + 입원 등록(AdmissionService — 원내에서 밖으로 나가는 유일한 통로)
+│   ├── nursing/                     # 활력징후, 간호기록
+│   └── phi/                         # /api/v1/phi — 원내 조회 창구
+│       ├── port/                     # WorkRelationPort + HttpWorkRelationAdapter (업무 서버에 HTTP 로 묻는다)
+│       ├── entity/                   # PhiAccessLog(원내 접근 기록), RequestMessageBody(대화 내용)
+│       └── service/                  # SubjectPhiService, OrderMessageService, PhiAccessRecorder
 │
 └── infra/
-    ├── realtime/                    # 업무 쪽 전용
-    │   ├── WebSocketConfig.java
-    │   ├── StompAuthChannelInterceptor.java
-    │   └── RealtimeNotifier.java    # STOMP 발송 담당
-    └── storage/
+    └── realtime/                    # 업무 쪽 전용
+        ├── WebSocketConfig.java
+        ├── StompAuthChannelInterceptor.java   # CONNECT 인증 + SUBSCRIBE 는 자기 파트 채널만
+        ├── RealtimeEvent.java
+        └── RealtimeNotifier.java    # STOMP 발송 담당
 ```
+
+어느 패키지가 어느 쪽인지는 `AppBoundary` 가 정한다. 새 `domain` 패키지를 만들면 그 표에 넣어야 한다 —
+안 넣으면 `PhiBoundaryTest` 가 막는다. 분류되지 않은 코드는 양쪽 모두에 올라가기 때문이다.
 
 **`global` 에는 양쪽이 함께 쓰는 것만 둔다.** 원내 서버는 토큰을 검증만 하고
 Redis 도 실시간 채널도 없이 뜬다. 갱신 토큰 저장소나 WebSocket 설정이 `global` 에 있으면
@@ -261,6 +298,7 @@ public class WorkOrder extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private OrderStatus holdFromStatus;  // 보류 직전 상태
+    private ActorSide holdBySide;        // 보류를 건 쪽. 푸는 것도 이 쪽만 (V20)
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
@@ -333,10 +371,13 @@ public class WorkOrder extends BaseTimeEntity {
 
         if (status.isTerminal()) return Set.of();
         if (status == OrderStatus.ON_HOLD) {
-            // 보류 상태에서는 "복귀" 와 "취소" 만 가능
-            return Set.of(holdFromStatus, OrderStatus.CANCELLED);
+            // 보류 상태에서는 "복귀" 와 "취소" 만 가능. 복귀는 건 쪽(holdBySide)에만 보인다
+            Set<OrderStatus> options = new LinkedHashSet<>();
+            if (side == holdBySide) options.add(holdFromStatus);
+            options.add(OrderStatus.CANCELLED);
+            return options;
         }
-        return OrderStatus.availableFor(status, side);
+        return orderType.availableFor(status, side);
     }
 
     // ------------------------------------------------------------------
@@ -359,13 +400,18 @@ public class WorkOrder extends BaseTimeEntity {
             throw new BusinessException(ErrorCode.ALREADY_FINISHED);
         }
 
-        // 보류 해제는 규칙표가 아니라 저장된 직전 상태로 판단한다
+        // 보류 해제는 규칙표가 아니라 저장된 직전 상태로 판단한다.
+        // 건 쪽만 푼다 — 사람이 아니라 파트다. 다음 교대 근무자는 풀고, 상대 파트는 못 푼다.
         if (status == OrderStatus.ON_HOLD && to != OrderStatus.CANCELLED) {
             if (to != holdFromStatus) {
                 throw new BusinessException(ErrorCode.INVALID_TRANSITION);
             }
+            if (actorSide != holdBySide) {
+                throw new BusinessException(ErrorCode.NOT_ALLOWED_ACTOR);
+            }
             this.status = to;
             this.holdFromStatus = null;
+            this.holdBySide = null;
             this.holdReason = null;
             return;
         }

@@ -22,6 +22,7 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.contains;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -85,6 +86,27 @@ class WorkOrderApiTest extends IntegrationTest {
                                 {"loginId":"ward01","password":"틀린비밀번호"}"""))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTH-001"));
+    }
+
+    // ── 목록 크기 ───────────────────────────────────────────
+
+    @Test
+    void 페이지_크기는_1에서_200_사이로_눌러_담는다() throws Exception {
+        // size=0 은 PageRequest 가 거부해 500 이 나갔고, 큰 값은 반년치를 한 번에 올렸다
+        mvc.perform(get("/api/v1/work-orders").param("direction", "OUTBOUND").param("size", "0")
+                        .header("Authorization", bearer("ward01")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size").value(1));
+
+        mvc.perform(get("/api/v1/work-orders").param("direction", "OUTBOUND").param("size", "100000")
+                        .header("Authorization", bearer("ward01")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size").value(200));
+
+        mvc.perform(get("/api/v1/work-orders").param("direction", "OUTBOUND").param("page", "-3")
+                        .header("Authorization", bearer("ward01")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(0));
     }
 
     // ── 역할 권한 ───────────────────────────────────────────
@@ -231,6 +253,36 @@ class WorkOrderApiTest extends IntegrationTest {
                         .formatted(created.get("version").asLong())))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("ORD-003"));
+    }
+
+    @Test
+    void 검사실이_건_보류는_병동이_풀_수_없다_PERM_002() throws Exception {
+        JsonNode created = createRequest();
+
+        mvc.perform(transition(created, "mri01", """
+                        {"toStatus":"ON_HOLD","reason":"장비 점검","version":%d}"""
+                        .formatted(created.get("version").asLong())))
+                .andExpect(status().isOk());
+
+        // 상대 파트에 복귀 버튼이 없는 것을 화면이 아니라 서버가 정한다. 누가 걸었는지도 같이 준다.
+        String detail = mvc.perform(get("/api/v1/work-orders/" + created.get("id").asLong())
+                        .header("Authorization", bearer("ward01")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.holdByDepartment.name").value("MRI실"))
+                .andExpect(jsonPath("$.availableTransitions[*].status").value(contains("CANCELLED")))
+                .andReturn().getResponse().getContentAsString();
+        long version = om.readTree(detail).get("version").asLong();
+
+        mvc.perform(transition(created, "ward01", """
+                        {"toStatus":"REQUESTED","version":%d}""".formatted(version)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("PERM-002"));
+
+        // 같은 파트의 다른 사람은 푼다 — 교대 근무자
+        mvc.perform(transition(created, "mri01", """
+                        {"toStatus":"REQUESTED","version":%d}""".formatted(version)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REQUESTED"));
     }
 
     @Test

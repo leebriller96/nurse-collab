@@ -208,24 +208,39 @@ public EncounterDetailResponse detail(@PathVariable Long id, ...) { ... }
 
 ```
 src/
+├── App.tsx                     # QueryClient, Auth, Toast, ErrorBoundary, 오프라인 배너
 ├── app/
-│   ├── router.tsx              # 소속 파트 유형별 라우트 분기
-│   └── providers.tsx           # QueryClient, WebSocket, Auth
+│   └── router.tsx              # 소속 파트 유형별 라우트 분기. 홈 판정은 shared/lib/home.ts 한 곳
 ├── shared/
-│   ├── api/                    # axios 인스턴스, 인터셉터(토큰 갱신)
-│   ├── ui/                     # 버튼, 카드, 뱃지 등 공통 컴포넌트
+│   ├── api/
+│   │   ├── client.ts           # axios 인스턴스, 인터셉터(토큰 갱신), freshAccessToken
+│   │   ├── phi.ts              # 원내(/phi) 호출. 끊기면 "원내망에서만 조회됩니다" 로 읽는다
+│   │   └── types.ts
+│   ├── ui/                     # 뱃지, 스켈레톤, 토스트, LoadFailed, PullToRefresh 등 공통 컴포넌트
+│   ├── lib/
+│   │   ├── home.ts             # 파트 유형 → 홈 화면
+│   │   ├── labels.ts           # 우선순위 이름. 상태 이름은 없다 — 서버가 준다
+│   │   └── push.ts             # 폰 알림 구독·해제
 │   └── hooks/
-│       ├── useWebSocket.ts     # STOMP 연결 + 재연결 처리
-│       └── useAuth.ts
+│       ├── useRealtime.ts      # STOMP 연결 + 재연결(붙을 때마다 토큰을 다시 읽는다) + 캐시 무효화
+│       ├── useAuth.tsx
+│       ├── useUrlParam.ts      # 조회 조건을 주소에 담는다
+│       ├── usePullToRefresh.ts
+│       ├── useOnline.ts
+│       └── useUnreadCount.ts
 ├── features/
-│   ├── auth/
-│   ├── encounter/              # 환자 보드, 상세
-│   ├── transfer/               # 요청 등록, 큐, 상세, 타임라인
-│   ├── nursing/                # 활력징후, 간호기록
-│   └── stats/
+│   ├── auth/                   # C-01 로그인
+│   ├── encounter/              # W-01 병동 보드, W-02 환자 상세
+│   ├── workorder/              # W-03 요청 등록, W-04 현황, W-05/E-02 상세, E-01 큐, E-03 일정, E-04 지난 요청
+│   ├── nursing/                # W-06 활력징후, W-07 간호기록
+│   ├── notification/           # C-02 알림함, 폰 알림 켜기
+│   ├── stats/                  # A-01 대기시간 통계
+│   ├── master/                 # A-02~04 기준 정보
+│   └── audit/                  # A-05 접근 기록
 └── layouts/
     ├── WardLayout.tsx          # 모바일 우선 (하단 탭바)
-    └── ServiceLayout.tsx          # PC 우선 (사이드바 + 넓은 테이블)
+    ├── ServiceLayout.tsx       # PC 우선 (상단 메뉴 + 넓은 테이블)
+    └── AdminLayout.tsx
 ```
 
 ### 실시간 갱신 처리 패턴
