@@ -37,8 +37,8 @@ DBMS: PostgreSQL 16
 
 | 사는 곳 | 테이블 |
 |---|---|
-| 진료 (원내) | `patient`, `encounter`, `patient_alert`, `vital_sign`, `nursing_note`, `phi_access_log` |
-| 업무 | `care_episode`, `work_order`, `work_order_event`, `department`, `staff`, `service_item`, `notification`, `audit_log` |
+| 진료 (원내) | `patient`, `encounter`, `patient_alert`, `vital_sign`, `nursing_note`, `phi_access_log`, `request_message_body` |
+| 업무 | `care_episode`, `work_order`, `work_order_event`, `request_message`, `department`, `staff`, `service_item`, `notification`, `push_subscription`, `audit_log` |
 
 양쪽은 서로를 **외래키로 잇지 않는다**(V11, V13). 두 DB 로 갈라 놓아야 하기 때문이다.
 `encounter.department_id` 나 `nursing_note.recorded_by` 처럼 상대를 가리키는 컬럼은 남지만,
@@ -64,7 +64,7 @@ DB 가 무결성을 보장해 주지 않는다는 뜻이다. 화면에 이름이
 
 - `patient` : 사람 그 자체 (1명 = 1행, 평생)
 - `encounter` : 이번 입원 건 (입원할 때마다 1행 추가)
-- 모든 기록(활력징후, 간호기록, 이송요청)은 `encounter_id` 를 바라본다
+- 원내 기록(활력징후, 간호기록)은 `encounter_id` 를 바라본다. 업무 요청은 재원 건의 가명(`subject_ref`)만 안다
 
 ### (2) 상태는 컬럼, 이력은 별도 테이블
 
@@ -300,7 +300,7 @@ CREATE TABLE work_order (
 CREATE INDEX idx_wo_to_dept_status ON work_order(to_department_id, status, requested_at DESC);
 -- 병동 화면: "우리가 보낸 요청" 조회
 CREATE INDEX idx_wo_from_dept      ON work_order(from_department_id, status);
-CREATE INDEX idx_wo_encounter      ON work_order(encounter_id);
+CREATE INDEX idx_wo_subject        ON work_order(subject_ref);
 
 COMMENT ON TABLE work_order IS '부서 간 업무 요청. 이 시스템의 심장';
 
@@ -395,7 +395,8 @@ CREATE TABLE vital_sign (
     dbp             INT,                            -- 이완기 혈압
     spo2            INT,                            -- 산소포화도 (%)
     pain_score      INT,                            -- 통증점수 0~10
-    recorded_by     BIGINT       NOT NULL REFERENCES staff(id),
+    recorded_by     BIGINT       NOT NULL,          -- staff.id. 외래키는 V13 에서 끊었다 (직원은 업무 DB 에 있다)
+    recorded_by_name VARCHAR(50) NOT NULL,          -- 기록한 사람의 그때 이름 (V13). 지금 이름으로 다시 그리면 기록이 달라진다
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     CONSTRAINT ck_vs_pain CHECK (pain_score IS NULL OR pain_score BETWEEN 0 AND 10)
 );
@@ -416,7 +417,8 @@ CREATE TABLE nursing_note (
     recommendation  TEXT,                           -- R: 제안
     content         TEXT,                           -- 일반 기록일 때 사용
     recorded_at     TIMESTAMPTZ  NOT NULL,
-    recorded_by     BIGINT       NOT NULL REFERENCES staff(id),
+    recorded_by     BIGINT       NOT NULL,          -- staff.id. 외래키 없음 (V13)
+    recorded_by_name VARCHAR(50) NOT NULL,          -- 기록한 사람의 그때 이름 (V13)
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
