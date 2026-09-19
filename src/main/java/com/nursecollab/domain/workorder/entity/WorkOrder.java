@@ -254,7 +254,9 @@ public class WorkOrder extends BaseTimeEntity {
         // 상태별 시각 기록
         switch (to) {
             case ACCEPTED    -> this.scheduledAt = scheduledAt;
-            case IN_PROGRESS -> this.startedAt   = OffsetDateTime.now();
+            // 처음 시작한 시각만 남긴다. 부품을 기다렸다 다시 수리중이 될 때 덮어쓰면
+            // 수리에 걸린 시간이 부품이 온 뒤부터로 줄어든다.
+            case IN_PROGRESS -> { if (this.startedAt == null) this.startedAt = OffsetDateTime.now(); }
             case COMPLETED   -> this.completedAt = OffsetDateTime.now();
             case CANCELLED   -> this.holdReason  = reason;
             default          -> { /* 별도 기록 없음 */ }

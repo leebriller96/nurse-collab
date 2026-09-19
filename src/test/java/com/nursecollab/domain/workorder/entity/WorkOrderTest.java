@@ -265,6 +265,29 @@ class WorkOrderTest {
     }
 
     // ------------------------------------------------------------------
+    // 시각 기록
+    // ------------------------------------------------------------------
+
+    @Test
+    void 부품을_기다렸다_다시_시작해도_처음_시작한_시각은_그대로다() {
+        Department bme = department(7L, "BME", "의공학팀", DeptType.BIOMED);
+        ServiceItem pumpRepair = ServiceItem.create("BME_PUMP", "수액펌프 수리", OrderType.EQUIPMENT,
+                bme, 60, null, List.of());
+        WorkOrder request = WorkOrder.create("EQ20260905-0001", null, pumpRepair, wardNurse,
+                OrderPriority.ROUTINE, null, "알람이 계속 울림");
+        request.transitionTo(OrderStatus.ACCEPTED, ActorSide.PERFORMER, null, null);
+        request.transitionTo(OrderStatus.IN_PROGRESS, ActorSide.PERFORMER, null, null);
+        OffsetDateTime firstStart = request.getStartedAt();
+
+        request.transitionTo(OrderStatus.AWAITING_PARTS, ActorSide.PERFORMER, "배터리 주문", null);
+        ReflectionTestUtils.setField(request, "startedAt", firstStart.minusHours(3)); // 세 시간 전에 시작한 셈
+        request.transitionTo(OrderStatus.IN_PROGRESS, ActorSide.PERFORMER, null, null);
+
+        // 다시 찍으면 수리에 걸린 시간이 부품이 온 뒤부터로 줄어든다
+        assertThat(request.getStartedAt()).isEqualTo(firstStart.minusHours(3));
+    }
+
+    // ------------------------------------------------------------------
     // 픽스처
     // ------------------------------------------------------------------
 
