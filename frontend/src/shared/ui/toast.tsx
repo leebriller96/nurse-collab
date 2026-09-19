@@ -82,6 +82,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// useAuth 와 같은 이유로 Provider 와 한 파일에 둔다
+// oxlint-disable-next-line react/only-export-components
 export function useToast(): ToastApi {
   const api = useContext(ToastContext);
   if (!api) throw new Error('ToastProvider 안에서만 쓸 수 있습니다.');

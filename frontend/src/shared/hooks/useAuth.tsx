@@ -15,14 +15,12 @@ const AuthContext = createContext<AuthValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [staff, setStaff] = useState<Staff | null>(null);
-  const [loading, setLoading] = useState(true);
+  // 토큰이 없으면 처음부터 로딩이 아니다. effect 에서 다시 내리면 한 번 더 그린다.
+  const [loading, setLoading] = useState(() => tokenStore.access() !== null);
 
   // 새로고침해도 로그인이 유지되어야 한다. 토큰이 남아 있으면 내 정보를 다시 받아온다.
   useEffect(() => {
-    if (!tokenStore.access()) {
-      setLoading(false);
-      return;
-    }
+    if (!tokenStore.access()) return;
     api
       .get<Staff>('/auth/me')
       .then((res) => setStaff(res.data))
@@ -53,6 +51,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
+// 컨텍스트와 그것을 읽는 훅은 한 파일에 둔다. 갈라 두면 컨텍스트를 export 해야 하고,
+// 그러면 Provider 를 거치지 않고 읽는 길이 생긴다. 잃는 것은 이 파일의 빠른 새로고침뿐이다.
+// oxlint-disable-next-line react/only-export-components
 export function useAuth() {
   const value = useContext(AuthContext);
   if (!value) {
