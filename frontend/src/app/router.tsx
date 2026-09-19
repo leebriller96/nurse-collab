@@ -1,4 +1,4 @@
-import { Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { Navigate, Outlet, Route, Routes, useParams } from 'react-router-dom';
 import LoginPage from '@/features/auth/LoginPage';
 import WardBoardPage from '@/features/encounter/WardBoardPage';
 import SubjectDetailPage from '@/features/encounter/SubjectDetailPage';
@@ -18,7 +18,7 @@ import OrderHistoryPage from '@/features/workorder/OrderHistoryPage';
 import MasterAdminPage from '@/features/master/MasterAdminPage';
 import ServiceSchedulePage from '@/features/workorder/ServiceSchedulePage';
 import { useAuth } from '@/shared/hooks/useAuth';
-import { homeFor } from '@/shared/lib/home';
+import { homeFor, orderPathFor } from '@/shared/lib/home';
 
 function RequireAuth() {
   const { staff, loading } = useAuth();
@@ -36,12 +36,25 @@ function Home() {
   return <Navigate to={homeFor(staff.department.deptType)} replace />;
 }
 
+/**
+ * 소속을 모르는 곳에서 요청 한 건을 가리킬 때 쓰는 주소. 폰 알림을 누르면 여기로 온다 —
+ * 서버는 받는 사람이 병동인지 약제부인지 따지지 않고 같은 주소를 싣는다.
+ */
+function OrderRedirect() {
+  const { staff, loading } = useAuth();
+  const { id } = useParams();
+  if (loading) return null;
+  if (!staff || !id) return <Navigate to="/" replace />;
+  return <Navigate to={orderPathFor(staff.department.deptType, id)} replace />;
+}
+
 export default function Router() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<RequireAuth />}>
         <Route path="/" element={<Home />} />
+        <Route path="/orders/:id" element={<OrderRedirect />} />
 
         <Route path="/ward" element={<WardLayout />}>
           <Route path="board" element={<WardBoardPage />} />

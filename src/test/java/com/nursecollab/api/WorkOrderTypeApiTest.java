@@ -20,6 +20,8 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.assertj.core.api.Assertions.assertThat;
+
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -48,6 +50,8 @@ class WorkOrderTypeApiTest extends IntegrationTest {
     private Long repairItemId;      // 장비 수리 (환자 없음)
     private Long bloodTestItemId;   // 검체 (환자 있음)
     private String biomedLoginId;   // 의공학팀 담당자
+    private Long labDeptId;
+    private int seq;
 
     @BeforeEach
     void setUp() throws Exception {
@@ -63,7 +67,8 @@ class WorkOrderTypeApiTest extends IntegrationTest {
         subjectRef = encounter.getSubjectRef();
 
         Long biomedDeptId = createDepartment("BIO" + n, "의공학팀" + n, "BIOMED");
-        Long labDeptId = createDepartment("LAB" + n, "진단검사의학과" + n, "LAB");
+        seq = n;
+        labDeptId = createDepartment("LAB" + n, "진단검사의학과" + n, "LAB");
 
         biomedLoginId = "biomed" + n;
         createStaff(biomedLoginId, "EMP" + n, "정OO", biomedDeptId);
@@ -208,7 +213,42 @@ class WorkOrderTypeApiTest extends IntegrationTest {
                 .andExpect(jsonPath("$.statusLabel").value("수리중"));
     }
 
+    @Test
+    void 목록은_보는_쪽의_차례인지_알려준다() throws Exception {
+        String labLoginId = "lab" + seq;
+        createStaff(labLoginId, "LEMP" + seq, "오OO", labDeptId);
+
+        JsonNode order = createSpecimenOrder();
+        long id = order.get("id").asLong();
+
+        // 접수 전: 진단검사의학과 차례다. 병동은 취소를 누를 수 있지만 그건 차례가 아니다.
+        assertThat(myTurnIn(id, "ward01", "OUTBOUND")).isFalse();
+        assertThat(myTurnIn(id, labLoginId, "INBOUND")).isTrue();
+
+        transition(id, labLoginId, "ACCEPTED", order.get("version").asLong(), null);
+
+        // 접수 뒤: 채취는 병동이 한다. 교대할 때 "우리가 채혈해야 하는 것" 으로 넘길 줄이다.
+        assertThat(myTurnIn(id, "ward01", "OUTBOUND")).isTrue();
+        assertThat(myTurnIn(id, labLoginId, "INBOUND")).isFalse();
+    }
+
     // ── 도우미 ──────────────────────────────────────────────
+
+    private boolean myTurnIn(long id, String loginId, String direction) throws Exception {
+        String body = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                        .get("/api/v1/work-orders")
+                        .param("direction", direction)
+                        .param("size", "200")
+                        .header("Authorization", bearer(loginId)))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        for (JsonNode row : om.readTree(body).get("content")) {
+            if (row.get("id").asLong() == id) {
+                return row.get("myTurn").asBoolean();
+            }
+        }
+        throw new AssertionError(loginId + " 의 " + direction + " 목록에 요청 " + id + " 이 없다");
+    }
 
     private String bearer(String loginId) throws Exception {
         String body = mvc.perform(post("/api/v1/auth/login")

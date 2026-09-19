@@ -4,7 +4,8 @@ public enum NotiType {
 
     ORDER_CREATED("새 요청"),
     STATUS_CHANGED("상태 변경"),
-    MESSAGE("새 메시지");
+    MESSAGE("새 메시지"),
+    DELAYED("접수 지연");
 
     private final String label;
 

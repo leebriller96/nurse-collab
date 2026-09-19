@@ -11,7 +11,9 @@ import com.nursecollab.support.IntegrationTest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import com.nursecollab.domain.notification.service.NotificationRetention;
 import org.springframework.http.MediaType;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDate;
@@ -42,6 +44,8 @@ class AuditAndNotificationApiTest extends IntegrationTest {
     @Autowired private StaffRepository staffRepository;
     @Autowired private PatientRepository patientRepository;
     @Autowired private AdmissionService admissionService;
+    @Autowired private JdbcTemplate jdbcTemplate;
+    @Autowired private NotificationRetention notificationRetention;
 
     private Long encounterId;
     private UUID subjectRef;
@@ -58,6 +62,13 @@ class AuditAndNotificationApiTest extends IntegrationTest {
         encounterId = encounter.getId();
         subjectRef = encounter.getSubjectRef();
         patientNo = patient.getPatientNo();
+
+        // MRI실 동료. "같은 파트지만 이 요청에 손대지 않은 사람" 이 필요하다.
+        jdbcTemplate.update("""
+                insert into staff (login_id, password_hash, employee_no, name, role, department_id)
+                select 'mri02', s.password_hash, 'E20901', '윤간호', 'NURSE', s.department_id
+                  from staff s where s.login_id = 'mri01'
+                on conflict (login_id) do nothing""");
     }
 
     // ── 접근 기록 ───────────────────────────────────────────
@@ -155,6 +166,57 @@ class AuditAndNotificationApiTest extends IntegrationTest {
     }
 
     @Test
+    void 접수한_뒤의_변화는_그_요청에_손댄_사람에게만_간다() throws Exception {
+        long orderId = createRequest();
+        // 새 요청은 MRI실 전원이 받았다. 여기서부터 센다.
+        long requester = unreadCountOf("ward01");
+        long wardColleague = unreadCountOf("head01");
+        long mriColleague = unreadCountOf("mri02");
+
+        accept(orderId, "mri01");
+
+        // 요청한 사람은 자기 요청이 접수된 것을 알아야 한다
+        assertThat(unreadCountOf("ward01")).isEqualTo(requester + 1);
+        // 같은 병동이라도 이 요청을 걸지 않았다. 병동 보드는 실시간으로 이미 바뀌었다.
+        assertThat(unreadCountOf("head01")).isEqualTo(wardColleague);
+        // 같은 MRI실이라도 이제 담당자가 정해졌다. 동료 폰까지 울리면 알림함을 아무도 안 연다.
+        assertThat(unreadCountOf("mri02")).isEqualTo(mriColleague);
+    }
+
+    @Test
+    void 아무도_접수하지_않은_요청이_취소되면_수행_파트_전원이_받는다() throws Exception {
+        long orderId = createRequest();
+        long mriColleague = unreadCountOf("mri02");
+
+        // 수행 쪽에 아직 담당자가 없다. 큐에서 사라진 일이 무엇인지는 누구든 알아야 한다.
+        mvc.perform(post("/api/v1/work-orders/" + orderId + "/transitions")
+                        .header("Authorization", bearer("ward01"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"toStatus":"CANCELLED","reason":"중복 요청","version":0}"""))
+                .andExpect(status().isOk());
+
+        assertThat(unreadCountOf("mri02")).isEqualTo(mriColleague + 1);
+    }
+
+    @Test
+    void 오래된_알림은_지운다_읽은_것은_30일_안_읽은_것은_90일() throws Exception {
+        long recipient = staffRepository.findByLoginIdWithDepartment("ct01").orElseThrow().getId();
+        long readOld = insertNotification(recipient, 31, true);
+        long unreadMid = insertNotification(recipient, 31, false);
+        long unreadOld = insertNotification(recipient, 91, false);
+        long readNew = insertNotification(recipient, 29, true);
+
+        notificationRetention.purge();
+
+        java.util.List<Long> left = jdbcTemplate.queryForList(
+                "select id from notification where id in (?, ?, ?, ?)", Long.class,
+                readOld, unreadMid, unreadOld, readNew);
+        // 안 읽은 알림은 더 오래 둔다. 휴가에서 돌아온 사람이 볼 수 있어야 한다.
+        assertThat(left).containsExactlyInAnyOrder(unreadMid, readNew);
+    }
+
+    @Test
     void 토큰_없이는_알림을_볼_수_없다() throws Exception {
         mvc.perform(get("/api/v1/notifications"))
                 .andExpect(status().isUnauthorized());
@@ -187,6 +249,17 @@ class AuditAndNotificationApiTest extends IntegrationTest {
 
     /** MRI실로 요청을 보내 mri01 에게 알림이 쌓이게 하고 그 알림 id 를 준다 */
     private long createRequestAndFindNotification() throws Exception {
+        createRequest();
+        String body = mvc.perform(get("/api/v1/notifications")
+                        .header("Authorization", bearer("mri01")))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        // 목록과 미읽음 수를 함께 주는 구조라 page 아래에 내용이 들어 있다
+        return om.readTree(body).get("page").get("content").get(0).get("id").asLong();
+    }
+
+    /** 병동이 MRI실로 요청을 보내고 요청 id 를 준다 */
+    private long createRequest() throws Exception {
         // MRI 검사를 골라야 mri01 이 받는다. 수행 파트는 업무 항목이 정한다.
         var exams = om.readTree(mvc.perform(get("/api/v1/service-items")
                         .header("Authorization", bearer("ward01")))
@@ -199,20 +272,34 @@ class AuditAndNotificationApiTest extends IntegrationTest {
             }
         }
 
-        mvc.perform(post("/api/v1/work-orders")
+        String created = mvc.perform(post("/api/v1/work-orders")
                         .header("Authorization", bearer("ward01"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {"subjectRef":"%s","serviceItemId":%d,"priority":"ROUTINE"}"""
                                 .formatted(subjectRef, serviceItemId)))
-                .andExpect(status().isCreated());
-
-        String body = mvc.perform(get("/api/v1/notifications")
-                        .header("Authorization", bearer("mri01")))
-                .andExpect(status().isOk())
+                .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();
-        // 목록과 미읽음 수를 함께 주는 구조라 page 아래에 내용이 들어 있다
-        return om.readTree(body).get("page").get("content").get(0).get("id").asLong();
+        return om.readTree(created).get("id").asLong();
+    }
+
+    private void accept(long orderId, String loginId) throws Exception {
+        mvc.perform(post("/api/v1/work-orders/" + orderId + "/transitions")
+                        .header("Authorization", bearer(loginId))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"toStatus":"ACCEPTED","scheduledAt":"%s","version":0}"""
+                                .formatted(OffsetDateTime.now().plusHours(1))))
+                .andExpect(status().isOk());
+    }
+
+    private long insertNotification(long recipientId, int daysAgo, boolean read) {
+        return jdbcTemplate.queryForObject("""
+                insert into notification (recipient_id, noti_type, ref_type, ref_id, title, body, read_at, created_at)
+                values (?, 'STATUS_CHANGED', 'WORK_ORDER', 0, '보관 확인', null,
+                        case when ? then now() - make_interval(days => ?) end,
+                        now() - make_interval(days => ?))
+                returning id""", Long.class, recipientId, read, daysAgo, daysAgo);
     }
 
     private long unreadCountOf(String loginId) throws Exception {

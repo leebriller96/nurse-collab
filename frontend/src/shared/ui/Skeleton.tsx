@@ -46,10 +46,21 @@ function HeaderSkeleton({ compact = false }: { compact?: boolean }) {
 }
 
 /** 병동 화면의 카드 목록 (환자 보드, 내 요청, 알림함) */
-export function CardListSkeleton({ rows = 4 }: { rows?: number }) {
+export function CardListSkeleton({ rows = 4, section = false }: { rows?: number; section?: boolean }) {
   return (
     <Loading>
       <HeaderSkeleton compact />
+      {/* 내 요청 현황은 카드 위에 "우리 차례" 묶음 제목이 있다. 빼면 값이 들어올 때 카드가 한 줄 밀린다. */}
+      {section && (
+        <div className="mt-2 px-4 pb-1.5 pt-2">
+          <div className="flex h-5 items-center">
+            <Skeleton className="h-3.5 w-20" />
+          </div>
+          <div className="flex h-4 items-center">
+            <Skeleton className="h-3 w-56" />
+          </div>
+        </div>
+      )}
       <div className="space-y-2 px-3">
       {Array.from({ length: rows }, (_, i) => (
         <div key={i} className="rounded-xl bg-white p-3.5 shadow-sm ring-1 ring-slate-200">

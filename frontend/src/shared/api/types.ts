@@ -142,6 +142,11 @@ export interface OrderSummary {
   scheduledAt: string | null;
   waitingMinutes: number;
   criticalAlertCount: number;
+  /**
+   * 보고 있는 쪽이 다음 걸음을 눌러야 하는가. 보류·취소는 치지 않는다.
+   * 판정은 서버의 규칙표에서 나온다 — 화면이 표를 들지 않는다.
+   */
+  myTurn: boolean;
   version: number;
 }
 
@@ -284,7 +289,7 @@ export interface PhiAccessLogEntry {
   detail: Record<string, unknown> | null;
 }
 
-export type NotiType = 'ORDER_CREATED' | 'STATUS_CHANGED' | 'MESSAGE';
+export type NotiType = 'ORDER_CREATED' | 'STATUS_CHANGED' | 'MESSAGE' | 'DELAYED';
 
 export interface NotificationItem {
   id: number;

@@ -289,6 +289,8 @@ CREATE TABLE work_order (
 
     note                VARCHAR(500),                 -- 요청 메모
     hold_reason         VARCHAR(500),                 -- 보류/취소 사유
+    hold_from_status    VARCHAR(20),                  -- 보류 직전 상태
+    delay_notified_at   TIMESTAMPTZ,                  -- 접수 지연을 알린 시각 (V18). 한 번만 알린다
     version             BIGINT       NOT NULL DEFAULT 0, -- 낙관적 락 (JPA @Version)
     created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW()
@@ -363,8 +365,21 @@ CREATE TABLE notification (
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
 
+-- 이력의 복사본이라 지운다: 읽은 것 30일, 안 읽은 것 90일 (api-spec 7장)
 -- 미읽음 알림 조회가 가장 빈번 → 부분 인덱스
 CREATE INDEX idx_noti_unread ON notification(recipient_id, created_at DESC) WHERE read_at IS NULL;
+
+-- 폰 알림을 받을 기기 (V19). 한 사람이 폰·PC 여러 대를 쓸 수 있다.
+-- endpoint 가 기기를 가리킨다. 같은 기기로 다른 사람이 등록하면 앞사람 것을 넘겨받는다(돌려 쓰는 병동 폰).
+CREATE TABLE push_subscription (
+    id              BIGSERIAL    PRIMARY KEY,
+    staff_id        BIGINT       NOT NULL REFERENCES staff(id),
+    endpoint        TEXT         NOT NULL UNIQUE,
+    p256dh          VARCHAR(200) NOT NULL,             -- 기기 공개키 (payload 암호화)
+    auth            VARCHAR(50)  NOT NULL,             -- 기기 인증 비밀
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_push_sub_staff ON push_subscription(staff_id);
 
 -- ---------------------------------------------------------
 -- 11. 기록 : 활력징후

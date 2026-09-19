@@ -64,6 +64,49 @@ public class WorkOrderEventListener {
                 RealtimeEvent.EventType.MESSAGE_CREATED, null, null);
     }
 
+    /**
+     * 접수 지연. 누른 사람이 없으므로 행위자 칸을 비워 방송한다.
+     * 알림함에는 수간호사와 요청자에게만 남긴다(NotificationService.notifyDelay).
+     */
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void onDelayed(WorkOrderDelayedEvent event) {
+        try {
+            WorkOrder request = requestRepository.findDetailById(event.requestId()).orElse(null);
+            if (request == null) {
+                log.warn("지연 알림 대상을 찾지 못했다. requestId={}", event.requestId());
+                return;
+            }
+
+            notifier.broadcast(
+                    request.getFromDepartment().getId(),
+                    request.getToDepartment().getId(),
+                    new RealtimeEvent(
+                            RealtimeEvent.EventType.ORDER_DELAYED,
+                            request.getId(),
+                            request.getRequestNo(),
+                            null,
+                            request.getStatus(),
+                            request.getPriority(),
+                            request.getCareEpisode() == null ? null
+                                    : request.getCareEpisode().getSubjectRef(),
+                            request.getCareEpisode() == null ? null
+                                    : request.getCareEpisode().getRoomNo(),
+                            request.getServiceItem().getName(),
+                            null, null, null,
+                            event.waitingMinutes(),
+                            OffsetDateTime.now()));
+
+            String title = request.getToDepartment().getName() + " " + request.getPriority().getLabel()
+                    + " 요청이 " + event.waitingMinutes() + "분째 접수되지 않았습니다";
+            notificationService.notifyDelay(request, title, notificationService.describe(request));
+
+        } catch (RuntimeException e) {
+            // 표시는 이미 커밋됐다. 알림 하나 때문에 되돌리지 않는다.
+            log.warn("지연 알림 처리 실패. requestId={}", event.requestId(), e);
+        }
+    }
+
     private void publish(Long requestId, Long actorId, RealtimeEvent.EventType type,
                          OrderStatus fromStatus, OrderStatus toStatus) {
         try {
@@ -95,6 +138,7 @@ public class WorkOrderEventListener {
                             actor.getId(),
                             actor.getName(),
                             actor.getDepartment().getName(),
+                            null,
                             OffsetDateTime.now()));
 
             notificationService.notifyOrder(request, actorId,
@@ -112,6 +156,7 @@ public class WorkOrderEventListener {
             case ORDER_CREATED -> NotiType.ORDER_CREATED;
             case ORDER_STATUS_CHANGED -> NotiType.STATUS_CHANGED;
             case MESSAGE_CREATED -> NotiType.MESSAGE;
+            case ORDER_DELAYED -> NotiType.DELAYED;
         };
     }
 
@@ -122,6 +167,8 @@ public class WorkOrderEventListener {
             case ORDER_CREATED -> who + "에서 새 요청을 보냈습니다";
             case MESSAGE_CREATED -> who + " " + actor.getName() + "님이 메시지를 남겼습니다";
             case ORDER_STATUS_CHANGED -> who + "에서 " + toStatus.getLabel() + " 처리했습니다";
+            // 사람이 누른 것이 아니라 행위자 소속으로 제목을 지을 수 없다. onDelayed 가 따로 짓는다.
+            case ORDER_DELAYED -> throw new IllegalArgumentException("접수 지연은 onDelayed 가 제목을 짓는다");
         };
     }
 }

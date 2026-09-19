@@ -52,6 +52,8 @@ public enum ErrorCode {
 
     // 알림
     NOTIFICATION_NOT_FOUND("NTF-000", HttpStatus.NOT_FOUND, "알림을 찾을 수 없습니다."),
+    // 구독 주소는 브라우저가 보낸 값이다. 알려진 푸시 서비스가 아니면 받지 않는다(SSRF)
+    PUSH_ENDPOINT_NOT_ALLOWED("PSH-001", HttpStatus.BAD_REQUEST, "이 브라우저의 알림 서비스는 지원하지 않습니다."),
 
     // 원내 조회
     PHI_RATE_LIMITED("PHI-001", HttpStatus.TOO_MANY_REQUESTS,

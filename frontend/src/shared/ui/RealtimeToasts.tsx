@@ -14,6 +14,14 @@ function describe(event: RealtimeEvent): { title: string; body: string; tone: To
     ? `${event.roomNo}호 · ${event.itemName}`
     : event.itemName;
 
+  if (event.eventType === 'ORDER_DELAYED') {
+    // 누른 사람이 없다. 새 요청 알림을 모두가 놓친 상황이라 조용한 색으로 띄우면 또 놓친다.
+    return {
+      title: `접수 지연 (${priorityLabel(event.priority)})`,
+      body: `${patient} — ${event.waitingMinutes}분째 아무도 접수하지 않았습니다`,
+      tone: 'urgent',
+    };
+  }
   if (event.eventType === 'ORDER_CREATED') {
     return {
       title: `새 요청 (${priorityLabel(event.priority)})`,

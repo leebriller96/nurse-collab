@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from 'react';
 import { api, tokenStore } from '@/shared/api/client';
 import type { LoginResponse, Staff } from '@/shared/api/types';
+import { releasePushOnLogout } from '@/shared/lib/push';
 
 interface AuthValue {
   staff: Staff | null;
@@ -37,6 +38,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const logout = useCallback(async () => {
+    // 토큰이 살아 있을 때 이 기기의 폰 알림부터 뺀다. 병동 폰은 돌려 쓴다.
+    await releasePushOnLogout();
     try {
       await api.post('/auth/logout');
     } finally {

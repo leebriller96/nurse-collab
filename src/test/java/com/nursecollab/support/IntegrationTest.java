@@ -25,7 +25,13 @@ import org.testcontainers.containers.PostgreSQLContainer;
  * 그래서 static 블록에서 직접 띄우고 JVM 이 끝날 때까지 살려 둔다.
  * 정리는 Testcontainers 의 Ryuk 컨테이너가 한다.
  */
-@SpringBootTest
+@SpringBootTest(properties = {
+        // 폰 알림은 키가 있어야 켜진다. 테스트 전용 키쌍이다 — 운영에서는 파일로 따로 넘긴다.
+        "app.push.vapid-private-key=classpath:push/test-vapid-private.pem",
+        "app.push.vapid-public-key=classpath:push/test-vapid-public.pem",
+        // 푸시 서비스 자리에 테스트가 localhost 서버를 띄운다. 운영에서는 알려진 푸시 서비스만 연다.
+        "app.push.allowed-hosts=localhost"
+})
 @AutoConfigureMockMvc
 public abstract class IntegrationTest {
 

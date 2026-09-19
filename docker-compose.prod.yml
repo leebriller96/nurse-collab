@@ -50,6 +50,10 @@ services:
       # 프로세스 목록에 개인키가 그대로 찍힌다.
       JWT_PRIVATE_KEY_FILE: file:/run/keys/jwt-private.pem
       JWT_PUBLIC_KEY_FILE: file:/run/keys/jwt-public.pem
+      # 폰 알림 키. 비우면 폰 알림만 꺼진다(docs/05-deployment.md 4-2)
+      VAPID_PRIVATE_KEY_FILE: ${VAPID_PRIVATE_KEY_FILE:-}
+      VAPID_PUBLIC_KEY_FILE: ${VAPID_PUBLIC_KEY_FILE:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:nurse-collab@example.com}
       TZ: Asia/Seoul
     volumes:
       # 읽기 전용으로 붙인다. 앱이 키를 고칠 이유가 없다.

@@ -1,6 +1,7 @@
 package com.nursecollab.domain.workorder.dto;
 
 import com.nursecollab.domain.department.dto.DepartmentSummary;
+import com.nursecollab.domain.workorder.entity.ActorSide;
 import com.nursecollab.domain.workorder.entity.OrderPriority;
 import com.nursecollab.domain.workorder.entity.OrderStatus;
 import com.nursecollab.domain.workorder.entity.OrderType;
@@ -37,6 +38,11 @@ public record WorkOrderSummary(
         OffsetDateTime requestedAt,
         OffsetDateTime scheduledAt,
         long waitingMinutes,
+        /**
+         * 보고 있는 쪽이 다음 걸음을 눌러야 하는가. 교대할 때 "우리가 멈춰 세운 것" 과
+         * "상대를 기다리는 것" 을 가른다. 보류 중이면 양쪽 다 아니다 — 누가 풀지는 사유가 말한다.
+         */
+        boolean myTurn,
         Long version
 ) {
     /**
@@ -61,6 +67,8 @@ public record WorkOrderSummary(
                 request.getRequestedAt(),
                 request.getScheduledAt(),
                 waitingMinutes(request),
+                request.getOrderType().isTurnOf(request.getStatus(),
+                        inbound ? ActorSide.PERFORMER : ActorSide.REQUESTER),
                 request.getVersion());
     }
 

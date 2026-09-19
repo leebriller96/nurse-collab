@@ -130,7 +130,7 @@ function runSeeds(db, dir, vars, prelude = '') {
 function wipe() {
   runSql(WORK_DB, `
     truncate table
-      audit_log, notification, request_message, work_order_event, work_order,
+      audit_log, push_subscription, notification, request_message, work_order_event, work_order,
       request_no_sequence, care_episode, service_item, staff, department
     restart identity cascade;
   `);

@@ -112,6 +112,7 @@ X-Request-Id: {UUID}        -- 선택. 로그 추적용
 | ENC-001 | 422 | 퇴원한 재원 건에 대한 요청 |
 | SVC-001 | 404 | 업무 항목 없음 |
 | STF-001 | 404 | 직원 없음 |
+| PSH-001 | 400 | 알려진 푸시 서비스가 아닌 구독 주소 (SSRF 방지) |
 | SYS-001 | 500 | 서버 내부 오류 |
 
 **PERM-002 와 PERM-003 은 다른 상황이다.**
@@ -358,23 +359,35 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
     {
       "id": 101,
       "requestNo": "TR20260904-0001",
-      "status": "ACCEPTED",
+      "orderType": "TRANSFER",
+      "status": "READY",
+      "statusLabel": "준비완료",
       "priority": "URGENT",
-      "patient": { "name": "김OO", "patientNo": "P0001234", "age": 68, "sex": "M" },
+      "subjectRef": "3f0c5b1e-6a8d-4c2e-9b7a-1d2e3f4a5b6c",
       "roomNo": "302",
-      "examName": "뇌 MRI",
+      "bedNo": "1",
+      "itemName": "뇌 MRI",
       "counterpartDepartment": { "id": 7, "name": "MRI실" },
       "requestedAt": "2026-09-04T14:12:00+09:00",
       "scheduledAt": "2026-09-04T15:30:00+09:00",
       "waitingMinutes": 18,
-      "criticalAlertCount": 1,
+      "myTurn": true,
       "version": 3
     }
   ]
 }
 ```
 
+이름·진단명·주의사항은 없다. `subjectRef` 로 원내에 물어 채운다.
+
 `counterpartDepartment` : 병동이 보면 검사실, 검사실이 보면 병동. 상대 파트를 뜻한다.
+
+`myTurn` : **보고 있는 쪽이 다음 걸음을 눌러야 하는가.** 위 예에서 준비완료 다음(환자 출발)은 병동이 누르므로
+병동이 보면 `true`, MRI실이 보면 `false` 다. 보류·취소처럼 옆으로 가는 버튼은 치지 않는다 — 누를 수는 있어도
+"차례" 는 아니다. 보류 중인 요청은 양쪽 다 `false` 다. 판정은 `OrderType` 규칙표에서 나온다.
+
+교대할 때 넘길 것이 이것이다. 안 끝난 요청 중 **우리가 멈춰 세운 것**(수령 확인을 안 누른 약, 결과를 안 본 검체,
+출발을 안 누른 이송)과 상대를 기다리는 것은 넘기는 말이 다르다. 목록에 섞여 있으면 인수인계 때 한 줄씩 열어 봐야 한다.
 
 `waitingMinutes` : 요청 시각부터 흐른 시간. 진행중이면 지금까지, 끝났으면 완료 시각까지 센다.
 검사실 큐에서 오래 기다린 행을 진하게 칠하는 근거라서 "지금 기준" 이어야 한다.
@@ -826,6 +839,61 @@ A-05 화면은 탭이 둘이다. **환자 정보 열람**은 원내 경로를, *
 }
 ```
 
+### 누가 받는가
+
+**그 요청에 손댄 사람만 받는다.** 요청한 사람과, 진행 기록에 행위자로 남은 사람 전원(양쪽 파트)이다.
+누른 사람 본인은 뺀다. 비활성 계정도 뺀다.
+
+한쪽 파트에 아직 손댄 사람이 없으면 **그 파트 전원**이 받는다. 담당자가 정해지지 않았으니
+누가 집을지 모르기 때문이다. 새 요청이 수행 파트 전원에게 가는 것이 이 경우다. 아무도 접수하지 않은
+요청을 병동이 취소하거나 메시지를 남겼을 때도 수행 파트 전원이 받는다.
+
+예전에는 매번 양쪽 파트 전원에게 보냈다. 작은 병원 반년치 데이터로 세어 보니 **하루 7만 5천 건**이었다.
+병동 간호사 폰에 남의 환자 채혈 결과 알림까지 쌓이면 결국 아무도 알림을 보지 않는다.
+파트 전체가 알아야 하는 변화는 실시간 채널과 화면 갱신이 이미 전한다 — 알림함은 **나중에 확인할 내 일**만 담는다.
+
+### 접수 지연
+
+응급 요청이 **10분**, 긴급 요청이 **30분** 동안 접수되지 않으면(`REQUESTED` 그대로) 한 번 더 알린다.
+받는 사람은 **양쪽 파트의 수간호사와 요청한 사람**이다. 새 요청 알림은 이미 수행 파트 전원에게 갔으니
+같은 사람들에게 또 보내지 않는다 — 그걸 놓친 상황이다. 파트를 움직일 수 있는 사람에게 올린다.
+
+- `notiType` 은 `DELAYED`. 제목은 `"MRI실 응급 요청이 12분째 접수되지 않았습니다"`.
+- 요청마다 **한 번만** 보낸다(`work_order.delay_notified_at`). 매분 울리면 결국 끈다.
+- 파트 채널로 `ORDER_DELAYED` 도 방송한다. 큐를 보고 있는 사람에게 빨간 토스트로 뜬다.
+- 들어온 지 12시간이 지난 요청은 올리지 않는다. 서버가 오래 꺼져 있다 켜졌을 때 한꺼번에 울리는 것을 막는다.
+  그만큼 묵은 요청은 지연이 아니라 방치이고, 알림 하나로 풀리지 않는다.
+- 시간 기준은 `app.delay-escalation.emergency-minutes` / `urgent-minutes` 로 바꾼다. 일반 요청은 올리지 않는다.
+- 접수 여부를 표시하는 값이지 요청의 상태가 아니다. `version` 을 올리지 않는다 — 올리면 알림이 나가는 순간
+  접수 버튼을 누른 간호사가 "다른 사용자가 먼저 처리했습니다" 를 받는다.
+
+### 보관
+
+읽은 알림은 30일, 읽지 않은 알림은 90일이 지나면 지운다(매일 03:40). 알림은 요청 이력의 복사본이라
+지워도 잃는 기록이 없다. 무엇이 언제 일어났는지는 `work_order_event` 에 그대로 남는다.
+
+### 폰 알림 (Web Push)
+
+알림함은 열어 봐야 보이고 실시간 토스트는 화면을 보고 있어야 뜬다. 병동 간호사는 폰을 주머니에 넣고 다닌다.
+**알림함에 쌓이는 그 알림을 폰 알림창에도 띄운다.** 받는 사람·문구는 알림함과 같다(위 규칙 그대로).
+
+| 메서드 | 경로 | |
+|---|---|---|
+| GET | `/push/public-key` | `{ "publicKey": "BP4z…" }` — 브라우저가 구독할 때 쓰는 VAPID 공개키. 서버에 키가 없으면 `null`, 화면은 버튼을 감춘다 |
+| POST | `/push/subscriptions` | 이 기기를 내 알림 받을 곳으로 등록한다. 본문은 브라우저 `PushSubscription.toJSON()` 그대로(`endpoint`, `keys.p256dh`, `keys.auth`). 204 |
+| DELETE | `/push/subscriptions` | `{ "endpoint": "…" }` 이 기기를 뺀다. 204 |
+
+- **로그아웃하면 이 기기의 구독을 뺀다.** 병동 폰은 여럿이 돌려 쓴다. 안 빼면 다음 사람이 앞사람 환자 알림을 받는다.
+  같은 기기(같은 `endpoint`)로 다른 사람이 등록하면 앞사람 것을 넘겨받는다.
+- 내용은 알림함 문구와 같다 — 이름 없이 병실·업무명만. 푸시는 구글·애플의 중계 서버를 거친다.
+  본문은 기기 키로 암호화되어(RFC 8291) 중계 서버가 읽지 못하지만, 그래도 이름을 싣지 않는 규칙을 바꿀 이유가 없다.
+- 누르면 `/orders/{id}` 로 열린다. 화면이 소속에 맞는 요청 상세로 보낸다.
+- 서버는 **알려진 푸시 서비스 주소로만 보낸다**(`app.push.allowed-hosts`). 구독 주소는 브라우저가 보내온 값이라
+  그대로 믿으면 서버가 아무 주소로나 요청을 쏘게 된다(SSRF).
+- 푸시 서비스가 `404`·`410` 을 주면 그 구독은 죽은 것이다(앱 삭제, 권한 회수). 지운다.
+- 보내기는 요청 처리 스레드를 붙잡지 않는다. 푸시 서비스가 느려도 접수 버튼은 바로 돌아온다.
+- 응급·접수 지연은 `Urgency: high` 로 보낸다. 나머지는 `normal` — 배터리 절약 모드의 폰이 미룰 수 있다.
+
 ### PATCH /notifications/{id}/read — 204
 ### POST /notifications/read-all — 204
 
@@ -880,23 +948,29 @@ CONNECT 헤더 : Authorization: Bearer {accessToken}
 
 ```json
 {
-  "eventType": "TRANSFER_STATUS_CHANGED",
+  "eventType": "ORDER_STATUS_CHANGED",
   "requestId": 101,
   "requestNo": "TR20260904-0001",
   "fromStatus": "REQUESTED",
   "toStatus": "ACCEPTED",
   "priority": "URGENT",
-  "patientName": "김OO",
+  "subjectRef": "3f0c5b1e-6a8d-4c2e-9b7a-1d2e3f4a5b6c",
   "roomNo": "302",
-  "examName": "뇌 MRI",
+  "itemName": "뇌 MRI",
   "actorId": 5,
   "actorName": "박간호",
   "actorDepartmentName": "MRI실",
+  "waitingMinutes": null,
   "occurredAt": "2026-09-04T14:30:00+09:00"
 }
 ```
 
-`eventType` 종류: `TRANSFER_CREATED`, `TRANSFER_STATUS_CHANGED`, `MESSAGE_CREATED`
+`eventType` 종류: `ORDER_CREATED`, `ORDER_STATUS_CHANGED`, `MESSAGE_CREATED`, `ORDER_DELAYED`
+
+이름은 싣지 않는다. 환자는 `subjectRef` 로만 가리키고 화면이 필요하면 원내에 물어 채운다.
+
+`ORDER_DELAYED` 는 사람이 누른 것이 아니라 서버가 보낸다. `actorId`·`actorName`·`actorDepartmentName` 이
+비어 오고 `waitingMinutes` 에 몇 분째 기다렸는지가 실린다(7장 접수 지연).
 
 페이로드에 사람이 읽을 수 있는 필드를 함께 싣는 것은 **토스트 문구를 만들기 위해서**다.
 화면을 이 내용으로 그리라는 뜻이 아니다. 목록과 상세는 반드시 REST 로 다시 받아온다.

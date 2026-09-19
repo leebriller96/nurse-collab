@@ -95,6 +95,14 @@ public class WorkOrder extends BaseTimeEntity {
     @Column(name = "completed_at")
     private OffsetDateTime completedAt;
 
+    /**
+     * 접수 지연을 알린 시각. 조건부 일괄 갱신으로만 찍는다(WorkOrderRepository.markDelayNotified).
+     * 엔티티 저장이 이 칸을 덮지 않게 막는다 — 알림이 나간 뒤 접수가 저장되며 null 로 돌아가면
+     * 다음 분에 또 알린다.
+     */
+    @Column(name = "delay_notified_at", insertable = false, updatable = false)
+    private OffsetDateTime delayNotifiedAt;
+
     @Column(length = 500)
     private String note;
 

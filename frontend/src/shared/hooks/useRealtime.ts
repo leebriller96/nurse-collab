@@ -5,7 +5,7 @@ import { tokenStore } from '@/shared/api/client';
 import type { OrderPriority, OrderStatus } from '@/shared/api/types';
 
 export interface RealtimeEvent {
-  eventType: 'ORDER_CREATED' | 'ORDER_STATUS_CHANGED' | 'MESSAGE_CREATED';
+  eventType: 'ORDER_CREATED' | 'ORDER_STATUS_CHANGED' | 'MESSAGE_CREATED' | 'ORDER_DELAYED';
   requestId: number;
   requestNo: string;
   fromStatus: OrderStatus | null;
@@ -19,9 +19,12 @@ export interface RealtimeEvent {
   subjectRef: string | null;
   roomNo: string | null;
   itemName: string;
-  actorId: number;
-  actorName: string;
-  actorDepartmentName: string;
+  /** 접수 지연(ORDER_DELAYED)은 서버가 보내므로 행위자 칸이 비어 온다 */
+  actorId: number | null;
+  actorName: string | null;
+  actorDepartmentName: string | null;
+  /** 접수 지연일 때만. 몇 분째 기다렸나 */
+  waitingMinutes: number | null;
   occurredAt: string;
 }
 

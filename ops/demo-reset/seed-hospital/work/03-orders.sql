@@ -437,6 +437,16 @@ FROM (
     FROM ev e JOIN ord o ON o.id = e.order_id
 ) x;
 
+-- 접수 안 된 채 기준 시간(응급 10분·긴급 30분)을 넘긴 요청은 그때 이미 알린 것으로 찍는다.
+-- 안 찍으면 초기화 1분 뒤 감시가 이것들을 한꺼번에 수간호사에게 올린다.
+UPDATE work_order
+   SET delay_notified_at = requested_at + CASE priority WHEN 'EMERGENCY' THEN interval '10 minutes'
+                                                        ELSE interval '30 minutes' END
+ WHERE status = 'REQUESTED'
+   AND priority IN ('EMERGENCY', 'URGENT')
+   AND requested_at + CASE priority WHEN 'EMERGENCY' THEN interval '10 minutes'
+                                    ELSE interval '30 minutes' END <= (SELECT anchor FROM plan_anchor);
+
 -- 요청번호 발번 표. 오늘 새로 만드는 요청이 기존 번호 뒤를 잇게 한다.
 INSERT INTO request_no_sequence (date_key, order_type, last_no)
 SELECT date_trunc('day', requested_at)::date, order_type, count(*)
@@ -463,52 +473,63 @@ FROM (
 WHERE m.created_at <= (SELECT anchor FROM plan_anchor);
 
 -- ── 알림함 ───────────────────────────────────────────────
--- 서버는 요청의 양쪽 파트 직원에게, 누른 사람만 빼고 알림을 남긴다. 최근 하루 치만 만든다 —
--- 6개월 치를 다 만들면 수백만 행이 되고, 알림함은 어차피 최근 것만 본다.
+-- 서버와 같은 규칙으로 받는 사람을 고른다(api-spec 7장). 그 요청에 그때까지 손댄 사람 —
+-- 요청한 사람, 진행 기록의 행위자, 메시지를 남긴 사람 — 이고, 한쪽 파트에 아직 손댄 사람이 없으면
+-- 그 파트 전원이다. 누른 사람 본인은 뺀다. 최근 하루 치만 만든다 — 알림함은 어차피 최근 것만 본다.
+CREATE TEMP TABLE noti_src AS
+SELECT 'e' || e.id AS src_key, e.order_id, e.occurred_at AS at, e.actor_id, e.actor_dept_id,
+       CASE WHEN e.to_status = 'REQUESTED' THEN 'ORDER_CREATED' ELSE 'STATUS_CHANGED' END AS noti_type,
+       e.to_status
+FROM work_order_event e, plan_anchor p
+WHERE e.occurred_at > p.anchor - interval '24 hours'
+UNION ALL
+SELECT 'm' || m.id, m.order_id, m.created_at, m.sender_id, s.department_id, 'MESSAGE', NULL
+FROM request_message m
+JOIN staff s ON s.id = m.sender_id, plan_anchor p
+WHERE m.created_at > p.anchor - interval '24 hours';
+
+CREATE TEMP TABLE noti_involved AS
+SELECT DISTINCT n.src_key, x.staff_id, st.department_id
+FROM noti_src n
+JOIN work_order w ON w.id = n.order_id
+CROSS JOIN LATERAL (
+    SELECT w.requested_by AS staff_id
+    UNION SELECT e.actor_id FROM work_order_event e WHERE e.order_id = n.order_id AND e.occurred_at <= n.at
+    UNION SELECT m.sender_id FROM request_message m WHERE m.order_id = n.order_id AND m.created_at <= n.at
+) x
+JOIN staff st ON st.id = x.staff_id AND st.is_active;
+CREATE INDEX ON noti_involved (src_key, department_id);
+
 INSERT INTO notification (recipient_id, noti_type, ref_type, ref_id, title, body, read_at, created_at)
-SELECT sp.id,
-       CASE WHEN e.to_status = 'REQUESTED' THEN 'ORDER_CREATED' ELSE 'STATUS_CHANGED' END,
-       'WORK_ORDER', w.id,
-       CASE WHEN e.to_status = 'REQUESTED' THEN fd.name || '에서 새 요청을 보냈습니다'
-            ELSE ad.name || '에서 ' || CASE e.to_status
+SELECT sp.id, n.noti_type, 'WORK_ORDER', w.id,
+       CASE n.noti_type
+           WHEN 'ORDER_CREATED' THEN fd.name || '에서 새 요청을 보냈습니다'
+           WHEN 'MESSAGE' THEN ad.name || ' ' || actor.name || '님이 메시지를 남겼습니다'
+           ELSE ad.name || '에서 ' || CASE n.to_status
                 WHEN 'ACCEPTED' THEN '접수됨' WHEN 'READY' THEN '준비완료' WHEN 'IN_TRANSIT' THEN '이송중'
                 WHEN 'RETURNED' THEN '복귀중' WHEN 'IN_PROGRESS' THEN '진행중' WHEN 'COLLECTED' THEN '채취완료'
                 WHEN 'RESULTED' THEN '결과등록' WHEN 'DISPENSED' THEN '조제완료' WHEN 'DELIVERED' THEN '불출완료'
                 WHEN 'AWAITING_PARTS' THEN '부품대기' WHEN 'COMPLETED' THEN '완료' WHEN 'ON_HOLD' THEN '보류'
-                WHEN 'CANCELLED' THEN '취소' ELSE e.to_status END || ' 처리했습니다' END,
+                WHEN 'CANCELLED' THEN '취소' ELSE n.to_status END || ' 처리했습니다' END,
        coalesce(ce.room_no || '호 / ', '') || si.name
          || coalesce(' / ' || to_char(w.scheduled_at, 'HH24:MI') || ' 예정', ''),
-       CASE WHEN e.occurred_at < p.anchor - interval '6 hours'
-                 AND pg_temp.u('rd:' || e.id || ':' || sp.id) < 0.85
-            THEN e.occurred_at + make_interval(secs => 60 * (5 + 115 * pg_temp.u('rt:' || e.id || ':' || sp.id))) END,
-       e.occurred_at
-FROM work_order_event e
+       CASE WHEN n.at < p.anchor - interval '6 hours'
+                 AND pg_temp.u('rd:' || n.src_key || ':' || sp.id) < 0.85
+            THEN n.at + make_interval(secs => 60 * (5 + 115 * pg_temp.u('rt:' || n.src_key || ':' || sp.id))) END,
+       n.at
+FROM noti_src n
 CROSS JOIN plan_anchor p
-JOIN work_order w ON w.id = e.order_id
+JOIN work_order w ON w.id = n.order_id
 JOIN service_item si ON si.id = w.service_item_id
 JOIN department fd ON fd.id = w.from_department_id
-JOIN department ad ON ad.id = e.actor_dept_id
+JOIN department ad ON ad.id = n.actor_dept_id
+JOIN staff actor ON actor.id = n.actor_id
 LEFT JOIN care_episode ce ON ce.subject_ref = w.subject_ref
 JOIN staff sp ON sp.department_id IN (w.from_department_id, w.to_department_id)
-             AND sp.is_active AND sp.id <> e.actor_id
-WHERE e.occurred_at > p.anchor - interval '24 hours';
-
-INSERT INTO notification (recipient_id, noti_type, ref_type, ref_id, title, body, read_at, created_at)
-SELECT sp.id, 'MESSAGE', 'WORK_ORDER', w.id,
-       sd.name || ' ' || s.name || '님이 메시지를 남겼습니다',
-       coalesce(ce.room_no || '호 / ', '') || si.name
-         || coalesce(' / ' || to_char(w.scheduled_at, 'HH24:MI') || ' 예정', ''),
-       NULL, m.created_at
-FROM request_message m
-CROSS JOIN plan_anchor p
-JOIN work_order w ON w.id = m.order_id
-JOIN service_item si ON si.id = w.service_item_id
-JOIN staff s ON s.id = m.sender_id
-JOIN department sd ON sd.id = s.department_id
-LEFT JOIN care_episode ce ON ce.subject_ref = w.subject_ref
-JOIN staff sp ON sp.department_id IN (w.from_department_id, w.to_department_id)
-             AND sp.is_active AND sp.id <> m.sender_id
-WHERE m.created_at > p.anchor - interval '24 hours';
+             AND sp.is_active AND sp.id <> n.actor_id
+WHERE EXISTS (SELECT 1 FROM noti_involved i WHERE i.src_key = n.src_key AND i.staff_id = sp.id)
+   OR NOT EXISTS (SELECT 1 FROM noti_involved i
+                   WHERE i.src_key = n.src_key AND i.department_id = sp.department_id);
 
 SELECT setval('transfer_request_id_seq', (SELECT max(id) FROM work_order));
 SELECT setval('transfer_event_id_seq',   (SELECT max(id) FROM work_order_event));

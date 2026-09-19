@@ -29,11 +29,15 @@ public record RealtimeEvent(
         Long actorId,
         String actorName,
         String actorDepartmentName,
+        /** 접수 지연(ORDER_DELAYED)일 때만. 몇 분째 기다렸나 */
+        Integer waitingMinutes,
         OffsetDateTime occurredAt
 ) {
     public enum EventType {
         ORDER_CREATED,
         ORDER_STATUS_CHANGED,
-        MESSAGE_CREATED
+        MESSAGE_CREATED,
+        /** 사람이 누른 것이 아니라 서버가 보낸다. actor 필드가 비어 온다. */
+        ORDER_DELAYED
     }
 }
