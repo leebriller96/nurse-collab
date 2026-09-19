@@ -419,12 +419,8 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
   "desiredAt": "2026-09-04T15:00:00+09:00",
   "scheduledAt": "2026-09-04T15:30:00+09:00",
   "note": "휠체어 이송 필요, 보호자 동반",
-  "alerts": [
-    { "alertType": "METAL_IMPLANT", "severity": "CRITICAL", "content": "좌측 고관절 인공관절" }
-  ],
-  "checklistWarnings": [
-    { "alertType": "METAL_IMPLANT", "message": "MRI 금기 가능성. 시행 전 확인 필요." }
-  ],
+  "holdReason": null,
+  "holdByDepartment": null,
   "availableTransitions": [
     { "status": "READY",     "label": "준비완료" },
     { "status": "ON_HOLD",   "label": "보류" },
@@ -489,9 +485,16 @@ EMR 의 진단명이 아니라 **곁에서 본 것**이기 때문이다.
 
 **필수 규칙**
 - `version` 미포함 또는 불일치 → `409 ORD-002`
-- `ON_HOLD`, `CANCELLED` 인데 `reason` 없음 → `400 TR-003`
+- `ON_HOLD`, `CANCELLED` 인데 `reason` 없음 → `400 ORD-003`
 - 허용되지 않는 전이 → `409 ORD-001`
-- `ACCEPTED` 인데 `scheduledAt` 없음 → `400`
+- 이송의 `ACCEPTED` 인데 `scheduledAt` 없음 → `400 ORD-005`
+
+**보류 해제는 건 파트만 할 수 있다** (`403 PERM-002`). 보류할 때 `hold_by_side` 에 건 쪽(REQUESTER / PERFORMER)을
+남기고, 직전 상태로 돌아가는 버튼은 그 쪽에만 내려준다. 상대 파트에는 취소만 남는다.
+사람이 아니라 **파트** 단위다 — 건 사람이 퇴근해도 다음 교대 근무자가 푼다. 상대 파트가 풀 수 있으면
+"지금은 진행하지 말자" 고 멈춰 세운 판단을 상대가 되돌리게 된다. 검사실이 장비 점검으로 걸어 둔 것을
+병동이 풀면 장비가 안 고쳐진 채 접수됨으로 돌아간다. 정말 풀어야 하면 메시지로 묻는다.
+상세의 `holdByDepartment` 가 누가 걸었는지 알려 준다. 보류가 아니면 `null` 이다.
 
 ### GET /work-orders/{id}/events
 

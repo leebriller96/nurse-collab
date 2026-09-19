@@ -198,6 +198,8 @@ export interface OrderDetail {
   completedAt: string | null;
   note: string | null;
   holdReason: string | null;
+  /** 보류를 건 파트. 푸는 것도 이 파트뿐이라 상대 화면에는 복귀 버튼이 없다. 보류가 아니면 없다 */
+  holdByDepartment: { id: number; name: string } | null;
   availableTransitions: TransitionOption[];
   version: number;
 }

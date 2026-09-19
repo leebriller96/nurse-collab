@@ -211,6 +211,39 @@ class WorkOrderTest {
     }
 
     @Test
+    void 보류는_건_파트만_풀_수_있다() {
+        // 검사실이 "장비 점검" 으로 멈춰 세운 것을 병동이 풀면 장비가 안 고쳐진 채 접수됨으로 돌아간다.
+        WorkOrder request = accepted();
+        request.transitionTo(OrderStatus.ON_HOLD, ActorSide.PERFORMER, "장비 점검", null);
+
+        assertThat(request.getHoldBySide()).isEqualTo(ActorSide.PERFORMER);
+        // 상대 파트에는 복귀 버튼이 없다. 취소는 남는다.
+        assertThat(request.availableTransitions(wardNurse)).containsExactly(OrderStatus.CANCELLED);
+
+        assertThat(errorOf(() -> request.transitionTo(
+                OrderStatus.ACCEPTED, ActorSide.REQUESTER, null, null)))
+                .isEqualTo(ErrorCode.NOT_ALLOWED_ACTOR);
+        assertThat(request.getStatus()).isEqualTo(OrderStatus.ON_HOLD);
+
+        // 같은 파트면 건 사람이 아니어도 된다 — 다음 교대 근무자가 푼다
+        request.transitionTo(OrderStatus.ACCEPTED, ActorSide.PERFORMER, null, null);
+        assertThat(request.getStatus()).isEqualTo(OrderStatus.ACCEPTED);
+        assertThat(request.getHoldBySide()).isNull();
+    }
+
+    @Test
+    void 병동이_건_보류는_검사실이_풀_수_없다() {
+        WorkOrder request = accepted();
+        request.transitionTo(OrderStatus.READY, ActorSide.PERFORMER, null, null);
+        request.transitionTo(OrderStatus.ON_HOLD, ActorSide.REQUESTER, "환자 상태 불안정", null);
+
+        assertThat(request.availableTransitions(mriNurse)).containsExactly(OrderStatus.CANCELLED);
+        assertThat(errorOf(() -> request.transitionTo(
+                OrderStatus.READY, ActorSide.PERFORMER, null, null)))
+                .isEqualTo(ErrorCode.NOT_ALLOWED_ACTOR);
+    }
+
+    @Test
     void 보류_상태에서도_취소는_가능하다() {
         WorkOrder request = accepted();
         request.transitionTo(OrderStatus.ON_HOLD, ActorSide.PERFORMER, "장비 점검", null);

@@ -392,6 +392,8 @@ CREATE TEMP TABLE ev_summary AS
 SELECT order_id,
        (array_agg(to_status ORDER BY minutes DESC, seq DESC))[1] AS status,
        (array_agg(reason    ORDER BY minutes DESC, seq DESC))[1] AS last_reason,
+       -- 마지막으로 보류를 건 쪽. 서버가 hold_by_side 에 남기는 값과 같아야 한다 (V20)
+       (array_agg(side ORDER BY minutes DESC, seq DESC) FILTER (WHERE to_status = 'ON_HOLD'))[1] AS hold_side,
        max(minutes) AS last_min,
        count(*) AS n,
        max(minutes) FILTER (WHERE to_status = 'IN_PROGRESS') AS t_prog,
@@ -402,7 +404,7 @@ GROUP BY order_id;
 
 INSERT INTO work_order (id, request_no, service_item_id, from_department_id, to_department_id, status, priority,
                         requested_by, requested_at, scheduled_at, started_at, completed_at, note, hold_reason,
-                        version, created_at, updated_at, hold_from_status, order_type, subject_ref)
+                        version, created_at, updated_at, hold_from_status, order_type, subject_ref, hold_by_side)
 SELECT o.id,
        CASE o.order_type WHEN 'TRANSFER' THEN 'TR' WHEN 'SPECIMEN' THEN 'SP'
                          WHEN 'PHARMACY' THEN 'PH' ELSE 'EQ' END
@@ -420,7 +422,8 @@ SELECT o.id,
        o.requested_at,
        o.requested_at + make_interval(secs => 60 * e.last_min),
        CASE WHEN e.status = 'ON_HOLD' THEN 'ACCEPTED' END,
-       o.order_type, o.subject_ref
+       o.order_type, o.subject_ref,
+       CASE WHEN e.status = 'ON_HOLD' THEN CASE e.hold_side WHEN 'R' THEN 'REQUESTER' ELSE 'PERFORMER' END END
 FROM ord o
 JOIN ev_summary e ON e.order_id = o.id
 LEFT JOIN tl_transfer t ON t.order_id = o.id;

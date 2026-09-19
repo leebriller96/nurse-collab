@@ -2,6 +2,7 @@ package com.nursecollab.domain.workorder.dto;
 
 import com.nursecollab.domain.department.dto.DepartmentSummary;
 import com.nursecollab.domain.staff.entity.Staff;
+import com.nursecollab.domain.workorder.entity.ActorSide;
 import com.nursecollab.domain.workorder.entity.OrderPriority;
 import com.nursecollab.domain.workorder.entity.OrderStatus;
 import com.nursecollab.domain.workorder.entity.OrderType;
@@ -39,6 +40,8 @@ public record WorkOrderDetailResponse(
         OffsetDateTime completedAt,
         String note,
         String holdReason,
+        /** 보류를 건 파트. 풀 수 있는 것도 이 파트뿐이라 화면이 "MRI실이 보류" 로 보여 준다. 보류가 아니면 비어 있다 */
+        DepartmentSummary holdByDepartment,
         List<TransitionOption> availableTransitions,
         Long version
 ) {
@@ -88,6 +91,9 @@ public record WorkOrderDetailResponse(
                 request.getCompletedAt(),
                 request.getNote(),
                 request.getHoldReason(),
+                request.getHoldBySide() == null ? null
+                        : DepartmentSummary.from(request.getHoldBySide() == ActorSide.REQUESTER
+                                ? request.getFromDepartment() : request.getToDepartment()),
                 transitions,
                 request.getVersion());
     }

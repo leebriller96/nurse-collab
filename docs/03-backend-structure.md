@@ -298,6 +298,7 @@ public class WorkOrder extends BaseTimeEntity {
     @Enumerated(EnumType.STRING)
     @Column(length = 20)
     private OrderStatus holdFromStatus;  // 보류 직전 상태
+    private ActorSide holdBySide;        // 보류를 건 쪽. 푸는 것도 이 쪽만 (V20)
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 10)
@@ -370,10 +371,13 @@ public class WorkOrder extends BaseTimeEntity {
 
         if (status.isTerminal()) return Set.of();
         if (status == OrderStatus.ON_HOLD) {
-            // 보류 상태에서는 "복귀" 와 "취소" 만 가능
-            return Set.of(holdFromStatus, OrderStatus.CANCELLED);
+            // 보류 상태에서는 "복귀" 와 "취소" 만 가능. 복귀는 건 쪽(holdBySide)에만 보인다
+            Set<OrderStatus> options = new LinkedHashSet<>();
+            if (side == holdBySide) options.add(holdFromStatus);
+            options.add(OrderStatus.CANCELLED);
+            return options;
         }
-        return OrderStatus.availableFor(status, side);
+        return orderType.availableFor(status, side);
     }
 
     // ------------------------------------------------------------------
@@ -396,13 +400,18 @@ public class WorkOrder extends BaseTimeEntity {
             throw new BusinessException(ErrorCode.ALREADY_FINISHED);
         }
 
-        // 보류 해제는 규칙표가 아니라 저장된 직전 상태로 판단한다
+        // 보류 해제는 규칙표가 아니라 저장된 직전 상태로 판단한다.
+        // 건 쪽만 푼다 — 사람이 아니라 파트다. 다음 교대 근무자는 풀고, 상대 파트는 못 푼다.
         if (status == OrderStatus.ON_HOLD && to != OrderStatus.CANCELLED) {
             if (to != holdFromStatus) {
                 throw new BusinessException(ErrorCode.INVALID_TRANSITION);
             }
+            if (actorSide != holdBySide) {
+                throw new BusinessException(ErrorCode.NOT_ALLOWED_ACTOR);
+            }
             this.status = to;
             this.holdFromStatus = null;
+            this.holdBySide = null;
             this.holdReason = null;
             return;
         }

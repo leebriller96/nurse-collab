@@ -233,7 +233,10 @@ export default function OrderDetailPage() {
         )}
         {d.note && <p className="mt-2 text-sm text-slate-600">메모: {d.note}</p>}
         {d.holdReason && (
-          <p className="mt-2 text-sm text-amber-800">사유: {d.holdReason}</p>
+          <p className="mt-2 text-sm text-amber-800">
+            {d.holdByDepartment && <span className="font-semibold">{d.holdByDepartment.name} 보류 · </span>}
+            사유: {d.holdReason}
+          </p>
         )}
       </section>
 
